@@ -209,6 +209,52 @@ async function pipe(lineText, col) {
   check("after a word", await pipe("emissions", 9), " %>%");
   check("at the start of a line", await pipe("", 0), "%>%");
 
+  console.log("--- saved edits after a reload (makeSavedEditsSafe)");
+  {
+    const fs = require("fs");
+    const os = require("os");
+    const safe = ext._test.makeSavedEditsSafe;
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "rpi-"));
+    const dir = path.join(tmp, "a b");                        // a space, as in "<Dropbox>"
+    const session = path.join(tmp, "chatEditingSessions", "x");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.mkdirSync(path.join(session, "contents"), { recursive: true });
+    // VS Code writes file URIs as file:///c%3A/Users/a%20b/x.R
+    const vsUri = (p) => {
+      const parts = p.split(path.sep);
+      const drive = parts.shift().replace(":", "").toLowerCase();
+      return "file:///" + drive + "%3A/" + parts.map(encodeURIComponent).join("/");
+    };
+    // one saved edit: the file now (null = no file), the text VS Code saved, its state
+    const entry = (name, now, saved, state) => {
+      const file = path.join(dir, name);
+      if (now !== null) fs.writeFileSync(file, now);
+      fs.writeFileSync(path.join(session, "contents", "h-" + name), saved);
+      return { resource: vsUri(file), currentHash: "h-" + name, state };
+    };
+    const stateFile = path.join(session, "state.json");
+    const write = (entries, spaces) => fs.writeFileSync(stateFile, JSON.stringify({ version: 2, recentSnapshot: { entries } }, null, spaces));
+    const states = () => JSON.parse(fs.readFileSync(stateFile, "utf8")).recentSnapshot.entries.map((e) => e.state);
+
+    check("no saved edits", safe(stateFile), 0);
+    write([
+      entry("same.R", "x <- 1\r\n", "x <- 1\r\n", 0),
+      entry("changed.R", "x <- 2\r\n", "x <- 1\r\n", 0),
+      entry("missing.R", null, "x <- 1\r\n", 0),
+      entry("kept.R", "x <- 2\r\n", "x <- 1\r\n", 1),
+    ]);
+    check("waiting for Keep / Undo: only the unchanged file", safe(stateFile), 1);
+    check("changed or missing file: marked kept", states(), [0, 1, 1, 1]);
+    write([entry("same2.R", "y\n", "y\n", 0), entry("typed.R", "z\n", "z\n", 0)], 1);
+    const typed = (p) => (p.endsWith("typed.R") ? "z typed after the reload\n" : fs.readFileSync(p, "utf8"));
+    check("unsaved typing in the editor counts as changed", safe(stateFile, typed), 1);
+    check("typed file marked kept", states(), [0, 1]);
+    write([entry("same3.R", "y\n", "y\n", 0)], 1);
+    const before = fs.readFileSync(stateFile, "utf8");
+    check("nothing changed: state.json not rewritten", (safe(stateFile), fs.readFileSync(stateFile, "utf8") === before), true);
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+
   console.log("\n" + passed + " passed, " + failed + " failed");
   process.exitCode = failed ? 1 : 0;
 })();

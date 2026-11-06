@@ -240,6 +240,25 @@ keep: back to line N`. The jump to the next *file* after the last change of
 a file is off in settings.json: `"chat.editing.revealNextChangeOnResolve":
 false`. Copilot's own edits still jump (only Claude's edits are ours).
 
+**Keep / Undo come back after Reload Window** (6 Nov 2026). VS Code saves
+every chat edit session when the window closes
+(`%APPDATA%\Code\User\workspaceStorage\<workspace>\chatEditingSessions\<SHA-1
+of "claude-edits:/edits">\state.json`) and reads it back when that chat
+session is loaded again (checked in the VS Code 1.145.2 code). Our session
+was only loaded by Claude's next edit, so after a reload the Keep / Undo of
+edits not yet reviewed stayed away until then (6 Nov: three files looked
+"unchanged"; the edits were in them all along). Now the extension sends one
+empty request as soon as chat is ready (a few seconds after the reload, up
+to 1.5 minutes while Copilot starts), and they come back. Also after a full
+restart. The log gets `edits restore: loading the saved edits for Keep /
+Undo`. Safety: for an edit not yet reviewed, VS Code puts its saved text
+back into the file, and auto save would then save it. So just before the
+session is first loaded, each saved edit whose file changed since (typed in,
+also unsaved, or changed by git) is marked kept: no Keep / Undo for that
+file, but no work lost (log: `edits restore: <file> changed since, left as
+it is`). Without this, typing in such a file after a reload and then a
+Claude edit put the older text back.
+
 Side effect: because the session type has `canDelegate` (needed for the
 command that sends to it), VS Code may list "Claude's edits" among the chat
 session types (new-chat menu); ignore it.
@@ -253,11 +272,13 @@ if Claude made that edit, once, at the next start (used for
 
 Debug log: `%TEMP%\r-pipe-indent.log` (one line per Enter, run and stop; an
 Enter line ends in `-> indent N` or `-> default` = handed to VS Code's Enter).
-Offline test (76 checks, no VS Code needed), from the extension folder:
+Offline test (82 checks, no VS Code needed), from the extension folder.
+Code.exe is a window program: pipe its output (`| Out-String`), or
+PowerShell returns before the test has printed everything:
 
 ```powershell
 $env:ELECTRON_RUN_AS_NODE = 1
-& "C:\Users\<you>\AppData\Local\Programs\Microsoft VS Code\Code.exe" test.js
+& "C:\Users\<you>\AppData\Local\Programs\Microsoft VS Code\Code.exe" test.js | Out-String
 ```
 
 After changing `extension.js`: run the test, copy the folder to

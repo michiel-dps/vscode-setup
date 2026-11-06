@@ -26,6 +26,7 @@ const vscode = require("vscode");
 //
 // Claude's edits (near the end of this file): shown in VS Code's own chat edit
 // view, with Keep / Undo, through our own chat session type "claude-edits".
+// Edits not yet reviewed come back after Reload Window (restoreAfterReload).
 
 const PIPE_END = /(%>%|\|>)\s*$/;
 // a line that cannot end a statement: ends in an operator, comma or open ( [
@@ -351,6 +352,8 @@ async function insertPipe() {
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const crypto = require("crypto");
+const url = require("url");
 
 const SIGNALS = path.join(process.env.LOCALAPPDATA || os.tmpdir(), "claude-edits");
 const JOB_TIMEOUT_MS = 5 * 60 * 1000;   // an edit still open after this is closed anyway
@@ -367,6 +370,8 @@ const edits = {
   wake: null,            // wakes the running chat request when a new job comes in
   watchdog: null,
   pausedUntil: 0,        // the chat did not work: leave Claude's edits alone until then
+  sessionLoaded: false,  // our chat session ran a request in this window (VS Code read its saved edits)
+  savedFile: null,       // VS Code's saved edits of our session (state.json), see restoreAfterReload
 };
 
 function signal(name) { return path.join(SIGNALS, name); }
@@ -442,10 +447,10 @@ function claimJob(id) {
   edits.queue.push(job);
   log("edits start " + info.file);
   if (edits.wake) edits.wake();
-  else if (!edits.opening && edits.active === 0) openRequest(job);
+  else if (!edits.opening && edits.active === 0) openRequest(path.basename(job.uri.fsPath));
 }
 
-// Send a request with the file name to our own chat session SESSION. That
+// Send a request (normally the file name) to our own chat session SESSION. That
 // session is not shown in any chat window, so the chat panel (and whatever
 // chat it shows, e.g. a Copilot CLI session) and the cursor stay as they are.
 // The file is NOT opened (since 6 Nov 2026: opening it made the editor jump to
@@ -453,7 +458,10 @@ function claimJob(id) {
 // when the user opens the file himself. The command exists because package.json
 // declares the chat session type "claude-edits" with canDelegate; it returns
 // only when the request is finished, so it is not awaited here.
-function openRequest(first) {
+function openRequest(prompt) {
+  // The first request in this window loads our session, and VS Code then puts
+  // back its saved edits not yet reviewed: first make sure that loses nothing.
+  if (!edits.sessionLoaded && edits.savedFile) makeSavedEditsSafe(edits.savedFile, currentText);
   edits.opening = true;
   clearTimeout(edits.watchdog);
   edits.watchdog = setTimeout(() => {
@@ -465,10 +473,9 @@ function openRequest(first) {
     [...edits.queue].forEach((job) => finishJob(job, "not shown"));
   }, HANDLER_WAIT_MS);
   (async () => {
-    const uri = first.uri;
     await vscode.commands.executeCommand("workbench.action.chat.openSessionWithPrompt.claude-edits", {
       resource: vscode.Uri.parse(SESSION),
-      prompt: path.basename(uri.fsPath),
+      prompt,
     });
   })().catch((e) => log("ERR  edits send " + (e && e.stack ? e.stack : e)));
 }
@@ -486,6 +493,7 @@ function nextJob(token) {
 // A request in our chat session: wraps every edit in externalEdit, so VS Code
 // records it as a chat edit with Keep / Undo.
 async function editsHandler(request, context, stream, token) {
+  edits.sessionLoaded = true;
   edits.opening = false;
   clearTimeout(edits.watchdog);
   if (edits.active > 0) {                  // a second request while one runs: that one takes the jobs
@@ -539,7 +547,7 @@ async function editsHandler(request, context, stream, token) {
   stream.markdown(names.length
     ? "Claude changed " + names.map((n) => "`" + n + "`").join(", ") + "."
     : "No changes.");
-  if (edits.queue.length && !edits.opening) openRequest(edits.queue[0]);   // jobs that came in just now
+  if (edits.queue.length && !edits.opening) openRequest(path.basename(edits.queue[0].uri.fsPath));   // jobs that came in just now
   return {};
 }
 
@@ -553,11 +561,7 @@ async function runDemoOnce() {
   const uri = vscode.Uri.file(demo.file);
   if (!vscode.workspace.getWorkspaceFolder(uri)) return;          // another window's file
   try { fs.renameSync(signal("demo.json"), signal("demo.claimed")); } catch (e) { return; }
-  for (let i = 0; i < 90; i++) {                                    // Copilot's models, up to 1.5 minutes
-    const models = await vscode.lm.selectChatModels({ vendor: "copilot" });
-    if (models.length) break;
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
+  await chatReady();
   const job = { id: "demo", uri, session: "demo", closed: false, demoText: demo.text };
   job.finished = new Promise((resolve) => { job.resolve = resolve; });
   job.timer = setTimeout(() => finishJob(job, "timed out"), JOB_TIMEOUT_MS);
@@ -565,7 +569,87 @@ async function runDemoOnce() {
   edits.queue.push(job);
   log("edits demo " + demo.file);
   if (edits.wake) edits.wake();
-  else if (!edits.opening && edits.active === 0) openRequest(job);
+  else if (!edits.opening && edits.active === 0) openRequest(path.basename(job.uri.fsPath));
+}
+
+// Chat requests only run once Copilot's chat is ready: wait for its models, up to 1.5 minutes
+async function chatReady() {
+  for (let i = 0; i < 90; i++) {
+    const models = await vscode.lm.selectChatModels({ vendor: "copilot" });
+    if (models.length) return true;
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  return false;
+}
+
+// ---- Keep / Undo back after Reload Window (6 Nov 2026) ----
+// VS Code saves every chat edit session when the window closes, in
+// workspaceStorage\<workspace>\chatEditingSessions\<SHA-1 of the session>\state.json,
+// and reads it back when that chat session is loaded again (checked in the
+// VS Code 1.145 code). Our session used to be loaded only by Claude's next
+// edit, so after a reload the Keep / Undo of edits not yet reviewed stayed away
+// until then. Now one empty request, as soon as chat is ready, loads it.
+//
+// Safety: for an edit not yet reviewed (state 0) VS Code puts its saved text
+// back into the file. If the file changed since (typed in after the reload, a
+// git checkout), that would undo the newer work, and auto save would save it.
+// So just before our session is first loaded, such entries are marked kept
+// (state 1): no Keep / Undo for that file, but nothing lost.
+
+function savedEditsFile(context) {
+  if (!context.storageUri) return null;                  // no folder open: nothing saved
+  const id = crypto.createHash("sha1").update(SESSION).digest("hex");
+  return path.join(path.dirname(context.storageUri.fsPath), "chatEditingSessions", id, "state.json");
+}
+
+function readText(file) {
+  try { return fs.readFileSync(file, "utf8"); } catch (e) { return null; }
+}
+
+// The text of a file as VS Code has it: the open editor's text (also unsaved), else the file on disk
+function currentText(file) {
+  const doc = vscode.workspace.textDocuments.find((d) =>
+    d.uri.scheme === "file" && d.uri.fsPath.toLowerCase() === file.toLowerCase());
+  return doc ? doc.getText() : readText(file);
+}
+
+// Mark saved edits whose file changed since as kept. Returns how many still wait for Keep / Undo.
+function makeSavedEditsSafe(file, readNow = readText) {
+  let saved;
+  try { saved = JSON.parse(fs.readFileSync(file, "utf8")); } catch (e) { return 0; }   // nothing saved
+  const entries = (saved.recentSnapshot && saved.recentSnapshot.entries) || [];
+  let waiting = 0;
+  let changed = false;
+  for (const entry of entries) {
+    if (entry.state !== 0 || entry.isDeleted) continue;      // kept, undone, or a deleted file
+    let target = null;
+    try { target = url.fileURLToPath(entry.resource); } catch (e) { /* not a file on disk */ }
+    const then = readText(path.join(path.dirname(file), "contents", String(entry.currentHash)));
+    const now = target ? readNow(target) : null;
+    if (then !== null && now === then) {
+      waiting++;
+      continue;
+    }
+    entry.state = 1;
+    changed = true;
+    log("edits restore: " + path.basename(target || String(entry.resource)) + " changed since, left as it is (no Keep / Undo)");
+  }
+  if (changed) {
+    try { fs.writeFileSync(file, JSON.stringify(saved)); } catch (e) { log("ERR  edits restore " + e); }
+  }
+  return waiting;
+}
+
+// Right after the start: when edits wait for Keep / Undo, load our session once
+async function restoreAfterReload() {
+  if (!edits.savedFile || makeSavedEditsSafe(edits.savedFile, currentText) === 0) return;
+  if (!(await chatReady())) {
+    log("edits restore: chat not ready; Keep / Undo come back with Claude's next edit");
+    return;
+  }
+  if (edits.sessionLoaded || edits.opening || edits.active > 0) return;   // a Claude edit loaded it already
+  log("edits restore: loading the saved edits for Keep / Undo");
+  openRequest("Keep / Undo after reload");
 }
 
 // ---- Keep / Undo on one change: stay where you are (6 Nov 2026) ----
@@ -657,6 +741,8 @@ function activateClaudeEdits(context) {
   });
   scanSignals();
   setTimeout(() => runDemoOnce().catch((e) => log("ERR  edits demo " + (e && e.stack ? e.stack : e))), 3000);
+  edits.savedFile = savedEditsFile(context);
+  setTimeout(() => restoreAfterReload().catch((e) => log("ERR  edits restore " + (e && e.stack ? e.stack : e))), 2000);
 }
 
 // Peek box button "Keep, stay here". VS Code's own + (git.stageChange) moves the
@@ -684,4 +770,4 @@ function activate(context) {
 
 function deactivate() {}
 
-module.exports = { activate, deactivate, _test: { blank, unterminatedQuote, statementStart, statementEnd, unfinished } };
+module.exports = { activate, deactivate, _test: { blank, unterminatedQuote, statementStart, statementEnd, unfinished, makeSavedEditsSafe } };
