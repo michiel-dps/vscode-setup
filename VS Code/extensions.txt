@@ -6,9 +6,6 @@ anthropic.claude-code                2.1.318
 gerane.theme-idlefingers             0.0.5
 iamhyc.overleaf-workshop             0.15.10
 mechatroner.rainbow-csv              3.24.1
-ms-dotnettools.csdevkit              3.40.215
-ms-dotnettools.csharp                2.160.4
-ms-dotnettools.vscode-dotnet-runtime 3.2.0
 ms-python.debugpy                    2026.6.0
 ms-python.python                     2026.10.0
 ms-python.vscode-pylance             2026.4.1

@@ -348,6 +348,13 @@ A click or any key skips it.
 - **Files**: `helper.cs` (the helper), `extension.js` (the add-on),
   `screen-core.js` + `screen.html` (the add-on's own screen), `tips.txt` (the
   tips, one per line, read by both).
+- **No C# add-on needed**: `build.ps1` builds `helper.cs` with the C# compiler
+  that comes with Windows (`%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe`),
+  so VS Code needs no C# add-on and no .NET SDK. Opening `helper.cs` makes VS
+  Code offer "C# Dev Kit": say no. It was installed on 6 Nov 2026 (with
+  `ms-dotnettools.csharp` and `ms-dotnettools.vscode-dotnet-runtime`) and
+  removed the same day, because its only effect was the message "The .NET SDK
+  cannot be located ... .NET debugging will not be enabled".
 - **After a change**: run `build.ps1` in the add-on folder. It stops the
   helper, packs `startup-screen.vsix` and installs it with
   `code --install-extension`, builds the helper, makes the Startup shortcut
