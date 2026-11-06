@@ -301,9 +301,11 @@ A click or any key skips it.
   `C:\Users\<you>\Pictures\VS Code startup` (a different one each start). Add
   or delete pictures there; nothing else to do. Another folder: setting
   `startupScreen.pictureFolder`. No pictures: a dark background with embers.
-  The 8 pictures there on 6 Nov 2026 are official images from the game's
+  The 6 pictures there on 6 Nov 2026 are official images from the game's
   media gallery (https://en.bandainamcoent.eu/elden-ring/elden-ring/media),
-  saved for personal use only; they are not in this folder.
+  saved for personal use only; they are not in this folder. The rider in
+  light has its bottom strip cut off, because the game's name was printed
+  there and the tip ran over it.
 - **How often**: at most once every 10 minutes (setting
   `startupScreen.minutesBetween`, 0 = every start), so several Reload Windows
   in a row do not replay it. Not when the add-on is installed or switched on
