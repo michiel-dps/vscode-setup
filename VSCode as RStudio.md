@@ -287,8 +287,8 @@ After changing `extension.js`: run the test, copy the folder to
 
 ## 5b. Startup screen (own add-on, personal, 6 Nov 2026)
 
-When VS Code starts, or after Reload Window, a tab "Loading" shows for about
-six seconds and then closes itself:
+When VS Code starts, or after Reload Window, a loading screen covers the whole
+screen for about six seconds and then closes itself:
 
 - one picture, slowly zooming out, with embers drifting up;
 - bottom left: a tip with one of your own shortcuts (a random tip each start,
@@ -298,6 +298,20 @@ six seconds and then closes itself:
 
 A click or any key skips it.
 
+- **Whole screen** (since 6 Nov 2026, setting `startupScreen.fullScreen`, on):
+  VS Code cannot put a tab on the whole screen outside its own window, so the
+  add-on opens its own window: Microsoft Edge in kiosk mode (whole screen, no
+  bars), with its own profile in `%LOCALAPPDATA%\startup-screen\edge-profile`,
+  so your normal Edge is not touched. The page comes from a small web server
+  inside the add-on that only this computer can reach (127.0.0.1, a new port
+  and a random key in the address each time). When the screen is done, the
+  add-on closes that Edge window (first politely, then by force after 1.5 s).
+  Setting off, or no Edge: an editor tab "Loading" instead. If the window
+  ever stays: Alt+F4.
+- **As early as possible**: the add-on starts with `"*"` (package.json), the
+  first moment VS Code starts add-ons, right after its own window appears;
+  Edge then needs about a second to open. (Before 6 Nov 2026 it waited for
+  "startup finished", a few seconds later.)
 - **Pictures**: every .jpg, .png or .webp in
   `C:\Users\<you>\Pictures\VS Code startup` (a different one each start). Add
   or delete pictures there; nothing else to do. Another folder: setting
@@ -320,7 +334,8 @@ A click or any key skips it.
   the add-on folder (it packs `startup-screen.vsix` and installs it with
   `code --install-extension`), then Reload Window.
 - **Log**: `%TEMP%\startup-screen.log`, one line per start: `show <picture>,
-  tip N`, or `skip: <why>`.
+  tip N, full screen` (or `in a tab`), or `skip: <why>`; then `full screen:
+  closed`, or `full screen: ERR <what went wrong>`.
 
 ## 6. R extension (reditorsupport.r) gotchas
 
