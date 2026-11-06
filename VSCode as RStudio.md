@@ -336,7 +336,11 @@ A click or any key stops it at once and goes to VS Code.
   `startupScreen.pictureFolder`. No pictures: a dark background with embers.
   The 5 pictures there on 6 Nov 2026 are official images from the game's
   media gallery (https://en.bandainamcoent.eu/elden-ring/elden-ring/media),
-  saved for personal use only; they are not in this folder.
+  saved for personal use only; they are not in this folder. The helper shows
+  .jpg, .png and .bmp (not .webp). A picture fills the screen, unless that
+  would blow it up more than 1.35 times its real size (blurry): then it is
+  shown across the full width, with a soft blurred copy of it above and
+  below (6 Nov 2026, for the key art, 1920x650, on the 2560x1600 screen).
 - **How often**: at every start, every Reload Window and every new VS Code
   window (since 6 Nov 2026; before that at most once every 10 minutes). Setting
   `startupScreen.minutesBetween`: 0 (the default) = every start; a number =
