@@ -31,6 +31,20 @@ Change these three in this folder instead (SAVE leaves them alone):
 - `VS Code\local.r-pipe-indent-0.1.0`: the Enter add-on. Afterwards copy it
   to the laptop (note, section 5).
 
+## On GitHub (anonymous copy)
+
+This folder is not a git repo itself. `scripts\publish.ps1` makes an
+anonymous copy in `C:\Users\<you>\vscode-setup-github` and pushes it to the
+private GitHub repo **vscode-setup**:
+
+- Claude's memory is left out; names, paths and e-mail become placeholders
+  (`<you>`, `<Dropbox>`, `<name>`, `<project>`, `<co-author>`).
+- It stops without pushing if any personal word is still in the copy.
+- This folder is never changed by it, so the setup keeps working.
+
+Ask Claude to "publish the setup", or run
+`powershell -NoProfile -ExecutionPolicy Bypass -File scripts\publish.ps1`.
+
 ## What is in it
 
 - `R` : watch.R, the R startup file, .lintr, the list of R packages
