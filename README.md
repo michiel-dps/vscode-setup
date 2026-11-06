@@ -1,0 +1,44 @@
+# VS Code setup
+
+Everything that makes VS Code, R and Claude Code work the way the user wants,
+in one folder. Dropbox brings it to every laptop.
+
+## On a new laptop
+
+1. Install Dropbox, sign in, and wait until this folder is there.
+2. Double-click **INSTALL.cmd**.
+   - If a program is missing (VS Code, R, Git, GitHub CLI, Python), it shows
+     one line per program. Paste each line into PowerShell, then
+     double-click INSTALL.cmd again.
+   - The first time, installing the R packages takes 10 to 20 minutes.
+3. Do the five steps it shows at the end (sign in to Claude, and so on).
+
+INSTALL never throws anything away: every file it replaces is first copied
+to `C:\Users\<you>\setup-backup-<date>`.
+
+## Keeping this folder up to date
+
+**SAVE.cmd** copies this laptop's setup into this folder. Double-click it
+after you change a setting yourself. Claude runs it after it changes the
+setup.
+
+Change the real files on the laptop, not the copies here: SAVE overwrites
+the copies.
+
+Change these three in this folder instead (SAVE leaves them alone):
+
+- `R\watch.R` and `R\Rprofile.R`: R uses them straight from here.
+- `VS Code\local.r-pipe-indent-0.1.0`: the Enter add-on. Afterwards copy it
+  to the laptop (note, section 5).
+
+## What is in it
+
+- `R` : watch.R, the R startup file, .lintr, the list of R packages
+- `VS Code` : settings (with all colours), keybindings, the list of add-ons
+  (with the idleFingers theme), the Enter add-on, the fix for the R add-on
+- `Claude Code` : Claude's rules (CLAUDE.md), settings and hooks,
+  /chats /handoff /takeon, Claude's memory
+- `git` : name, e-mail, GitHub login
+- `scripts` : the programs behind INSTALL and SAVE
+- `saved-from.txt` : when, and from which laptop, SAVE last saved a change
+- `VSCode as RStudio.md` : the full description of the setup

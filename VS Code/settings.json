@@ -1,0 +1,145 @@
+{
+    "git.ignoredRepositories": [
+        "C:\\Users\\<you>\\<Dropbox>\\<name>\\<project>\\code\\<co-author>"
+    ],
+    "files.readonlyInclude": {
+        "**/<project>/code/<co-author>/**": true
+    },
+    "claudeCode.hideOnboarding": true,
+    "diffEditor.renderSideBySide": false,
+    "diffEditor.ignoreTrimWhitespace": false,
+    "diffEditor.renderGutterMenu": true,
+    "workbench.colorTheme": "idleFingers",
+    "files.autoSave": "afterDelay",
+    "files.autoSaveDelay": 100,
+    "claudeCode.preferredLocation": "sidebar",
+    "security.workspace.trust.untrustedFiles": "open",
+    "editor.bracketPairColorization.enabled": false,
+    "editor.autoClosingOvertype": "always",
+    "editor.autoClosingDelete": "always",
+    "editor.inlayHints.enabled": "offUnlessPressed",
+    "editor.minimap.enabled": false,
+    "[r]": {
+        "editor.inlineSuggest.enabled": false
+    },
+    "r.consolePath": "C:\\Program Files\\R\\R-4.5.1\\bin\\R.exe",
+    "r.executablePath": "C:\\Program Files\\R\\R-4.5.1\\bin\\R.exe",
+    "r.bracketedPaste": true,
+    "r.sessionWatcher": true,
+    "r.plot.backend": "httpgd",
+    "workbench.editorAssociations": {
+        "*.copilotmd": "vscode.markdown.preview.editor",
+        "*.md": "vscode.markdown.preview.editor"
+    },
+    "editor.tokenColorCustomizations": {
+        "[idleFingers]": {
+            "textMateRules": [
+                {
+                    "scope": "source",
+                    "settings": {
+                        "foreground": "#FFFFFF",
+                        "fontStyle": ""
+                    }
+                },
+                {
+                    "scope": [
+                        "meta.function-call.r",
+                        "support.function.r"
+                    ],
+                    "settings": {
+                        "foreground": "#A7C7E7",
+                        "fontStyle": ""
+                    }
+                },
+                {
+                    "scope": "meta.function-call.arguments.r",
+                    "settings": {
+                        "foreground": "#FFFFFF",
+                        "fontStyle": ""
+                    }
+                },
+                {
+                    "scope": [
+                        "punctuation.definition.arguments",
+                        "punctuation.definition.parameters",
+                        "punctuation.section.parameters",
+                        "punctuation.section.brackets"
+                    ],
+                    "settings": {
+                        "foreground": "#DA70D6",
+                        "fontStyle": ""
+                    }
+                },
+                {
+                    "scope": "meta.function.r keyword.control.r",
+                    "settings": {
+                        "foreground": "#A7C7E7",
+                        "fontStyle": ""
+                    }
+                },
+                {
+                    "scope": [
+                        "entity.name.function.r",
+                        "variable.parameter",
+                        "meta.function.parameters.r"
+                    ],
+                    "settings": {
+                        "foreground": "#FFFFFF",
+                        "fontStyle": ""
+                    }
+                },
+                {
+                    "scope": "constant.numeric",
+                    "settings": {
+                        "foreground": "#F6E3A1",
+                        "fontStyle": ""
+                    }
+                },
+                {
+                    "scope": "punctuation.section.block",
+                    "settings": {
+                        "foreground": "#C3B1E1",
+                        "fontStyle": ""
+                    }
+                },
+                {
+                    "scope": [
+                        "comment",
+                        "variable",
+                        "variable.parameter",
+                        "variable.other",
+                        "entity",
+                        "entity.other",
+                        "support",
+                        "storage",
+                        "keyword",
+                        "string",
+                        "meta",
+                        "markup"
+                    ],
+                    "settings": {
+                        "fontStyle": ""
+                    }
+                }
+            ]
+        }
+    },
+    "workbench.colorCustomizations": {
+        "[idleFingers]": {
+            "statusBar.background": "#323232",
+            "statusBar.foreground": "#ffffff",
+            "statusBar.noFolderBackground": "#323232",
+            "statusBar.debuggingBackground": "#323232",
+            "statusBar.debuggingForeground": "#ffffff",
+            "statusBarItem.remoteBackground": "#3b3b3b",
+            "statusBarItem.remoteForeground": "#ffffff",
+            "modernTab.activeBackground": "#FFD16640"
+        }
+    },
+    "editor.fontLigatures": false,
+    "terminal.integrated.enablePersistentSessions": false,
+    "editor.parameterHints.enabled": false,
+    "terminal.integrated.enableMultiLinePasteWarning": "never",
+    "chat.viewSessions.orientation": "stacked",
+    "chat.editing.revealNextChangeOnResolve": false
+}

@@ -1,0 +1,56 @@
+// Place your key bindings in this file to override the defaults
+[
+    {
+        "key": "ctrl+alt+r",
+        "command": "r.createRTerm"
+    },
+    {
+        "key": "ctrl+m",
+        "command": "-editor.action.toggleTabFocusMode"
+    },
+    {
+        "key": "ctrl+shift+m",
+        "command": "rPipeIndent.insertPipe",
+        "when": "editorTextFocus && editorLangId == r && !editorReadonly"
+    },
+    {
+        "key": "ctrl+numpad4",
+        "command": "claude-vscode.primaryEditor.open"
+    },
+    {
+        "key": "ctrl+numpad5",
+        "command": "claude-vscode.sidebar.open"
+    },
+    {
+        "key": "ctrl+numpad6",
+        "command": "workbench.action.toggleAuxiliaryBar"
+    },
+    {
+        "key": "ctrl+numpad7",
+        "command": "runCommands",
+        "args": {
+            "commands": [
+                "workbench.action.focusSecondEditorGroup",
+                "claude-vscode.primaryEditor.open"
+            ]
+        }
+    },
+    {
+        "key": "ctrl+numpad8",
+        "command": "workbench.action.chat.open"
+    },
+    {
+        "key": "ctrl+alt+b",
+        "command": "-workbench.action.toggleAuxiliaryBar"
+    },
+    {
+        "key": "ctrl+enter",
+        "command": "rPipeIndent.runStatement",
+        "when": "editorTextFocus && editorLangId == r && !editorReadonly"
+    },
+    {
+        "key": "ctrl+numpad2",
+        "command": "editor.action.dirtydiff.next",
+        "when": "editorTextFocus"
+    }
+]

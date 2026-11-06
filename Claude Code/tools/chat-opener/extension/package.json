@@ -1,0 +1,11 @@
+{
+  "name": "claude-chat-opener",
+  "publisher": "local",
+  "displayName": "Claude Chat Opener",
+  "description": "Opens Claude Code chats picked with /chats as editor tabs, freeing the side panel when it holds the chat.",
+  "version": "0.1.0",
+  "engines": { "vscode": "^1.80.0" },
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {}
+}

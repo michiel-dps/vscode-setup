@@ -1,0 +1,30 @@
+# Personal instructions (<name>) — apply in every session and every project
+
+## References and links
+- **Never give a direct link to a PDF file.** Always link to the web page (landing page) where the document is presented and the PDF can be downloaded, e.g. the regjeringen.no document page, the publisher's article page, the report page on ssb.no, or the DOI. This applies to reference lists, `.bib` files, chat answers and documents alike.
+- Before giving a link, open it and check that it is that landing page and that it shows the right document.
+- For laws and regulations on Lovdata, link to the version in force for the period the sentence is about (/LTI/ = as originally published, /SF/ or /NL/ = current version), and to the specific paragraph (§) when one is cited.
+- A citation only counts if the cited source (and the cited paragraph or page) actually says what the sentence claims. Do not cite from memory.
+
+## R work in VS Code (every project, every window)
+
+Setup facts:
+- R 4.5.1 at `C:/Program Files/R/R-4.5.1/bin/Rscript.exe` (not on PATH). No RStudio. VS Code with the R extension (reditorsupport.r) is set up to behave like RStudio. The full description is `C:\Users\<you>\<Dropbox>\<name>\VS Code setup\VSCode as RStudio.md`. Read its "gotchas" section before answering any complaint about the editor, the R terminal, the Workspace panel or the data viewer. If settings, keybindings, the Enter extension or watch.R change, update that note in the same turn. That folder holds his whole setup (VS Code, R, Claude Code, git) for moving to another laptop (`README.md` there): after changing any setup file, run `powershell -NoProfile -ExecutionPolicy Bypass -File "<that folder>/scripts/save.ps1"` so the copy stays current.
+- Editor complaints ("Enter does not indent", "Tab moves my cursor"): read `%TEMP%\r-pipe-indent.log` first (one line per Enter), then fix. Most "it stopped working" reports need Reload Window or a fresh R terminal (Ctrl+Alt+R); say so plainly, with the exact key.
+- "Nothing runs": since 1 Nov 2026 Ctrl+Enter refuses an unfinished statement (unclosed bracket or quote, trailing `%>%`) with a yellow warning and a `stop` line in the log; nothing was sent. If the R terminal shows `+` instead of `>`, an earlier statement was unfinished: click in the terminal, Esc, run again. Check his brackets before any tooling.
+- Viewer tabs (tables and values alike) follow changes through `VS Code setup\R\watch.R`; `watch-test.R` next to it has 30 offline checks. Study scripts source it at the top; in any other project tell him to run `source("C:/Users/<you>/<Dropbox>/<name>/VS Code setup/R/watch.R")` once in the R terminal.
+- **Handing over edits to R scripts** (note §5 and §9): never ask for permission, never use shell commands on his scripts, never put old/new markers in the text (`# OLD:`/`# NEW` was rejected 5 Nov 2026). Since 5 Nov 2026 every Edit/Write of an R script shows in VS Code's own chat edit view, exactly like Copilot's edits: old lines red, new lines green, Keep / Undo per change, "1 of N" bar at the bottom of the editor; the Copilot chat panel is not touched (it may hold his Copilot CLI session: never send anything there). The hooks in `~/.claude/settings.json` (`review.py` pre/post/failed/stop) and the Enter extension (v0.5.0) do this; it only works through the Edit and Write tools (a shell edit bypasses the hooks), and only after VS Code was restarted once with `enable-proposed-api` in `~/.vscode/argv.json`. If he sees nothing: read `%TEMP%\r-pipe-indent.log` (`edits start/snapshot/done`, or an `ERR edits` line) before anything else. After the edit, say which file and lines. Second, older layer (3 Nov 2026): stage the file in git first (`python -I C:/Users/<you>/.claude/review/review.py stage "<file>"`; the hook does it), so the editor gutter also marks the change: Ctrl+Numpad2 ("Show Next Change", cursor in the code; Alt+F3 is taken by the NVIDIA app) or a click on the gutter bar opens the peek with old lines red, new lines green, and Revert Change (no) / Stage Change (yes); Alt+F5 only moves the cursor to the next change. A mark = an unreviewed change; Stage or Revert removes it. This only works because the "Git Local Changes (Index)" layer is hidden in VS Code (one-time: right-click a line number → Diff Decorations → untick it); if his own uncommitted work shows up in the marks, that tick is back on. No permission "ask" rules for .R files: a prompt must never block the chat box. Claude's shell cannot open windows on his screen (`code --diff` does nothing); the hooks + extension are the channel.
+
+R code style (readable beats clever):
+- tidyverse and `%>%`, never `|>`. One pipe step per line, `%>%` at the end of the line, every step indented one level under the first line.
+- The first line of a pipe is short: a name or one short call (`x <- read_csv(file) %>%`). A long path or string goes in its own variable first. Never start or continue a pipe from a call spread over several lines (`...\n) %>%`).
+- A call that fits in one line (about 80 characters) stays on one line. Only when it does not fit: one argument per line, as RStudio formats it.
+- Keep the indentation width the file already uses (2 or 4 spaces).
+- Student-level R: function names that read as English, named arguments (`into =`, `sep =`), no positional numbers, no helper tricks (walk, unite, str_split_i, `\(x)` where a plain line will do). He must be able to explain every line.
+- Blank line between steps. A short comment at the end of the line or one line above a step; never comment blocks.
+- When he points at lines (a selection), change only those lines. If an upstream rename breaks later code, fix those uses too and say in one line what else changed.
+
+Replies about R:
+- Short. Errors first, one cause each, shown as two code blocks: "yours" and "fix".
+- Explain data concepts (joins, pivot, lag, NA) with a small before/after table, not prose.
+- He moves between exercises and files quickly; check which file and line he is on (IDE selection, opened file) before answering.

@@ -1,0 +1,86 @@
+{
+	"name": "r-pipe-indent",
+	"publisher": "local",
+	"displayName": "R pipe indent",
+	"description": "RStudio-like Enter behaviour in R files: after %>% or |> indent relative to the start of the statement, keep the level inside a pipeline, outdent after its last line. Ctrl+Enter runs whole statements and refuses unfinished ones. Ctrl+Shift+M inserts %>%. Claude Code's edits to R scripts show in VS Code's own chat edit view (Keep / Undo), through its own chat session type claude-edits.",
+	"version": "0.5.0",
+	"engines": {
+		"vscode": "^1.80.0"
+	},
+	"capabilities": {
+		"untrustedWorkspaces": {
+			"supported": true
+		},
+		"virtualWorkspaces": true
+	},
+	"main": "./extension.js",
+	"enabledApiProposals": [
+		"chatParticipantAdditions",
+		"chatSessionsProvider"
+	],
+	"activationEvents": [
+		"onLanguage:r",
+		"onStartupFinished"
+	],
+	"contributes": {
+		"chatSessions": [
+			{
+				"type": "claude-edits",
+				"name": "claude-edits",
+				"displayName": "Claude's edits",
+				"description": "Shows Claude Code's edits to R scripts with Keep / Undo",
+				"canDelegate": true
+			}
+		],
+		"commands": [
+			{
+				"command": "rPipeIndent.enter",
+				"title": "R pipe indent: Enter"
+			},
+			{
+				"command": "rPipeIndent.runStatement",
+				"title": "R pipe indent: run statement (whole statements, refuse unfinished ones)"
+			},
+			{
+				"command": "rPipeIndent.insertPipe",
+				"title": "R pipe indent: insert %>%"
+			},
+			{
+				"command": "rPipeIndent.stageChangeStay",
+				"title": "Keep this change, stay here",
+				"icon": "$(check)"
+			}
+		],
+		"menus": {
+			"scm/change/title": [
+				{
+					"command": "rPipeIndent.stageChangeStay",
+					"when": "config.git.enabled && !git.missing && originalResource =~ /^git\\:.*%22ref%22%3A%22%22%7D$/"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "rPipeIndent.stageChangeStay",
+					"when": "false"
+				}
+			]
+		},
+		"keybindings": [
+			{
+				"key": "enter",
+				"command": "rPipeIndent.enter",
+				"when": "editorTextFocus && editorLangId == r && !suggestWidgetVisible && !codeActionMenuVisible && !editorReadonly && !editorHasMultipleSelections && !editorHasSelection"
+			},
+			{
+				"key": "ctrl+enter",
+				"command": "rPipeIndent.runStatement",
+				"when": "editorTextFocus && editorLangId == r && !editorReadonly"
+			},
+			{
+				"key": "ctrl+shift+m",
+				"command": "rPipeIndent.insertPipe",
+				"when": "editorTextFocus && editorLangId == r && !editorReadonly"
+			}
+		]
+	}
+}
