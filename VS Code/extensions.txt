@@ -1,7 +1,7 @@
 # VS Code add-ons from the Marketplace: id, version, pinned. Written by save.ps1.
 # Pinned add-ons are installed at this exact version and do not update by themselves.
-# The two own add-ons are not listed: local.r-pipe-indent-0.1.0 (this folder)
-# and ..\Claude Code\tools\chat-opener.
+# The own add-ons are not listed: local.r-pipe-indent-0.1.0 and
+# local.startup-screen-0.1.0 (this folder), and ..\Claude Code\tools\chat-opener.
 anthropic.claude-code                2.1.318
 gerane.theme-idlefingers             0.0.5
 iamhyc.overleaf-workshop             0.15.10

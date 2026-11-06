@@ -29,11 +29,14 @@ setup.
 Change the real files on the laptop, not the copies here: SAVE overwrites
 the copies.
 
-Change these three in this folder instead (SAVE leaves them alone):
+Change these four in this folder instead (SAVE leaves them alone):
 
 - `R\watch.R` and `R\Rprofile.R`: R uses them straight from here.
 - `VS Code\local.r-pipe-indent-0.1.0`: the Enter add-on. Afterwards copy it
   to the laptop (note, section 5).
+- `VS Code\local.startup-screen-0.1.0`: the startup screen. Personal: it is
+  left out of the GitHub copy. Afterwards run its `build.ps1` (note,
+  section 5b).
 
 ## On GitHub (anonymous copy)
 
@@ -53,7 +56,8 @@ Ask Claude to "publish the setup", or run
 
 - `R` : watch.R, the R startup file, .lintr, the list of R packages
 - `VS Code` : settings (with all colours), keybindings, the list of add-ons
-  (with the idleFingers theme), the Enter add-on, the fix for the R add-on
+  (with the idleFingers theme), the Enter add-on, the startup screen, the
+  fix for the R add-on
 - `Claude Code` : Claude's rules (CLAUDE.md), settings and hooks,
   /chats /handoff /takeon, Claude's memory
 - `git` : name, e-mail, GitHub login

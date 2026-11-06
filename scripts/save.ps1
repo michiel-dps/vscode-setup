@@ -7,7 +7,8 @@
 # changed. Files that did not change are skipped.
 #
 # Not saved here because they are used straight from the setup folder:
-# R\Rprofile.R, R\watch.R and the Enter add-on (VS Code\local.r-pipe-indent-0.1.0).
+# R\Rprofile.R, R\watch.R, the Enter add-on (VS Code\local.r-pipe-indent-0.1.0)
+# and the startup screen (VS Code\local.startup-screen-0.1.0).
 
 param([switch]$Quiet)
 
@@ -54,8 +55,8 @@ if (Test-Path -LiteralPath $registry) {
     $lines  = @(
         '# VS Code add-ons from the Marketplace: id, version, pinned. Written by save.ps1.',
         '# Pinned add-ons are installed at this exact version and do not update by themselves.',
-        '# The two own add-ons are not listed: local.r-pipe-indent-0.1.0 (this folder)',
-        '# and ..\Claude Code\tools\chat-opener.'
+        '# The own add-ons are not listed: local.r-pipe-indent-0.1.0 and',
+        '# local.startup-screen-0.1.0 (this folder), and ..\Claude Code\tools\chat-opener.'
     )
     foreach ($addon in ($addons | Sort-Object { $_.identifier.id })) {
         $id = $addon.identifier.id

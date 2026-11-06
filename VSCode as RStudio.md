@@ -18,6 +18,7 @@ laptop, `SAVE.cmd` copies this laptop's setup into the folder.
 | `VS Code\extensions.txt` | the VS Code add-ons; `pinned` = installed at that exact version |
 | `VS Code\patch-r-extension.pl` | two fixes to the R extension: data viewer columns sized to content, and the column-name popup after `, ` instead of right after the comma (run again after every R extension update, section 6) |
 | `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.0); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo), section 5 |
+| `VS Code\local.startup-screen-0.1.0\` | the startup screen (6 Nov 2026): a short loading screen with a picture, a tip and the loading steps when VS Code starts; personal, left out of the GitHub copy; section 5b |
 | `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\`, `memory\` (one folder per project) |
 | `git\.gitconfig` | name, e-mail, GitHub login through `gh` |
 
@@ -283,6 +284,40 @@ $env:ELECTRON_RUN_AS_NODE = 1
 
 After changing `extension.js`: run the test, copy the folder to
 `C:\Users\<you>\.vscode\extensions\`, Reload Window.
+
+## 5b. Startup screen (own add-on, personal, 6 Nov 2026)
+
+When VS Code starts, or after Reload Window, a tab "Loading" shows for about
+six seconds and then closes itself:
+
+- one picture, slowly zooming out, with embers drifting up;
+- bottom left: a tip with one of your own shortcuts (the next tip each start);
+- bottom right: the loading steps with a small gold ring. The step "Calling
+  the R add-on" waits, at most 3 s, until the R extension really runs.
+
+A click or any key skips it.
+
+- **Pictures**: every .jpg, .png or .webp in
+  `C:\Users\<you>\Pictures\VS Code startup` (a different one each start). Add
+  or delete pictures there; nothing else to do. Another folder: setting
+  `startupScreen.pictureFolder`. No pictures: a dark background with embers.
+  The 8 pictures there on 6 Nov 2026 are official images from the game's
+  media gallery (https://en.bandainamcoent.eu/elden-ring/elden-ring/media),
+  saved for personal use only; they are not in this folder.
+- **How often**: at most once every 10 minutes (setting
+  `startupScreen.minutesBetween`, 0 = every start), so several Reload Windows
+  in a row do not replay it. Not when the add-on is installed or switched on
+  while VS Code is already running.
+- **See it now**: Ctrl+Shift+P → "Startup screen: play now".
+- **Off**: setting `"startupScreen.enabled": false`.
+- **Personal**: publish.ps1 leaves the add-on folder out of the GitHub copy
+  (`$leaveOut`). INSTALL does not install it: on a new laptop run its
+  `build.ps1` and put pictures in the picture folder.
+- **After a change** to `extension.js` or `screen.html`: run `build.ps1` in
+  the add-on folder (it packs `startup-screen.vsix` and installs it with
+  `code --install-extension`), then Reload Window.
+- **Log**: `%TEMP%\startup-screen.log`, one line per start: `show <picture>,
+  tip N`, or `skip: <why>`.
 
 ## 6. R extension (reditorsupport.r) gotchas
 
