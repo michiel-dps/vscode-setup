@@ -321,10 +321,11 @@ A click or any key skips it.
   saved for personal use only; they are not in this folder. The rider in
   light has its bottom strip cut off, because the game's name was printed
   there and the tip ran over it.
-- **How often**: at most once every 10 minutes (setting
-  `startupScreen.minutesBetween`, 0 = every start), so several Reload Windows
-  in a row do not replay it. Not when the add-on is installed or switched on
-  while VS Code is already running.
+- **How often**: at every start, every Reload Window and every new VS Code
+  window (since 6 Nov 2026; before that at most once every 10 minutes). Setting
+  `startupScreen.minutesBetween`: 0 (the default) = every start; a number =
+  at most once in that many minutes. Not when the add-on is installed or
+  switched on while VS Code is already running.
 - **See it now**: Ctrl+Shift+P → "Startup screen: play now".
 - **Off**: setting `"startupScreen.enabled": false`.
 - **Personal**: publish.ps1 leaves the add-on folder out of the GitHub copy
