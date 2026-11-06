@@ -291,7 +291,8 @@ When VS Code starts, or after Reload Window, a tab "Loading" shows for about
 six seconds and then closes itself:
 
 - one picture, slowly zooming out, with embers drifting up;
-- bottom left: a tip with one of your own shortcuts (the next tip each start);
+- bottom left: a tip with one of your own shortcuts (a random tip each start,
+  never the same one twice in a row, like the picture);
 - bottom right: the loading steps with a small gold ring. The step "Calling
   the R add-on" waits, at most 3 s, until the R extension really runs.
 
