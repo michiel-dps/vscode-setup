@@ -363,6 +363,12 @@ every project and every window. SAVE copies it, with the rest of
 `.claude` (settings and hooks, review.py, slash commands, chat opener,
 memory), into `Claude Code\` here; INSTALL puts it back on a new laptop.
 
+**/personalsettings** (6 Nov 2026, `~/.claude/commands/personalsettings.md`):
+"personal settings" means this whole setup. The command answers questions
+about it, checks it, or changes it with fixed steps: change the real file
+(save.ps1 says where it lives), update this note, run save.ps1, then
+publish.ps1 for the anonymous GitHub copy (README, "On GitHub").
+
 ### Claude's edits in the chat edit view, like Copilot's (5 Nov 2026)
 
 What you see: section 5. How it works, around every Edit/Write of an R

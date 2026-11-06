@@ -3,6 +3,10 @@
 Everything that makes VS Code, R and Claude Code work the way the user wants,
 in one folder. Dropbox brings it to every laptop.
 
+**"Personal settings"** means this setup: this folder and its anonymous copy
+on GitHub. In Claude Code, **/personalsettings** asks about, checks or
+changes anything in it (for example `/personalsettings turn off line numbers`).
+
 ## On a new laptop
 
 1. Install Dropbox, sign in, and wait until this folder is there.
