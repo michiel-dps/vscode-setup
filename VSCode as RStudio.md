@@ -298,20 +298,34 @@ screen for about six seconds and then closes itself:
 
 A click or any key skips it.
 
-- **Whole screen** (since 6 Nov 2026, setting `startupScreen.fullScreen`, on):
-  VS Code cannot put a tab on the whole screen outside its own window, so the
-  add-on opens its own window: Microsoft Edge in kiosk mode (whole screen, no
-  bars), with its own profile in `%LOCALAPPDATA%\startup-screen\edge-profile`,
-  so your normal Edge is not touched. The page comes from a small web server
-  inside the add-on that only this computer can reach (127.0.0.1, a new port
-  and a random key in the address each time). When the screen is done, the
-  add-on closes that Edge window (first politely, then by force after 1.5 s).
-  Setting off, or no Edge: an editor tab "Loading" instead. If the window
-  ever stays: Alt+F4.
-- **As early as possible**: the add-on starts with `"*"` (package.json), the
-  first moment VS Code starts add-ons, right after its own window appears;
-  Edge then needs about a second to open. (Before 6 Nov 2026 it waited for
-  "startup finished", a few seconds later.)
+- **Instant, through the helper** (6 Nov 2026): an add-on starts too late (VS
+  Code first opens its window, then its add-ons), so a small helper program
+  outside VS Code shows the screen: `%LOCALAPPDATA%\startup-screen\startup-screen-helper.exe`,
+  made by `build.ps1` from `helper.cs` with the C# compiler that comes with
+  Windows, started with Windows by the shortcut "Startup screen helper" in the
+  Startup folder (`shell:startup`).
+  - It waits without using the CPU for VS Code's new log folder
+    (`%APPDATA%\Code\logs\<time>`, made about 0.5 s after VS Code starts,
+    before its window), checks once that VS Code itself is opening (not its
+    command-line tool), and covers the screen 0.2 s later: black first, then
+    the picture fades in. It draws with WPF on the graphics card, on top of
+    everything (also of VS Code's window, which opens a moment later). On
+    this laptop (2560x1600) about 25 frames per second.
+  - The steps are real: the add-on leaves small files in
+    `%LOCALAPPDATA%\startup-screen`: `signal-vscode` when VS Code's add-ons
+    run, `signal-r` when the R add-on runs. Each step stays at least 1 s; at
+    most 10 s for VS Code, 6 s for R, 25 s in all.
+  - A second VS Code window, or "Startup screen: play now": the add-on leaves
+    `request-show` and the helper shows it. The helper writes `helper-alive`
+    every 5 s and `showing` while the screen is up; the add-on reads them.
+  - Waiting: about 23 MB of memory, no CPU; up to about 100 MB after a screen.
+  - Without the helper (it does not run): the add-on shows the screen
+    itself, a few seconds later: Microsoft Edge in kiosk mode (whole screen,
+    own profile in `%LOCALAPPDATA%\startup-screen\edge-profile`, page from a
+    small web server on 127.0.0.1), or with `startupScreen.fullScreen` off an
+    editor tab. If a window ever stays: Alt+F4.
+  - Stop the helper for good: delete the Startup shortcut and end
+    `startup-screen-helper.exe` in Task Manager.
 - **Pictures**: every .jpg, .png or .webp in
   `C:\Users\<you>\Pictures\VS Code startup` (a different one each start). Add
   or delete pictures there; nothing else to do. Another folder: setting
@@ -331,12 +345,19 @@ A click or any key skips it.
 - **Personal**: publish.ps1 leaves the add-on folder out of the GitHub copy
   (`$leaveOut`). INSTALL does not install it: on a new laptop run its
   `build.ps1` and put pictures in the picture folder.
-- **After a change** to `extension.js` or `screen.html`: run `build.ps1` in
-  the add-on folder (it packs `startup-screen.vsix` and installs it with
-  `code --install-extension`), then Reload Window.
-- **Log**: `%TEMP%\startup-screen.log`, one line per start: `show <picture>,
-  tip N, full screen` (or `in a tab`), or `skip: <why>`; then `full screen:
-  closed`, or `full screen: ERR <what went wrong>`.
+- **Files**: `helper.cs` (the helper), `extension.js` (the add-on),
+  `screen-core.js` + `screen.html` (the add-on's own screen), `tips.txt` (the
+  tips, one per line, read by both).
+- **After a change**: run `build.ps1` in the add-on folder. It stops the
+  helper, packs `startup-screen.vsix` and installs it with
+  `code --install-extension`, builds the helper, makes the Startup shortcut
+  and starts the helper again. Then Reload Window. Check the helper's look
+  without showing anything: `startup-screen-helper.exe --snapshot out.png
+  <picture> 1920 1080 4.5 "Calling the R add-on"`.
+- **Log**: `%TEMP%\startup-screen.log`: `helper: started (graphics tier 2)`,
+  `helper: show <picture>, tip N`, `helper: closed (N frames in S s)`,
+  `add-on: the helper shows the screen; reported in`; without the helper
+  `show <picture>, tip N, full screen` and `full screen: closed`.
 
 ## 6. R extension (reditorsupport.r) gotchas
 
