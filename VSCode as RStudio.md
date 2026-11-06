@@ -296,7 +296,7 @@ screen for about six seconds and then closes itself:
 - bottom right: the loading steps with a small gold ring. The step "Calling
   the R add-on" waits, at most 3 s, until the R extension really runs.
 
-A click or any key skips it.
+A click or any key stops it at once and goes to VS Code.
 
 - **Instant, through the helper** (6 Nov 2026): an add-on starts too late (VS
   Code first opens its window, then its add-ons), so a small helper program
@@ -315,6 +315,10 @@ A click or any key skips it.
     `%LOCALAPPDATA%\startup-screen`: `signal-vscode` when VS Code's add-ons
     run, `signal-r` when the R add-on runs. Each step stays at least 1 s; at
     most 10 s for VS Code, 6 s for R, 25 s in all.
+  - A click (or a key, if the screen has the keyboard) stops it at once, no
+    fade, and brings VS Code's window to the front. The add-on then does not
+    ask for it again: the helper writes `last-show` at every screen, and a
+    screen in the last minute counts for this start.
   - A second VS Code window, or "Startup screen: play now": the add-on leaves
     `request-show` and the helper shows it. The helper writes `helper-alive`
     every 5 s and `showing` while the screen is up; the add-on reads them.
@@ -330,11 +334,9 @@ A click or any key skips it.
   `C:\Users\<you>\Pictures\VS Code startup` (a different one each start). Add
   or delete pictures there; nothing else to do. Another folder: setting
   `startupScreen.pictureFolder`. No pictures: a dark background with embers.
-  The 6 pictures there on 6 Nov 2026 are official images from the game's
+  The 5 pictures there on 6 Nov 2026 are official images from the game's
   media gallery (https://en.bandainamcoent.eu/elden-ring/elden-ring/media),
-  saved for personal use only; they are not in this folder. The rider in
-  light has its bottom strip cut off, because the game's name was printed
-  there and the tip ran over it.
+  saved for personal use only; they are not in this folder.
 - **How often**: at every start, every Reload Window and every new VS Code
   window (since 6 Nov 2026; before that at most once every 10 minutes). Setting
   `startupScreen.minutesBetween`: 0 (the default) = every start; a number =
