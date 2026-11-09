@@ -505,7 +505,15 @@ VS Code start: it adds the rule to every installed Claude Code version that
 lacks it. When it had to patch, a message asks for **Reload Window** (the
 chat panel already loaded the old stylesheet). It logs to
 `~/.claude/chat-opener/log.txt` (`wrap-code: ...: patched`). Code boxes
-still scroll sideways? Look in that log: "class codeBlockWrapper_ not found"
+still scroll sideways or run off the panel? First check that **every open
+window** was reloaded after the patch: the chat panel reads the stylesheet
+only when its window starts, and a patch made by hand (or by Claude) shows no
+message. On 9 Nov 2026 the patch went in at 13:00 but the windows had started
+at 12:29 and 12:45, so the boxes still ran off until Reload Window (a test in
+headless Edge showed the rule itself wraps them). Check: the last line with
+`_doActivateExtension local.claude-chat-opener` in
+`%APPDATA%\Code\logs\<newest>\window*\exthost\exthost.log` must be later than
+the `index.css` time. Then look in log.txt: "class codeBlockWrapper_ not found"
 means Claude Code renamed its code-box class and the rule needs a new
 selector. Run it by hand (prints "patched" or "already in place"):
 
