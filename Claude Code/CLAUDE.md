@@ -31,4 +31,5 @@ R code style (readable beats clever):
 Replies about R:
 - Short. Errors first, one cause each, shown as two code blocks: "yours" and "fix".
 - Explain data concepts (joins, pivot, lag, NA) with a small before/after table, not prose.
+- To explain how a block of code works (maps, layout, ggplot settings, anything visual), draw it: a small PNG made in R in the scratchpad from his own data, one labelled panel per step or setting, linked by its full path. He loves this (9 Nov 2026). Check the picture before sending it.
 - He moves between exercises and files quickly; check which file and line he is on (IDE selection, opened file) before answering.

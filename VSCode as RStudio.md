@@ -480,6 +480,16 @@ publish.ps1 for the anonymous GitHub copy (README, "On GitHub"). Only this
 copy and the GitHub copy are kept up to date; Claude does not offer to update
 anyone else's copy (9 Nov 2026).
 
+**Explaining code with pictures** (9 Nov 2026): when you ask how a block of
+code works, Claude draws it. It writes a small R script in its scratch folder
+that makes a PNG from your own data: one panel per step or setting, each with
+a title naming the function and short labels on the picture. It checks the
+picture, then sends a link that opens it in a VS Code tab, with one short
+block of text per panel. Your scripts are not touched. The rule is one line under
+"Replies about R" in `CLAUDE.md`; the examples that worked (the biggest-circle
+centre of a municipality, the number boxes on the maps) are in Claude's memory
+(`explain-simply.md`).
+
 **No "How is Claude doing this session?" question** (9 Nov 2026):
 `~/.claude/settings.json` → `"env": { "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1" }`.
 Claude Code then never offers the survey, neither in the VS Code chat panel nor in
