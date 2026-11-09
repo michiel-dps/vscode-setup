@@ -141,5 +141,6 @@
     "editor.parameterHints.enabled": false,
     "terminal.integrated.enableMultiLinePasteWarning": "never",
     "chat.viewSessions.orientation": "stacked",
-    "chat.editing.revealNextChangeOnResolve": false
+    "chat.editing.revealNextChangeOnResolve": false,
+    "explorer.confirmDelete": false
 }
