@@ -478,6 +478,12 @@ about it, checks it, or changes it with fixed steps: change the real file
 (save.ps1 says where it lives), update this note, run save.ps1, then
 publish.ps1 for the anonymous GitHub copy (README, "On GitHub").
 
+**No "How is Claude doing this session?" question** (9 Nov 2026):
+`~/.claude/settings.json` → `"env": { "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1" }`.
+Claude Code then never offers the survey, neither in the VS Code chat panel nor in
+the terminal (checked in the code of version 2.1.319). Takes effect in a new chat
+or after Reload Window. Undo: delete the `env` block.
+
 ### Code blocks in the Claude chat wrap to the panel width (9 Nov 2026)
 
 The black code boxes in Claude's replies used to scroll sideways when a line
