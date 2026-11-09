@@ -4,8 +4,8 @@
 // whose workspace matches cwd claims it, runs handler.js on it and writes done-<id>.json.
 // handler.js is loaded fresh for every request, from ~/.claude/tools/chat-opener/extension/
 // when that exists, so it can be changed without restarting VS Code.
-// At every start it also runs wrap-code.js (same place first): code blocks in the Claude
-// chat wrap to the panel width, also after Claude Code updated itself.
+// At start and then once a minute it also runs wrap-code.js (same place first): the black
+// code boxes in the Claude chat wrap to the panel width, also after Claude Code updated itself.
 
 const vscode = require('vscode');
 const fs = require('fs');
@@ -73,12 +73,34 @@ async function poll() {
   }
 }
 
+// Runs at start and once a minute. A Claude Code version that is downloaded while VS Code
+// runs gets patched before it is shown. Reload is only asked for when the version this
+// window is showing right now had to be patched (its chat panel has the old stylesheet).
+// A problem (Claude Code renamed its box classes) is logged once and shown once per window.
+const wrapSeen = new Set();
+function logOnce(msg) {
+  if (wrapSeen.has(msg)) return;
+  wrapSeen.add(msg);
+  log(msg);
+}
+let wrapWarned = false;
+
 function wrapCodeBlocks() {
   try {
     const file = fs.existsSync(SOURCE_WRAP) ? SOURCE_WRAP : path.join(__dirname, 'wrap-code.js');
-    const patched = require(file).apply(log);
+    delete require.cache[require.resolve(file)];
+    const problems = [];
+    const patched = require(file).apply(logOnce, problems);
+    if (problems.length > 0 && !wrapWarned) {
+      wrapWarned = true;
+      vscode.window.showWarningMessage('Claude Code changed how it draws its black code boxes, so they may run off the panel again. ' +
+        'Ask Claude: "run test-wrap.js in .claude/tools/chat-opener and fix the box wrapping".');
+    }
     if (patched.length === 0) return;
-    const msg = 'Claude Code was updated. Reload Window so its code blocks wrap to the panel width again.';
+    const claude = vscode.extensions.getExtension('anthropic.claude-code');
+    const shown = claude ? path.basename(claude.extensionPath).toLowerCase() : '';
+    if (!patched.some((name) => name.toLowerCase() === shown)) return;
+    const msg = 'Claude Code was updated. Reload Window so its black code boxes wrap to the panel width again.';
     vscode.window.showInformationMessage(msg, 'Reload Window').then((pick) => {
       if (pick) vscode.commands.executeCommand('workbench.action.reloadWindow');
     });
@@ -91,7 +113,8 @@ function activate(context) {
   fs.mkdirSync(DIR, { recursive: true });
   wrapCodeBlocks();
   const timer = setInterval(poll, 400);
-  context.subscriptions.push({ dispose: () => clearInterval(timer) });
+  const wrapTimer = setInterval(wrapCodeBlocks, 60000);
+  context.subscriptions.push({ dispose: () => { clearInterval(timer); clearInterval(wrapTimer); } });
   log(`activated for ${(vscode.workspace.workspaceFolders || []).map((f) => f.uri.fsPath).join('; ')}`);
 }
 

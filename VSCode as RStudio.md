@@ -484,49 +484,69 @@ Claude Code then never offers the survey, neither in the VS Code chat panel nor 
 the terminal (checked in the code of version 2.1.319). Takes effect in a new chat
 or after Reload Window. Undo: delete the `env` block.
 
-### Code blocks in the Claude chat wrap to the panel width (9 Nov 2026)
+### Black code boxes in the Claude chat wrap to the panel width (9 Nov 2026)
 
-The black code boxes in Claude's replies used to scroll sideways when a line
-was longer than the chat panel. The Claude Code add-on has no setting for
-this: its `webview\index.css` gives code blocks `white-space:pre`. Fix: one
-CSS rule added at the end of that file, so long lines wrap to the next line
-instead (a long path or word breaks where it must):
+The black boxes in the Claude chat (code blocks in replies, and tool output
+when opened) used to run off the right edge of the side panel when a line was
+longer than the panel. The Claude Code add-on has no setting for this: its
+`webview\index.css` gives those boxes `white-space:pre`, and in a flex or grid
+layout one long line makes the whole message wider than the panel. Fix: our
+CSS block at the end of that file, so long lines wrap to the next line inside
+the box (a long path breaks where it must):
 
 ```css
-/* patched by local.claude-chat-opener: code blocks wrap to the panel width */
-[class*="codeBlockWrapper_"] pre{white-space:pre-wrap!important;overflow-wrap:anywhere;overflow-x:hidden!important}
+/* patched by local.claude-chat-opener v2: black code boxes wrap to the panel width */
+[class*="codeBlockWrapper_"] pre{white-space:pre-wrap!important;overflow-wrap:anywhere!important;overflow-x:hidden!important}
+[class*="toolResult_"]{white-space:pre-wrap!important;overflow-wrap:anywhere!important;overflow-x:hidden!important}
+[class*="previewBody_"] [class*="codeBlockWrapper_"] pre{white-space:pre!important;overflow-wrap:normal!important;overflow-x:visible!important}
 ```
 
-Claude Code updates itself every few days (a new folder
-`anthropic.claude-code-x.y.z` with a fresh `index.css`), so a one-time patch
-would be gone soon. The chat opener add-on (`~/.claude/tools/chat-opener`,
-v0.2.0, the one behind /chats) runs `extension\wrap-code.js` at every
-VS Code start: it adds the rule to every installed Claude Code version that
-lacks it. When it had to patch, a message asks for **Reload Window** (the
-chat panel already loaded the old stylesheet). It logs to
-`~/.claude/chat-opener/log.txt` (`wrap-code: ...: patched`). Code boxes
-still scroll sideways or run off the panel? First check that **every open
-window** was reloaded after the patch: the chat panel reads the stylesheet
-only when its window starts, and a patch made by hand (or by Claude) shows no
-message. On 9 Nov 2026 the patch went in at 13:00 but the windows had started
-at 12:29 and 12:45, so the boxes still ran off until Reload Window (a test in
-headless Edge showed the rule itself wraps them). Check: the last line with
-`_doActivateExtension local.claude-chat-opener` in
-`%APPDATA%\Code\logs\<newest>\window*\exthost\exthost.log` must be later than
-the `index.css` time. Then look in log.txt: "class codeBlockWrapper_ not found"
-means Claude Code renamed its code-box class and the rule needs a new
-selector. Run it by hand (prints "patched" or "already in place"):
+The last rule keeps the preview boxes of a Claude question as they are: they
+hold drawn layouts and scroll on their own. The selectors use only the part
+of the class name before the build hash (`codeBlockWrapper_-a7MRw`), so they
+survive a normal Claude Code update.
+
+**Kept in place by the chat opener add-on** (`~/.claude/tools/chat-opener`,
+v0.3.0, the one behind /chats): `extension\wrap-code.js` runs at every
+VS Code start **and once a minute**. Claude Code updates itself every few
+days into a new folder `anthropic.claude-code-x.y.z` with a fresh
+`index.css`; the minute check patches it as soon as it is downloaded, so it
+is already wrapped when VS Code first shows it. An older block of ours is
+replaced, not added twice. Only when the version a window is showing right
+now had to be patched does a message ask for **Reload Window**. If Claude
+Code ever renames its box classes, a yellow warning says so once per window
+(log line `class ... not found`): then ask Claude to run the test below and
+fix the selectors. Log: `~/.claude/chat-opener/log.txt` (times in UTC).
+
+**The chat panel reads the stylesheet only when its window starts.** A patch
+made by hand (or by Claude) shows no message, so every open window needs
+Reload Window (Ctrl+Shift+P → "Reload Window"). That is why the boxes still
+ran off on 9 Nov 2026: the first patch went in at 13:00, but the windows had
+started at 12:29 and 12:45.
+
+**Test** (`~/.claude/tools/chat-opener/test-wrap.js`, 22 checks, ends with
+"ALL PASS"): runs `apply()` on fake Claude Code folders (old block replaced,
+second run changes nothing, renamed class reported), checks that our block
+and the real class names are in the installed `index.css`/`index.js`, then
+renders the **real** `index.css` in headless Edge at side-panel width
+(300 px) in three page layouts and measures every box: right edge inside the
+panel, nothing hidden to the side. Control: the same page without our block
+must fail (it does: 6 of 6 boxes run off). Last it lists the open windows
+that started before the patch ("RELOAD NEEDED in ..."). Picture of the
+patched page: `%TEMP%\claude-wrap-test\patched.png`.
 
 ```powershell
 $env:ELECTRON_RUN_AS_NODE = 1
-& "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe" "$HOME\.claude\tools\chat-opener\extension\wrap-code.js" | Out-String
+$code = "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe"
+& $code "$HOME\.claude\tools\chat-opener\test-wrap.js" | Out-String              # the test
+& $code "$HOME\.claude\tools\chat-opener\extension\wrap-code.js" | Out-String    # patch now by hand
 ```
 
 The opener loads `wrap-code.js` from `~/.claude/tools/chat-opener/extension/`
-first, so a change there needs no rebuild; a change to its `extension.js`
-does: run `build.ps1` there, then Reload Window. Undo: delete the last two
-lines of `index.css` (or let Claude Code update) and take `wrapCodeBlocks()`
-out of the opener.
+fresh at every check, so a change there needs no rebuild; a change to its
+`extension.js` does: run `build.ps1` there, then Reload Window. Undo: delete
+our block at the end of `index.css` (from the "patched by" comment on, or
+let Claude Code update) and take `wrapCodeBlocks()` out of the opener.
 
 ### Claude's edits in the chat edit view, like Copilot's (5 Nov 2026)
 
