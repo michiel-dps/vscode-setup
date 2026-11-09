@@ -476,7 +476,9 @@ memory), into `Claude Code\` here; INSTALL puts it back on a new laptop.
 "personal settings" means this whole setup. The command answers questions
 about it, checks it, or changes it with fixed steps: change the real file
 (save.ps1 says where it lives), update this note, run save.ps1, then
-publish.ps1 for the anonymous GitHub copy (README, "On GitHub").
+publish.ps1 for the anonymous GitHub copy (README, "On GitHub"). Only this
+copy and the GitHub copy are kept up to date; Claude does not offer to update
+anyone else's copy (9 Nov 2026).
 
 **No "How is Claude doing this session?" question** (9 Nov 2026):
 `~/.claude/settings.json` → `"env": { "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1" }`.

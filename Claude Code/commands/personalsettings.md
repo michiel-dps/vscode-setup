@@ -26,4 +26,4 @@ How does X work, why does Y happen, is Z switched on: read the relevant section 
 4. Run `powershell -NoProfile -ExecutionPolicy Bypass -File "<folder>\scripts\save.ps1"`.
 5. Update the GitHub copy: run `<folder>\scripts\publish.ps1 -Message "<what changed>"`, with the commit message ending in the Co-Authored-By line. It stops when a personal word is still in the copy (a name, the user name, an e-mail, health, a project or a co-author). Then add a swap for that word to `$swaps` in publish.ps1. Never weaken the check, and never push the folder itself (it is not a git repo, on purpose).
 6. Tell him in one line what to reload (Reload Window, a fresh R terminal with Ctrl+Alt+R, or a full VS Code restart after an argv.json change) and how to see that it works.
-7. If the change matters for <co-author> too, offer to refresh his copy (`<co-author> Koding\VS Code setup`).
+7. Only his own copy is kept up to date: the setup folder and its GitHub copy. Never offer to update or refresh another person's copy of the setup (decided 9 Nov 2026).
