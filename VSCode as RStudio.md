@@ -19,7 +19,7 @@ laptop, `SAVE.cmd` copies this laptop's setup into the folder.
 | `VS Code\patch-r-extension.pl` | two fixes to the R extension: data viewer columns sized to content, and the column-name popup after `, ` instead of right after the comma (run again after every R extension update, section 6) |
 | `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.0); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo), section 5 |
 | `VS Code\local.startup-screen-0.1.0\` | the startup screen (6 Nov 2026): a short loading screen with a picture, a tip and the loading steps when VS Code starts; personal, left out of the GitHub copy; section 5b |
-| `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\`, `memory\` (one folder per project) |
+| `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\` (the /chats add-on, which also makes code blocks in the Claude chat wrap, section 9), `memory\` (one folder per project) |
 | `git\.gitconfig` | name, e-mail, GitHub login through `gh` |
 
 Since 30 Oct 2026 nothing is per project any more: a new R folder works
@@ -477,6 +477,42 @@ memory), into `Claude Code\` here; INSTALL puts it back on a new laptop.
 about it, checks it, or changes it with fixed steps: change the real file
 (save.ps1 says where it lives), update this note, run save.ps1, then
 publish.ps1 for the anonymous GitHub copy (README, "On GitHub").
+
+### Code blocks in the Claude chat wrap to the panel width (9 Nov 2026)
+
+The black code boxes in Claude's replies used to scroll sideways when a line
+was longer than the chat panel. The Claude Code add-on has no setting for
+this: its `webview\index.css` gives code blocks `white-space:pre`. Fix: one
+CSS rule added at the end of that file, so long lines wrap to the next line
+instead (a long path or word breaks where it must):
+
+```css
+/* patched by local.claude-chat-opener: code blocks wrap to the panel width */
+[class*="codeBlockWrapper_"] pre{white-space:pre-wrap!important;overflow-wrap:anywhere;overflow-x:hidden!important}
+```
+
+Claude Code updates itself every few days (a new folder
+`anthropic.claude-code-x.y.z` with a fresh `index.css`), so a one-time patch
+would be gone soon. The chat opener add-on (`~/.claude/tools/chat-opener`,
+v0.2.0, the one behind /chats) runs `extension\wrap-code.js` at every
+VS Code start: it adds the rule to every installed Claude Code version that
+lacks it. When it had to patch, a message asks for **Reload Window** (the
+chat panel already loaded the old stylesheet). It logs to
+`~/.claude/chat-opener/log.txt` (`wrap-code: ...: patched`). Code boxes
+still scroll sideways? Look in that log: "class codeBlockWrapper_ not found"
+means Claude Code renamed its code-box class and the rule needs a new
+selector. Run it by hand (prints "patched" or "already in place"):
+
+```powershell
+$env:ELECTRON_RUN_AS_NODE = 1
+& "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe" "$HOME\.claude\tools\chat-opener\extension\wrap-code.js" | Out-String
+```
+
+The opener loads `wrap-code.js` from `~/.claude/tools/chat-opener/extension/`
+first, so a change there needs no rebuild; a change to its `extension.js`
+does: run `build.ps1` there, then Reload Window. Undo: delete the last two
+lines of `index.css` (or let Claude Code update) and take `wrapCodeBlocks()`
+out of the opener.
 
 ### Claude's edits in the chat edit view, like Copilot's (5 Nov 2026)
 

@@ -4,6 +4,8 @@
 // whose workspace matches cwd claims it, runs handler.js on it and writes done-<id>.json.
 // handler.js is loaded fresh for every request, from ~/.claude/tools/chat-opener/extension/
 // when that exists, so it can be changed without restarting VS Code.
+// At every start it also runs wrap-code.js (same place first): code blocks in the Claude
+// chat wrap to the panel width, also after Claude Code updated itself.
 
 const vscode = require('vscode');
 const fs = require('fs');
@@ -13,6 +15,7 @@ const os = require('os');
 const DIR = path.join(os.homedir(), '.claude', 'chat-opener');
 const LOG = path.join(DIR, 'log.txt');
 const SOURCE_HANDLER = path.join(os.homedir(), '.claude', 'tools', 'chat-opener', 'extension', 'handler.js');
+const SOURCE_WRAP = path.join(os.homedir(), '.claude', 'tools', 'chat-opener', 'extension', 'wrap-code.js');
 
 let busy = false;
 
@@ -70,8 +73,23 @@ async function poll() {
   }
 }
 
+function wrapCodeBlocks() {
+  try {
+    const file = fs.existsSync(SOURCE_WRAP) ? SOURCE_WRAP : path.join(__dirname, 'wrap-code.js');
+    const patched = require(file).apply(log);
+    if (patched.length === 0) return;
+    const msg = 'Claude Code was updated. Reload Window so its code blocks wrap to the panel width again.';
+    vscode.window.showInformationMessage(msg, 'Reload Window').then((pick) => {
+      if (pick) vscode.commands.executeCommand('workbench.action.reloadWindow');
+    });
+  } catch (e) {
+    log(`wrap-code failed: ${e}`);
+  }
+}
+
 function activate(context) {
   fs.mkdirSync(DIR, { recursive: true });
+  wrapCodeBlocks();
   const timer = setInterval(poll, 400);
   context.subscriptions.push({ dispose: () => clearInterval(timer) });
   log(`activated for ${(vscode.workspace.workspaceFolders || []).map((f) => f.uri.fsPath).join('; ')}`);
