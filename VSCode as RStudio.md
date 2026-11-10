@@ -16,7 +16,7 @@ laptop, `SAVE.cmd` copies this laptop's setup into the folder.
 | `R\packages.txt` | the R packages on the laptop (written by SAVE, installed by INSTALL) |
 | `VS Code\settings.json`, `keybindings.json` | copies of `%APPDATA%\Code\User\` (sections 3 and 4) |
 | `VS Code\extensions.txt` | every VS Code add-on on the laptop, written by SAVE from `%USERPROFILE%\.vscode\extensions\extensions.json`. Marketplace add-ons first (id, version; `pinned` = installed at that exact version), which INSTALL installs. Then, since 10 Nov 2026, the own add-ons as `#` lines (id, version, where it comes from), so INSTALL skips them there: `local.r-pipe-indent` (INSTALL copies it), `local.claude-chat-opener` (INSTALL runs its `build.ps1`), `local.startup-screen` (personal: run its `build.ps1` by hand, section 5b). Check against VS Code itself: `code --list-extensions --show-versions` |
-| `VS Code\patch-r-extension.pl` | two fixes to the R extension: data viewer columns sized to content, and the column-name popup after `, ` instead of right after the comma (run again after every R extension update, section 6) |
+| `VS Code\patch-r-extension.pl` | three fixes to the R extension: data viewer columns sized to content, the column-name popup after `, ` instead of right after the comma, and a knitted PDF opening in the editor to the right (run again after every R extension update, section 6) |
 | `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.0); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo; Keep selects the kept lines), section 5 |
 | `VS Code\local.startup-screen-0.1.0\` | the startup screen (6 Nov 2026): a short loading screen with a picture, a tip and the loading steps when VS Code starts; personal, left out of the GitHub copy; section 5b |
 | `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\` (the /chats add-on, which also makes code blocks in the Claude chat wrap, section 9), `memory\` (one folder per project) |
@@ -440,7 +440,7 @@ A click or any key stops it at once and goes to VS Code.
   `watch-test.R` (`R\` in this folder, see its header), then re-source
   `watch.R` in the running R terminal (Ctrl+Enter on the `source(...)`
   line of the unit, or Ctrl+Alt+R for a new terminal).
-- Two things in the R extension are changed by editing its code
+- Three things in the R extension are changed by editing its code
   (`VS Code\patch-r-extension.pl` in this folder; the original is kept next
   to it as `extension.js.orig`). The R extension overwrites both when it
   updates itself (the folder `reditorsupport.r-x.y.z` gets a new version
@@ -456,6 +456,11 @@ A click or any key stops it at once and goes to VS Code.
      `, ` (comma space) instead. The popups after `(`, `[`, `$` and `@`
      are unchanged; so is the language server (its popups come after `.`
      and `::`, and while typing a word).
+  3. Knit: a knitted PDF opens in the editor to the right of the `.Rmd`,
+     the cursor stays in the `.Rmd` (10 Nov 2026, section 6b). The R
+     extension knows the output path only after knitting, so this is the
+     one place where "open it beside" can go; `openOutputFile` would open
+     it in the same editor window as the `.Rmd`.
 - Picking a function from the autocomplete popup inserts `f()` as a snippet;
   the Enter extension works inside it too (its activation rule must NOT
   contain `!inSnippetMode`).
@@ -492,6 +497,15 @@ made "it doesn't make an HTML" on 10 Nov 2026:
   `knit: (function(input, ...) rmarkdown::render(input, output_dir = "../../output", ...))`.
   The `...` passes on the format when you pick "Knit Rmd To All Formats"
   from Ctrl+Shift+P.
+- **PDF, Overleaf style** (10 Nov 2026): when the first format in the YAML
+  is `pdf_document`, Ctrl+Shift+K saves, knits and opens the PDF in the
+  editor to the right (patch 3, section 6), with the cursor still in the
+  `.Rmd`. The PDF viewer is the add-on `tomoki1207.pdf`; an open PDF tab
+  reloads by itself when the file changes. The term paper
+  (`paper_claude.Rmd`) has the `knit:` line above, so its PDF goes to
+  `output/paper_claude.pdf`, about 25 seconds. No PDF appears: an error in
+  the "R Markdown" channel, or the R extension updated and patch 3 must be
+  run again.
 - `[WARNING] Deprecated: --mathjax` in the output is harmless (pandoc is
   newer than rmarkdown expects).
 - Ctrl+Shift+V = R Markdown preview in a VS Code tab. It knits too, so it

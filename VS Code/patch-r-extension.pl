@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Two fixes to the VS Code R extension (reditorsupport.r), applied by editing
+# Three fixes to the VS Code R extension (reditorsupport.r), applied by editing
 # its dist/extension.js. Re-run after the R extension updates itself (the
 # folder reditorsupport.r-x.y.z gets a new version number). Idempotent: each
 # fix is skipped when it is already in place.
@@ -13,6 +13,8 @@
 # 2. Completion: the session popup with column names (inside a pipe, e.g.
 #    rename(look = lookout, |) ) comes after ", " (comma space), not right
 #    after the comma. The popup after "(" "[" "$" "@" is unchanged.
+# 3. Knit (Ctrl+Shift+K): a knitted PDF opens in the editor to the right of
+#    the .Rmd (Overleaf style); an open PDF tab there reloads by itself.
 use strict; use warnings;
 my $ext = "$ENV{USERPROFILE}/.vscode/extensions";
 opendir(my $dh, $ext) or die "cannot open $ext";
@@ -61,6 +63,19 @@ if ($js =~ /patched: column names after comma-space/) {
         q~let c=i.triggerCharacter;if(c===" "){if(!/,\s$/.test(e.lineAt(n.line).text.slice(0,n.character)))return s;c=","}/* patched: column names after comma-space */~,
         "completion fix, provider");
     print "completion fix: applied\n"; $changed++;
+}
+
+# ---- 3. knit: a knitted PDF opens in the editor to the right -------------
+if ($js =~ /patched: a knitted PDF opens in the editor to the right/) {
+    print "knit PDF fix: already in place\n";
+} else {
+    # after Ctrl+Shift+K: a .pdf result opens beside the .Rmd, the cursor stays
+    # in the .Rmd; other results (HTML) keep the old rule (openOutputFile, off)
+    replace_once(
+        q~if(o){let C=Vn.Uri.file(m);d0.existsSync(C.fsPath)?Vn.commands.executeCommand("vscode.open",C):Vn.window.showWarningMessage(`Could not find the output file at path: "${C.fsPath}"`)}return!0}~,
+        q~if(/\.pdf$/i.test(m)){let C=Vn.Uri.file(m);d0.existsSync(C.fsPath)&&Vn.commands.executeCommand("vscode.open",C,{viewColumn:Vn.ViewColumn.Beside,preserveFocus:!0,preview:!1})}else if(o){let C=Vn.Uri.file(m);d0.existsSync(C.fsPath)?Vn.commands.executeCommand("vscode.open",C):Vn.window.showWarningMessage(`Could not find the output file at path: "${C.fsPath}"`)}/* patched: a knitted PDF opens in the editor to the right */return!0}~,
+        "knit PDF fix");
+    print "knit PDF fix: applied\n"; $changed++;
 }
 
 if ($changed) {
