@@ -1,4 +1,4 @@
-Last change saved: 2026-11-10 13:54
+Last change saved: 2026-11-10 15:15
 Computer:          <computer>
 Home folder:       C:\Users\<you>
 Setup folder:      C:\Users\<you>\<Dropbox>\<name>\VS Code setup

@@ -17,7 +17,7 @@ laptop, `SAVE.cmd` copies this laptop's setup into the folder.
 | `VS Code\settings.json`, `keybindings.json` | copies of `%APPDATA%\Code\User\` (sections 3 and 4) |
 | `VS Code\extensions.txt` | every VS Code add-on on the laptop, written by SAVE from `%USERPROFILE%\.vscode\extensions\extensions.json`. Marketplace add-ons first (id, version; `pinned` = installed at that exact version), which INSTALL installs. Then, since 10 Nov 2026, the own add-ons as `#` lines (id, version, where it comes from), so INSTALL skips them there: `local.r-pipe-indent` (INSTALL copies it), `local.claude-chat-opener` (INSTALL runs its `build.ps1`), `local.startup-screen` (personal: run its `build.ps1` by hand, section 5b). Check against VS Code itself: `code --list-extensions --show-versions` |
 | `VS Code\patch-r-extension.pl` | two fixes to the R extension: data viewer columns sized to content, and the column-name popup after `, ` instead of right after the comma (run again after every R extension update, section 6) |
-| `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.0); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo), section 5 |
+| `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.0); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo; Keep selects the kept lines), section 5 |
 | `VS Code\local.startup-screen-0.1.0\` | the startup screen (6 Nov 2026): a short loading screen with a picture, a tip and the loading steps when VS Code starts; personal, left out of the GitHub copy; section 5b |
 | `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\` (the /chats add-on, which also makes code blocks in the Claude chat wrap, section 9), `memory\` (one folder per project) |
 | `git\.gitconfig` | name, e-mail, GitHub login through `gh` |
@@ -240,6 +240,25 @@ position back where they were before the click. The log gets `stay after
 keep: back to line N`. The jump to the next *file* after the last change of
 a file is off in settings.json: `"chat.editing.revealNextChangeOnResolve":
 false`. Copilot's own edits still jump (only Claude's edits are ours).
+
+**Keep selects the kept lines** (10 Nov 2026). After Keep on one change the
+lines you just kept are selected (blue), so you see at once where the change
+was; the screen still does not scroll. Undo still puts the cursor back where
+it was. A Keep of a deleted-lines change puts the cursor where the lines were.
+How: VS Code keeps a hidden copy of the file as it was before Claude's edits
+(scheme `chat-editing-text-model`, its query names the session
+`claude-edits`). Extensions see it as a normal text document (checked in the
+VS Code 1.145 code: every model that is not too large is synced). Keep on one
+change copies that change into the hidden copy, so the lines that changed
+there are the kept lines; the extension finds the same lines in the file
+(longest run of equal lines, so changes still waiting above do not shift it)
+and selects them. If the lines cannot be found for sure, it falls back to
+"stay where you are". The Keep event itself only gives line counts, not where.
+Careful: typing replaces a selection; Esc or an arrow key drops it first.
+Ctrl+Enter on it runs the kept code. Log: `keep: sees VS Code's copy of
+<file> before Claude's edits` (once per file, after a reload or Claude's
+first edit) and `keep: selected lines a-b`. Tests: `test.js`, section "Keep
+on one change".
 
 **Keep / Undo come back after Reload Window** (6 Nov 2026). VS Code saves
 every chat edit session when the window closes

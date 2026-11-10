@@ -255,6 +255,30 @@ async function pipe(lineText, col) {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 
+  console.log("--- Keep on one change: find the kept lines (changedBlock, matchingLine)");
+  {
+    const block = ext._test.changedBlock;
+    const match = ext._test.matchingLine;
+    check("one line changed", block(["a", "b", "c"], ["a", "B", "c"]), { start: 1, lines: ["B"] });
+    check("two lines added", block(["a", "c"], ["a", "x", "y", "c"]), { start: 1, lines: ["x", "y"] });
+    check("lines deleted", block(["a", "x", "y", "c"], ["a", "c"]), { start: 1, lines: [] });
+    check("first line changed", block(["a", "b"], ["A", "b"]), { start: 0, lines: ["A"] });
+    // hidden copy after Keep vs the file: a change still waiting above the kept lines
+    const kept = ["a", "b", "K1", "K2", "c", "d"];
+    const file = ["a", "new1", "new2", "new3", "K1", "K2", "c", "d"];   // b -> 3 new lines, not kept yet
+    check("kept lines below a waiting change", match(kept, file, 2), 4);
+    check("line above the waiting change", match(kept, file, 0), 0);
+    check("line at the bottom", match(kept, file, 5), 7);
+    const kept2 = ["x", "", "K", "y", "z"];
+    const file2 = ["x", "", "", "K", "y", "W", "z"];                   // an extra blank line just above K
+    check("blank line inserted just above", match(kept2, file2, 2), 3);
+    check("waiting change below the kept lines", match(["a", "K", "b", "c"], ["a", "K", "b", "B2", "c"], 1), 1);
+    const long = Array.from({ length: 400 }, (v, i) => "line " + i);
+    const longFile = long.slice(0, 50).concat(["new"]).concat(long.slice(51, 300)).concat(["extra 1", "extra 2"]).concat(long.slice(300));
+    check("400 lines, changes far apart", match(long, longFile, 200), 200);
+    check("400 lines, below both changes", match(long, longFile, 350), 352);
+  }
+
   console.log("\n" + passed + " passed, " + failed + " failed");
   process.exitCode = failed ? 1 : 0;
 })();

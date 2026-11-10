@@ -685,17 +685,131 @@ function stayAfterKeep(event) {
   const key = action.uri.toString();
   const before = Date.now() - STAY_OLDER_MS;
   const old = [...(viewHistory.get(key) || [])].reverse().find((s) => s.time < before);
-  if (!old) return;
+  const kept = action.outcome === 1;
+  if (!old && !kept) return;
   setTimeout(() => {
     const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === key);
     if (!editor) return;
-    editor.selections = old.selections;
-    if (old.top !== undefined) {
+    const selected = kept && selectKept(editor, action.uri.path);   // Keep: select the kept lines
+    if (!selected && old) editor.selections = old.selections;       // Undo (or not found): cursor back
+    if (old && old.top !== undefined) {
       const line = Math.min(old.top, editor.document.lineCount - 1);
       editor.revealRange(new vscode.Range(line, 0, line, 0), vscode.TextEditorRevealType.AtTop);
     }
-    log("stay after " + (action.outcome === 1 ? "keep" : "undo") + ": back to line " + (old.top + 1));
+    if (selected) {
+      editor.revealRange(editor.selection, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+      log("keep: selected lines " + selected);
+    } else if (old) {
+      log("stay after " + (kept ? "keep" : "undo") + ": back to line " + (old.top + 1));
+    }
   }, STAY_DELAY_MS);
+}
+
+// ---- Keep on one change: select the kept lines (10 Nov 2026) ----
+// VS Code keeps a hidden copy of each file as it was before Claude's edits
+// (scheme chat-editing-text-model, query names our session claude-edits).
+// Extensions see it as a normal text document. Keep on one change copies that
+// change into the hidden copy, so the lines that changed there are the kept
+// lines. selectKept finds the same lines in the file and selects them.
+const ORIGINAL_SCHEME = "chat-editing-text-model";
+const KEPT_MAX_AGE_MS = 1000;      // a change of the hidden copy this recent belongs to the Keep
+const originalLines = new Map();   // hidden copy uri -> its lines, as last seen
+const keptBlocks = new Map();      // file path -> { time, start, lines, after }
+
+function isOurOriginal(doc) {
+  return doc.uri.scheme === ORIGINAL_SCHEME && doc.uri.query.includes("claude-edits");
+}
+
+function splitLines(text) {
+  return text.split(/\r?\n/);
+}
+
+// The lines that differ between two versions: skip the equal lines at the top and the bottom
+function changedBlock(before, after) {
+  let top = 0;
+  while (top < before.length && top < after.length && before[top] === after[top]) top++;
+  let bottom = 0;
+  while (bottom < before.length - top && bottom < after.length - top &&
+         before[before.length - 1 - bottom] === after[after.length - 1 - bottom]) bottom++;
+  return { start: top, lines: after.slice(top, after.length - bottom) };
+}
+
+// Line `line` of version a: its line number in version b. a and b differ only
+// in the changes not yet kept; the longest run of equal lines (LCS) pairs them up.
+function matchingLine(a, b, line) {
+  let top = 0;
+  while (top < a.length && top < b.length && a[top] === b[top]) top++;
+  if (line < top) return line;
+  let bottom = 0;
+  while (bottom < a.length - top && bottom < b.length - top &&
+         a[a.length - 1 - bottom] === b[b.length - 1 - bottom]) bottom++;
+  if (line >= a.length - bottom) return line + b.length - a.length;
+  const n = a.length - top - bottom;
+  const m = b.length - top - bottom;
+  if (n * m > 4e6) return undefined;                  // changes very far apart in a huge file: skip
+  const w = m + 1;
+  const lcs = new Uint32Array((n + 1) * w);           // lcs[i * w + j] = equal lines in a[top+i..], b[top+j..]
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      lcs[i * w + j] = a[top + i] === b[top + j]
+        ? lcs[(i + 1) * w + j + 1] + 1
+        : Math.max(lcs[(i + 1) * w + j], lcs[i * w + j + 1]);
+    }
+  }
+  const target = line - top;
+  let i = 0;
+  let j = 0;
+  while (i < n && j < m && i < target) {
+    if (a[top + i] === b[top + j] && lcs[i * w + j] === lcs[(i + 1) * w + j + 1] + 1) { i++; j++; }
+    else if (lcs[(i + 1) * w + j] >= lcs[i * w + j + 1]) i++;
+    else j++;
+  }
+  while (i === target && j < m) {
+    if (a[top + i] === b[top + j] && lcs[i * w + j] === lcs[(i + 1) * w + j + 1] + 1) break;   // paired here
+    if (lcs[(i + 1) * w + j] >= lcs[i * w + j + 1]) break;                                       // not in b
+    j++;                                                                                         // a line only in b first
+  }
+  return top + j;
+}
+
+function noteOriginal(doc) {
+  if (!isOurOriginal(doc)) return;
+  originalLines.set(doc.uri.toString(), splitLines(doc.getText()));
+  log("keep: sees VS Code's copy of " + path.basename(doc.uri.path) + " before Claude's edits");
+}
+
+function noteOriginalChange(event) {
+  const doc = event.document;
+  if (!isOurOriginal(doc)) return;
+  const key = doc.uri.toString();
+  const before = originalLines.get(key);
+  const after = splitLines(doc.getText());
+  originalLines.set(key, after);
+  if (!before) return;
+  const block = changedBlock(before, after);
+  keptBlocks.set(doc.uri.path, { time: Date.now(), start: block.start, lines: block.lines, after });
+}
+
+// Select the lines just kept. Returns "a-b" (1-based) or false when not found for sure.
+function selectKept(editor, file) {
+  const block = keptBlocks.get(file);
+  keptBlocks.delete(file);
+  if (!block || Date.now() - block.time > KEPT_MAX_AGE_MS) return false;
+  const lines = splitLines(editor.document.getText());
+  const first = matchingLine(block.after, lines, block.start);
+  if (first === undefined) return false;
+  const count = block.lines.length;
+  for (let i = 0; i < count; i++) {
+    if (lines[first + i] !== block.lines[i]) return false;          // not the same lines: leave it
+  }
+  if (count === 0) {                                                 // kept a deletion: cursor where the lines were
+    const line = Math.min(first, editor.document.lineCount - 1);
+    editor.selection = new vscode.Selection(line, 0, line, 0);
+    return (line + 1) + "-" + (line + 1) + " (deleted lines, cursor only)";
+  }
+  const last = first + count - 1;
+  editor.selection = new vscode.Selection(first, 0, last, lines[last].length);
+  return (first + 1) + "-" + (last + 1);
 }
 
 function activateClaudeEdits(context) {
@@ -720,6 +834,11 @@ function activateClaudeEdits(context) {
     context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection((e) => recordView(e.textEditor)));
     context.subscriptions.push(vscode.window.onDidChangeTextEditorVisibleRanges((e) => recordView(e.textEditor)));
     vscode.window.visibleTextEditors.forEach(recordView);
+    // Keep on one change: select the kept lines (see selectKept)
+    context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(noteOriginal));
+    context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(noteOriginalChange));
+    context.subscriptions.push(vscode.workspace.onDidCloseTextDocument((doc) => originalLines.delete(doc.uri.toString())));
+    vscode.workspace.textDocuments.forEach(noteOriginal);
   } else {
     log("ERR  stay after keep: onDidPerformAction missing (argv.json enable-proposed-api?)");
   }
@@ -765,9 +884,9 @@ function activate(context) {
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.runStatement", runStatementLogged));
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.insertPipe", insertPipe));
   try { activateClaudeEdits(context); } catch (e) { log("ERR  edits " + (e && e.stack ? e.stack : e)); }
-  log("activated 0.5.0");
+  log("activated 0.5.0 (Keep selects the kept lines, 10 Nov 2026)");
 }
 
 function deactivate() {}
 
-module.exports = { activate, deactivate, _test: { blank, unterminatedQuote, statementStart, statementEnd, unfinished, makeSavedEditsSafe } };
+module.exports = { activate, deactivate, _test: { blank, unterminatedQuote, statementStart, statementEnd, unfinished, makeSavedEditsSafe, changedBlock, matchingLine } };
