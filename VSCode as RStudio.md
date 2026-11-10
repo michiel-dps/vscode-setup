@@ -17,7 +17,7 @@ laptop, `SAVE.cmd` copies this laptop's setup into the folder.
 | `VS Code\settings.json`, `keybindings.json` | copies of `%APPDATA%\Code\User\` (sections 3 and 4) |
 | `VS Code\extensions.txt` | every VS Code add-on on the laptop, written by SAVE from `%USERPROFILE%\.vscode\extensions\extensions.json`. Marketplace add-ons first (id, version; `pinned` = installed at that exact version), which INSTALL installs. Then, since 10 Nov 2026, the own add-ons as `#` lines (id, version, where it comes from), so INSTALL skips them there: `local.r-pipe-indent` (INSTALL copies it), `local.claude-chat-opener` (INSTALL runs its `build.ps1`), `local.startup-screen` (personal: run its `build.ps1` by hand, section 5b). Check against VS Code itself: `code --list-extensions --show-versions` |
 | `VS Code\patch-r-extension.pl` | three fixes to the R extension: data viewer columns sized to content, the column-name popup after `, ` instead of right after the comma, and a knitted PDF opening in the editor to the right (run again after every R extension update, section 6) |
-| `VS Code\patch-pdf-viewer.pl` | one fix to the PDF viewer add-on `tomoki1207.pdf` (10 Nov 2026): Ctrl+wheel and touchpad pinch zoom in on the spot under the mouse, as with a PNG (run again after every update of that add-on, section 6b) |
+| `VS Code\patch-pdf-viewer.pl` | one fix to the PDF viewer add-on `tomoki1207.pdf` (10 Nov 2026): Ctrl+wheel and touchpad pinch zoom smoothly in on the spot under the mouse, as with a PNG (run again after every update of that add-on, section 6b) |
 | `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.0); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo; Keep selects the kept lines), section 5 |
 | `VS Code\local.startup-screen-0.1.0\` | the startup screen (6 Nov 2026): a short loading screen with a picture, a tip and the loading steps when VS Code starts; personal, left out of the GitHub copy; section 5b |
 | `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\` (the /chats add-on, which also makes code blocks in the Claude chat wrap, section 9), `memory\` (one folder per project) |
@@ -509,15 +509,22 @@ made "it doesn't make an HTML" on 10 Nov 2026:
   run again. After a patch, the window must be reloaded once (Ctrl+Shift+P,
   Reload Window): the R extension reads its code only when the window starts.
   On 10 Nov 2026 the knit worked but no PDF opened for exactly this reason.
-- **Zooming in the PDF** (10 Nov 2026): Ctrl+wheel (or a touchpad pinch)
-  zooms in on the spot under the mouse, as with a PNG. That is
-  `VS Code\patch-pdf-viewer.pl`; the add-on itself drifted away from the
-  mouse (it first jumped back to an old scroll position, up to 3475 px in a
-  test; 0 px with the patch) and ignored Ctrl+wheel for 1 second after
-  normal scrolling. A PDF tab reads the patched code when it opens: close
-  the tab and open it again. Drifts again after an add-on update: run
-  `perl patch-pdf-viewer.pl` again (the original is kept as
-  `lib\web\viewer.js.orig` in the add-on folder).
+- **Zooming in the PDF** (10 Nov 2026, version 2 the same evening):
+  Ctrl+wheel (or a touchpad pinch) zooms like VS Code's image preview:
+  every wheel step zooms 7.5% around the spot under the mouse. While
+  zooming the pages are only stretched (a bit blurry, but instant); 250 ms
+  after the last step they are drawn sharp once. That is
+  `VS Code\patch-pdf-viewer.pl`. The add-on itself drifted away from the
+  mouse (it first jumped back to an old scroll position), jumped 33% per
+  mouse notch, redrew every page on every step (laggy), and ignored
+  Ctrl+wheel for 1 second after normal scrolling. Test with 20 quick steps
+  over the map page: original 1.4-1.9 s and up to 8 freezes; version 2
+  0.4 s, no freeze while zooming, drift 2 px, one short pause (~180 ms) on
+  the heavy map page when it is drawn sharp. A PDF tab reads the patched
+  code when it opens: close the tab and open it again. Old behaviour back
+  after an add-on update: run `perl patch-pdf-viewer.pl` again. It always
+  starts from the original, kept as `lib\web\viewer.js.orig` in the add-on
+  folder.
 - `[WARNING] Deprecated: --mathjax` in the output is harmless (pandoc is
   newer than rmarkdown expects).
 - Ctrl+Shift+V = R Markdown preview in a VS Code tab. It knits too, so it
