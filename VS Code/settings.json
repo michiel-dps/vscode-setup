@@ -133,7 +133,8 @@
             "statusBar.debuggingForeground": "#ffffff",
             "statusBarItem.remoteBackground": "#3b3b3b",
             "statusBarItem.remoteForeground": "#ffffff",
-            "modernTab.activeBackground": "#FFD16640"
+            "modernTab.activeBackground": "#FFD16640",
+            "editorGroup.border": "#FFD166"
         }
     },
     "editor.fontLigatures": false,

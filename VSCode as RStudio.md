@@ -133,6 +133,12 @@ chat) at full strength with dark text was too bright and hid white icons; at
 wants the yellow on all tabs. Do not confuse it with `sideBar.background`, which
 colours the whole side window, chat included (tried and undone the same day).
 
+Line between split editors (10 Nov 2026): same block,
+`"editorGroup.border": "#FFD166"`: the thin line between the left and right
+editor windows, in the tab-box yellow at full strength (a 1-pixel line at 25%
+would hardly show), so he can find it quickly. It is only the line between
+editor groups, not the edge of the side windows or the bottom panel.
+
 ## 4. Keybindings (`%APPDATA%\Code\User\keybindings.json`)
 
 ```json
