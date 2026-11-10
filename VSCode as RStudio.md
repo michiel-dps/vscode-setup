@@ -434,6 +434,41 @@ A click or any key stops it at once and goes to VS Code.
 - Each VS Code window has its own R terminal and Workspace panel. Working in
   two windows (two projects) is fine; one R session per window.
 
+## 6b. Knit an R Markdown file to HTML (Ctrl+Shift+K), 10 Nov 2026
+
+Ctrl+Shift+K (or the Knit button at the top right of an `.Rmd`) knits, as in
+RStudio. Nothing in the settings needs changing; these are the things that
+made "it doesn't make an HTML" on 10 Nov 2026:
+
+- It runs in a **separate background R process**, not in the R terminal.
+  What is loaded in the R terminal does not count: the file must load
+  everything itself. `Rprofile.R` does not load `watch.R` there (not
+  interactive).
+- Progress: the Output panel, channel "R Markdown", opens by itself and shows
+  one line per chunk (`2/32 [setup]`). A slow chunk shows **no progress**
+  while it runs. A setup chunk that sources the whole pipeline sat on
+  `2/32 [setup]` for 6 minutes (mostly drawing maps). That is not stuck:
+  wait for `Output created: ...`. Pressing Ctrl+Shift+K again does nothing
+  while it runs. **Cancel** in the "Knitting ..." box at the bottom right
+  stops it (`terminating R process`, exit code 1). For a quick build, make
+  the setup chunk read the saved results instead of rerunning the pipeline.
+- An error shows in the same channel: the R error, then
+  `Quitting from paper.Rmd:38-64 [setup]` (the chunk and its lines). The
+  error is often in a script that the chunk sources, e.g. a renamed file or
+  object. A saved copy of the channel, for Claude:
+  `%APPDATA%\Code\logs\<newest>\window*\exthost\output_logging_*\*-R Markdown.log`.
+- Where the HTML goes: **next to the `.Rmd`**, and VS Code does not open it
+  (`r.rmarkdown.knit.openOutputFile` would open the HTML source in an editor,
+  not the page, so it stays off). To send it to another folder, put this
+  line in the file's YAML header; the R extension and RStudio both use it:
+  `knit: (function(input, ...) rmarkdown::render(input, output_dir = "../../output", ...))`.
+  The `...` passes on the format when you pick "Knit Rmd To All Formats"
+  from Ctrl+Shift+P.
+- `[WARNING] Deprecated: --mathjax` in the output is harmless (pandoc is
+  newer than rmarkdown expects).
+- Ctrl+Shift+V = R Markdown preview in a VS Code tab. It knits too, so it
+  takes just as long.
+
 ## 7. Daily workflow
 
 1. Open the project **folder** (File > Open Folder), not a single file.
