@@ -52,19 +52,37 @@ Copy-Files $vscodeUser "$setup\VS Code" @('settings.json', 'keybindings.json')
 $registry = Join-Path $userHome '.vscode\extensions\extensions.json'
 if (Test-Path -LiteralPath $registry) {
     $addons = [IO.File]::ReadAllText($registry) | ConvertFrom-Json
-    $lines  = @(
-        '# VS Code add-ons from the Marketplace: id, version, pinned. Written by save.ps1.',
-        '# Pinned add-ons are installed at this exact version and do not update by themselves.',
-        '# The own add-ons are not listed: local.r-pipe-indent-0.1.0 and',
-        '# local.startup-screen-0.1.0 (this folder), and ..\Claude Code\tools\chat-opener.'
+
+    # Where each own add-on (not on the Marketplace) comes from, and how it is installed
+    $ownAddons = @{
+        'local.r-pipe-indent'      = 'VS Code\local.r-pipe-indent-0.1.0 (INSTALL copies it)'
+        'local.claude-chat-opener' = '..\Claude Code\tools\chat-opener (INSTALL runs its build.ps1)'
+        'local.startup-screen'     = 'VS Code\local.startup-screen-0.1.0 (personal: run its build.ps1 by hand)'
+    }
+
+    $lines = @(
+        '# Every VS Code add-on on this laptop. Written by save.ps1.',
+        '# Add-ons from the Marketplace: id, version, pinned. INSTALL installs them.',
+        '# Pinned add-ons are installed at this exact version and do not update by themselves.'
+    )
+    $ownLines = @(
+        '#',
+        '# Own add-ons (not on the Marketplace): id, version, where it comes from.',
+        '# They are # lines, so INSTALL does not look for them on the Marketplace.'
     )
     foreach ($addon in ($addons | Sort-Object { $_.identifier.id })) {
         $id = $addon.identifier.id
-        if ($id -like 'local.*') { continue }
+        if ($id -like 'local.*') {
+            $from = $ownAddons[$id]
+            if (-not $from) { $from = 'own add-on, not yet in this setup folder' }
+            $ownLines += ('#   {0,-30} {1,-8} {2}' -f $id, $addon.version, $from)
+            continue
+        }
         $pinned = ''
         if ($addon.metadata.pinned) { $pinned = 'pinned' }
         $lines += ('{0,-36} {1,-12} {2}' -f $id, $addon.version, $pinned).TrimEnd()
     }
+    $lines += $ownLines
     Write-IfChanged "$setup\VS Code\extensions.txt" (($lines -join "`r`n") + "`r`n")
 }
 

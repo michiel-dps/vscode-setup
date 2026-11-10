@@ -55,9 +55,10 @@ Ask Claude to "publish the setup", or run
 ## What is in it
 
 - `R` : watch.R, the R startup file, .lintr, the list of R packages
-- `VS Code` : settings (with all colours), keybindings, the list of add-ons
-  (with the idleFingers theme), the Enter add-on, the startup screen, the
-  fix for the R add-on
+- `VS Code` : settings (with all colours), keybindings, the list of every
+  add-on (`extensions.txt`: the Marketplace ones, with the idleFingers theme,
+  and the own ones), the Enter add-on, the startup screen, the fix for the
+  R add-on
 - `Claude Code` : Claude's rules (CLAUDE.md), settings and hooks,
   /chats /handoff /takeon, Claude's memory
 - `git` : name, e-mail, GitHub login
