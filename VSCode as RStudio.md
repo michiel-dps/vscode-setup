@@ -138,7 +138,8 @@ Line between split editors (10 Nov 2026): same block,
 editor windows, so he can find it quickly. Exactly the tab-box value, strength
 included, so the grey shows through the same way and the line has the same soft
 gold as the tabs and the "CLAUDE CODE" box. Full strength (`#FFD166`) was tried
-first the same day: too bright, "not the same shade as my tabs". It is only the
+first the same day: too bright, "not the same shade as my tabs". He confirmed
+`#FFD16640` ("good like this", 10 Nov 2026): keep it. It is only the
 line between editor groups, not the edge of the side windows or the bottom panel.
 
 ## 4. Keybindings (`%APPDATA%\Code\User\keybindings.json`)
