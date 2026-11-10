@@ -5,7 +5,7 @@ argument-hint: what to ask, check or change
 
 "Personal settings" means the user's whole working setup:
 
-- VS Code: settings.json, keybindings.json, the add-ons, the Enter add-on (local.r-pipe-indent), the patch for the R add-on
+- VS Code: settings.json, keybindings.json, the add-ons, the Enter add-on (local.r-pipe-indent), the patches for the R add-on and the PDF viewer
 - the RStudio-like R setup: watch.R, Rprofile.R, .lintr, the list of R packages
 - Claude Code: ~/.claude/CLAUDE.md, settings.json and its hooks (review.py), the slash commands (this one too), memory
 - git: .gitconfig

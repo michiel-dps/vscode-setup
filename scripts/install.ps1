@@ -239,6 +239,7 @@ Run 'install the R packages this laptop does not have yet' {
     & $rscript --vanilla "$setup\scripts\install-packages.R" "$setup\R\packages.txt"
 }
 Run 'two fixes to the R add-on (data viewer, column-name popup)' { & $perl "$setup\VS Code\patch-r-extension.pl" }
+Run 'PDF viewer: zoom in at the mouse' { & $perl "$setup\VS Code\patch-pdf-viewer.pl" }
 
 
 # --- 6. git ---
