@@ -134,7 +134,7 @@
             "statusBarItem.remoteBackground": "#3b3b3b",
             "statusBarItem.remoteForeground": "#ffffff",
             "modernTab.activeBackground": "#FFD16640",
-            "editorGroup.border": "#FFD166"
+            "editorGroup.border": "#FFD16640"
         }
     },
     "editor.fontLigatures": false,
