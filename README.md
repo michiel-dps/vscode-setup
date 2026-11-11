@@ -1,7 +1,8 @@
 # VS Code setup
 
 Everything that makes VS Code, R and Claude Code work the way the user wants,
-in one folder. Dropbox brings it to every laptop.
+in one folder, including the laptop staying awake while Claude works.
+Dropbox brings it to every laptop.
 
 **"Personal settings"** means this setup: this folder and its anonymous copy
 on GitHub. In Claude Code, **/personalsettings** asks about, checks or

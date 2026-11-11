@@ -1,5 +1,5 @@
 ---
-description: Ask about, check or change the user's personal settings (VS Code, the RStudio-like R setup, Claude Code, git)
+description: Ask about, check or change the user's personal settings (VS Code, the RStudio-like R setup, Claude Code, git, Windows sleep)
 argument-hint: what to ask, check or change
 ---
 
@@ -7,8 +7,9 @@ argument-hint: what to ask, check or change
 
 - VS Code: settings.json, keybindings.json, the add-ons, the Enter add-on (local.r-pipe-indent), the patches for the R add-on and the PDF viewer
 - the RStudio-like R setup: watch.R, Rprofile.R, .lintr, the list of R packages
-- Claude Code: ~/.claude/CLAUDE.md, settings.json and its hooks (review.py), the slash commands (this one too), memory
+- Claude Code: ~/.claude/CLAUDE.md, settings.json and its hooks (review.py, awake.py), the slash commands (this one too), memory
 - git: .gitconfig
+- Windows sleep and power: the laptop stays awake while Claude works, also when locked (`~/.claude/awake/awake.py`, note section 9). The Windows power plans themselves are left alone (decided 11 Nov 2026): read that part of the note before changing any sleep, lid or power-plan setting
 
 The master copy is the folder `C:\Users\<you>\<Dropbox>\<name>\VS Code setup` (in Dropbox). Its `README.md` says what is where. `VSCode as RStudio.md` there explains how everything works and why: section 5 the Enter add-on, 6 the R add-on gotchas, 9 Claude Code. An anonymous copy of the folder is in his private GitHub repo vscode-setup, made by `scripts/publish.ps1`.
 

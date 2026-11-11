@@ -765,6 +765,9 @@ keeper exits at once; the hook call returns in 0.14 s with no output.
 Hooks are read when a chat starts: works from the next new chat or after
 Reload Window. Off: delete the two hooks from `settings.json`.
 
+This counts as personal settings (11 Nov 2026): `CLAUDE.md` and
+`/personalsettings` now name "Windows sleep and power", so a chat asked
+"my laptop goes to sleep" reads this section before changing anything.
 The power plans themselves are left alone (decided 11 Nov 2026). Earlier
 that day another chat had set sleep and hibernate to "never" when plugged in,
 in the plan **Legion Performance Mode** (Fn+Q). the user chose this hook
