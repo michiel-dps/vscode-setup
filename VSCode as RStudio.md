@@ -20,7 +20,7 @@ laptop, `SAVE.cmd` copies this laptop's setup into the folder.
 | `VS Code\patch-pdf-viewer.pl` | two fixes to the PDF viewer add-on `tomoki1207.pdf` (10 Nov 2026; zoom version 3 on 11 Nov 2026): Ctrl+wheel and touchpad pinch zoom smoothly in on the spot under the mouse (a pinch follows the fingers, the wheel glides); and a clean reload after each knit (run again after every update of that add-on, section 6b) |
 | `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.0); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo; Keep selects the kept lines), section 5 |
 | `VS Code\local.startup-screen-0.1.0\` | the startup screen (6 Nov 2026): a short loading screen with a picture, a tip and the loading steps when VS Code starts; personal, left out of the GitHub copy; section 5b |
-| `VS Code\local.word-page-0.1.0\` | Word Page (11 Nov 2026): write like in Word or Google Docs inside VS Code. Quarto's visual editor as a white page with black text under any colour theme, "Word Page: New Document", citations from a `.bib` file and from Zotero; the file underneath is markdown (`.qmd`). Its `bench\` is an off-screen test VS Code for Claude; section 5c |
+| `VS Code\local.word-page-0.1.0\` | Word Page (11 Nov 2026): write like in Word or Google Docs inside VS Code. Quarto's visual editor as a white page with black text under any colour theme, "Word Page: New Document", citations from a `.bib` file and from Zotero; the file underneath is markdown (`.qmd`). Since 11 Nov 2026 the page looks like the PDF of a paper (LaTeX font, A4 margins, PDF heading sizes; setting `wordPage.look`). Its `bench\` is a test VS Code for Claude on its own, invisible Windows desktop; section 5c |
 | `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `awake\awake.py` (laptop stays awake while Claude works, section 9), `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\` (the /chats add-on, which also makes code blocks in the Claude chat wrap, section 9), `memory\` (one folder per project) |
 | `git\.gitconfig` | name, e-mail, GitHub login through `gh` |
 
@@ -443,6 +443,57 @@ them:
    installed or updated, and puts the blocks back (it reads only the first
    50 KB of the 10 MB file to check).
 
+**The PDF look (11 Nov 2026, asked: "look pdf like but still me being able to
+edit it").** With the setting `wordPage.look` on `"pdf"` (the default) the page
+is drawn like the PDF that R Markdown makes of a paper (`pdf_document`: LaTeX,
+A4, 11 pt, margins 2.5 cm), and you still type on it as before:
+
+- the PDF's own font, Latin Modern (text, italic, bold, the headings, code);
+- an A4 page with margins of 2.5 cm, text straight on both sides;
+- the same text size, line distance and room between paragraphs;
+- `#` as a section heading and `##` as a subsection heading, in the PDF's
+  sizes and with the PDF's room above and below;
+- a figure in the middle of the page; a caption of one line in the middle, a
+  longer one filling the lines; tables with a line above, under the header
+  row and below, no boxes; code in a line without a box;
+- citations and links in the text font, dark blue.
+
+The numbers were measured in the term paper's PDF (page 595.28 pt wide, text
+from 70.9 to 524.4 pt, text 10.91 pt on lines 13.55 pt apart, 19.5 pt from
+paragraph to paragraph, section heading 14.35 pt with 40.4 pt above and
+30.3 pt below, subsection heading 11.96 pt with 35.2 and 26.6). On the page
+they come out the same to within half a point (`bench\js\gaps.js` measures
+the page). The style rules are `inject\pdf-look.css`; every size in it is
+counted in "one point of the PDF on the screen", so the whole page follows
+`wordPage.pageWidth`: **a wider page is the same page, zoomed in** (820 gives
+text of 15 px, 1000 gives 18 px). In an editor that is too narrow for the
+page, the margins shrink first (down to 24 px) and the text keeps its size;
+only below that the text shrinks, never under 12.5 px.
+
+What it cannot copy, so the real PDF still differs:
+
+- **No page breaks and no page numbers**: the page is one long sheet.
+- **Words are not broken at the end of a line** (VS Code has no
+  word-breaking lists; checked in the bench). A line in front of a long word
+  that cannot be broken, such as a file path, gets wide gaps. A long `@key`
+  may be broken anywhere for that reason.
+- **Citations stay `@keys`**, and there is no reference list.
+- **Headings have no numbers.** The page cannot know which headings the PDF
+  leaves without a number (Abstract), so counting them would give wrong
+  numbers.
+- The box with the document's settings at the top (title, bibliography) is
+  not drawn as a title. Tables and numbers that R fills in are not there.
+- No ligatures (fi, fl drawn as one letter): the editor switches them off.
+
+The fonts are six files in `inject\fonts` (copied unchanged from TinyTeX,
+free under the GUST Font License; `README.txt` there). `patch.js` writes them
+into the style block as `data:` addresses, so nothing is installed in Windows
+and no file is added to Quarto's folder; Quarto's page allows fonts from
+`data:` addresses (`font-src data:` in its page header). The style block is
+0.9 MB with them. The script block only adds the class `pdf-look` to the
+page; all PDF rules ask for that class, so `"word"` gives exactly the old
+page (the rules and fonts are then not even written into Quarto's file).
+
 **Using it.**
 
 - New document: Ctrl+Shift+P, `Word Page: New Document` (also: right-click a
@@ -463,8 +514,12 @@ them:
   Zotero has saved its database (closing Zotero does that).
 - Footnote: Ctrl+Shift+F7. Table, picture, formula: the Insert menu.
 - Settings: `wordPage.enabled` (off = the editor follows the theme again),
-  `wordPage.pageWidth` (820). Font and size of the text are Quarto's:
-  `quarto.visualEditor.fontFamily`, `quarto.visualEditor.fontSize`.
+  `wordPage.look` (`"pdf"` = the page as a paper's PDF, `"word"` = the
+  Word-like page of before), `wordPage.pageWidth` (820; in the PDF look this
+  is the zoom). After a change: close the document tab and open it again.
+  In the Word look, font and size of the text are Quarto's:
+  `quarto.visualEditor.fontFamily`, `quarto.visualEditor.fontSize`; the PDF
+  look does not use them.
 
 ```yaml
 ---
@@ -492,9 +547,10 @@ bibliography: references.bib
 **Files** (`VS Code\local.word-page-0.1.0\`): `extension.js` (the commands, the
 first-`.qmd` rule, when to patch), `patch.js` (finds Quarto, puts the blocks in
 or takes them out; no VS Code in it), `inject\` (the script block, the style
-block, the 889 colours), `mention.js` (finds the lines of a highlighted text
+block `word-page.css`, the PDF look `pdf-look.css` with its `fonts\`, the 889
+colours), `mention.js` (finds the lines of a highlighted text
 in the `.qmd` file and builds the reference for Claude; no VS Code in it),
-`test.js` (60 offline checks of `patch.js` and `mention.js`),
+`test.js` (74 offline checks of `patch.js` and `mention.js`),
 `build.ps1` (runs the checks, packs, installs; VS Code switches a newly
 installed add-on on in the open windows by itself; a changed add-on needs
 Reload Window).
@@ -555,7 +611,7 @@ Things to know.
   "does nothing".
 
 **Test bench for Claude** (`bench\`). Claude cannot see the screen, so it
-tests in a second VS Code that runs off-screen: `bench\launch.ps1` copies VS
+tests in a second VS Code that nobody sees: `bench\launch.ps1` copies VS
 Code, Quarto and this add-on to `%TEMP%\word-page-bench` (1 GB, once), starts
 it with its own settings and opens a sample paper; `bench\cdp.py` (plain
 Python) takes screenshots, clicks, types and reads the page through the
@@ -567,13 +623,29 @@ With `-Claude` the bench also gets the Claude Code add-on and the real
 on a page was checked (16 cases: panel open, closed, never opened; a word
 that is there twice; a highlight over two paragraphs; normal copy and paste).
 **Rule (11 Nov 2026): a test window never takes the keyboard from your own
-VS Code window, and is closed when the test is done.** Starting the bench
-still does take it for a moment, so `launch.ps1` now refuses to start
-without `-AllowFocus`; what has to change first (its own Windows desktop) is
-written at the top of the script. The other
+VS Code window, and is closed when the test is done.** A start on the normal
+desktop did take it for a moment. Since the evening of 11 Nov 2026 the bench
+therefore runs on **its own Windows desktop**, "WordPageBench": a second,
+invisible desktop of the same login (`CreateDesktop`, and `CreateProcess`
+with that desktop's name). A window there is never on the screen and cannot
+take the keyboard of the real desktop; the desktop is gone when the bench is
+stopped (`launch.ps1 -Stop`). Everything that touches the bench window is
+started on that desktop: the start, `-Open` and `-MoveOnly` (sizing: the
+script runs itself again there, because a window can only be reached from
+its own desktop). The script prints whether the same window has the keyboard
+before and after a start; in five starts it never changed. `-AllowFocus` is
+gone. Two more things found that evening: the folder must come **first** on
+VS Code's command line (at the end it was read as the value of the option
+before it, the window had no folder open, and the page then shows no
+pictures from outside the document's own folder); and the window to size is
+looked up by its title (the "main window" that PowerShell reports was one
+without a title). The other
 traps are written at the top of `launch.ps1` (a waiting VS Code update blocks
 a second VS Code, hence the copy; Quarto's one-time question; Quick Open only
-finds files opened before). `bench\gen.py` makes `inject\light-theme.json`
+finds files opened before). For the page look there are three more probes in
+`bench\js`: `nodes.js` (which tags and classes the page is built of),
+`theme.js` (the rules Quarto writes itself, how a picture gets its width,
+whether words can be broken) and `gaps.js` (the page measured in PDF points). `bench\gen.py` makes `inject\light-theme.json`
 again from a dump of the theme colours (`bench\js\dumpvars.js`, taken in the
 bench under a light theme). If the page look breaks after a Quarto update
 (they renamed a box): `bench\js\layout.js` prints the boxes and their rules;

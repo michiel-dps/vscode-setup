@@ -63,12 +63,25 @@
 					"default": true,
 					"description": "Show Quarto's visual editor as a white page with black text, whatever the colour theme of VS Code. Off: the visual editor follows the theme again."
 				},
+				"wordPage.look": {
+					"type": "string",
+					"enum": [
+						"pdf",
+						"word"
+					],
+					"enumDescriptions": [
+						"The page as a paper's PDF (LaTeX): the Latin Modern font, an A4 page with 2.5 cm margins, text straight on both sides, the PDF's heading sizes.",
+						"A Word-like page: your own editor font, wider line distance, text straight on the left only."
+					],
+					"default": "pdf",
+					"description": "How the page looks. Close the document tab and open it again after a change."
+				},
 				"wordPage.pageWidth": {
 					"type": "number",
 					"default": 820,
 					"minimum": 400,
 					"maximum": 2000,
-					"description": "Width of the page in pixels (text plus margins)."
+					"description": "Width of the page in pixels (text plus margins). In the PDF look this is the zoom: text size and margins grow with the page."
 				}
 			}
 		}

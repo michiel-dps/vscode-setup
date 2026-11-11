@@ -73,6 +73,36 @@ check("index.js is the original again", fs.readFileSync(files.js, "utf8") === js
 check("style.css is the original again", fs.readFileSync(files.css, "utf8") === cssBefore);
 check("second remove: clean", patch.remove(old) === "clean");
 
+// the PDF look: its rules and fonts go inside the same style block
+const pdfOptions = { pageWidth: 820, look: "pdf" };
+const pdfBlocks = patch.buildBlocks(inject, pdfOptions);
+check("no look given: the Word look, without the PDF rules",
+  blocks.js.includes('"look":"word"') && !blocks.css.includes("pdf-look") && !blocks.css.includes("@font-face"));
+check("PDF look goes into the script block", pdfBlocks.js.includes('"look":"pdf"'));
+check("PDF look: the script block is valid JavaScript", (() => { try { new Function(pdfBlocks.js); return true; } catch (e) { return false; } })());
+check("PDF look: the style block starts and ends with the marks",
+  pdfBlocks.css.startsWith(patch.START) && pdfBlocks.css.trimEnd().endsWith(patch.END));
+check("PDF look: one start mark and one end mark",
+  pdfBlocks.css.split(patch.START).length === 2 && pdfBlocks.css.split(patch.END).length === 2);
+check("PDF look: the Word rules stay, the PDF rules come after them",
+  pdfBlocks.css.indexOf("html.word-page.pdf-look") > pdfBlocks.css.indexOf("html.word-page #editor"));
+check("PDF look: all six fonts are written into the rules",
+  (pdfBlocks.css.match(/url\("data:font\/otf;base64,[A-Za-z0-9+\/=]+"\)/g) || []).length === 6 && !pdfBlocks.css.includes('url("fonts/'));
+check("PDF look: a font comes back byte for byte", (() => {
+  const found = /font-weight: 400; font-style: normal; src: url\("data:font\/otf;base64,([^"]+)"\)/.exec(pdfBlocks.css);
+  return found !== null && Buffer.from(found[1], "base64").equals(fs.readFileSync(path.join(inject, "fonts", "lmroman10-regular.otf")));
+})());
+check("PDF look: as many { as }", pdfBlocks.css.split("{").length === pdfBlocks.css.split("}").length);
+check("PDF look: applied", patch.apply(old, inject, pdfOptions) === "applied");
+check("PDF look: state applied; for the Word look: other",
+  patch.state(old, inject, pdfOptions) === "applied" && patch.state(old, inject, options) === "other");
+check("PDF look: second apply: already", patch.apply(old, inject, pdfOptions) === "already");
+check("back to the Word look: applied, and one style block in the file",
+  patch.apply(old, inject, options) === "applied" && fs.readFileSync(files.css, "utf8") === cssBefore + "\n" + blocks.css);
+patch.apply(old, inject, pdfOptions);
+check("remove after the PDF look: both files are the originals again",
+  patch.remove(old) === "removed" && fs.readFileSync(files.js, "utf8") === jsBefore && fs.readFileSync(files.css, "utf8") === cssBefore);
+
 // a style file without a last line break comes back without one
 fs.writeFileSync(files.css, ".a{color:red}");
 patch.apply(old, inject, options);

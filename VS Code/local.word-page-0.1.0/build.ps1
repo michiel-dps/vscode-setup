@@ -13,7 +13,10 @@ $root = $PSScriptRoot
 $pkg = Get-Content -LiteralPath "$root\package.json" -Raw | ConvertFrom-Json
 $vsix = Join-Path $env:TEMP 'word-page.vsix'   # not in this folder: the folder is copied to GitHub
 $files = @('package.json', 'extension.js', 'patch.js', 'mention.js', 'test.js',
-           'inject/word-page.template.js', 'inject/word-page.css', 'inject/light-theme.json')
+           'inject/word-page.template.js', 'inject/word-page.css', 'inject/light-theme.json',
+           'inject/pdf-look.css', 'inject/fonts/README.txt')
+# the fonts of the PDF look
+$files += Get-ChildItem -LiteralPath "$root\inject\fonts" -Filter '*.otf' | Sort-Object Name | ForEach-Object { "inject/fonts/$($_.Name)" }
 
 # --- 1. The checks ---
 $exe = Join-Path (Split-Path (Split-Path $Code)) 'Code.exe'
@@ -28,7 +31,7 @@ if ($run.ExitCode -ne 0) { throw 'A check in test.js failed (see the lines above
 # --- 2. The add-on ---
 $contentTypes = @'
 <?xml version="1.0" encoding="utf-8"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension=".json" ContentType="application/json"/><Default Extension=".js" ContentType="application/javascript"/><Default Extension=".css" ContentType="text/css"/><Default Extension=".vsixmanifest" ContentType="text/xml"/></Types>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension=".json" ContentType="application/json"/><Default Extension=".js" ContentType="application/javascript"/><Default Extension=".css" ContentType="text/css"/><Default Extension=".otf" ContentType="font/otf"/><Default Extension=".txt" ContentType="text/plain"/><Default Extension=".vsixmanifest" ContentType="text/xml"/></Types>
 '@
 $manifest = @"
 <?xml version="1.0" encoding="utf-8"?>

@@ -46,16 +46,34 @@ function editorFiles(quartoDir) {
   return { js: path.join(dir, "index.js"), css: path.join(dir, "style.css") };
 }
 
+// The style rules of the PDF look, with each font file written into the rules as a
+// "data:" address. That way the page needs no font installed in Windows, and no extra
+// file in Quarto's folder.
+function pdfLookCss(injectDir) {
+  const css = fs.readFileSync(path.join(injectDir, "pdf-look.css"), "utf8").replace(/\r\n/g, "\n").trim();
+  return css.replace(/url\("fonts\/([a-z0-9-]+\.otf)"\)/g, (whole, name) => {
+    const font = fs.readFileSync(path.join(injectDir, "fonts", name));
+    return 'url("data:font/otf;base64,' + font.toString("base64") + '")';
+  });
+}
+
 // the two blocks, built from the files in inject/ and the options
+// (options.look: "pdf" = the page as a paper's PDF, anything else = the Word look)
 function buildBlocks(injectDir, options) {
+  const look = options.look === "pdf" ? "pdf" : "word";
   const theme = JSON.parse(fs.readFileSync(path.join(injectDir, "light-theme.json"), "utf8"));
   const template = fs.readFileSync(path.join(injectDir, "word-page.template.js"), "utf8");
   const js = template
     .replace("/*LIGHT*/", JSON.stringify(theme.colours))
     .replace("/*DROP*/", JSON.stringify(theme.drop))
-    .replace("/*OPTIONS*/", JSON.stringify({ pageWidth: options.pageWidth }))
+    .replace("/*OPTIONS*/", JSON.stringify({ pageWidth: options.pageWidth, look: look }))
     .replace(/\r\n/g, "\n").trim() + "\n";
-  const css = fs.readFileSync(path.join(injectDir, "word-page.css"), "utf8").replace(/\r\n/g, "\n").trim() + "\n";
+  let css = fs.readFileSync(path.join(injectDir, "word-page.css"), "utf8").replace(/\r\n/g, "\n").trim() + "\n";
+  if (look === "pdf") {
+    // the PDF rules go inside the block, just before its end mark
+    const end = css.lastIndexOf(END);
+    css = css.slice(0, end) + pdfLookCss(injectDir) + "\n" + css.slice(end);
+  }
   for (const block of [js, css]) {
     if (!block.startsWith(START) || !block.trimEnd().endsWith(END)) {
       throw new Error("an inject file does not start and end with the word-page marks");

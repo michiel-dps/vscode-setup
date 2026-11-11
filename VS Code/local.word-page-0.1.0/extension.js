@@ -5,7 +5,8 @@
 // add-on adds four things:
 //   1. a white page with black text in that editor, whatever the colour theme
 //      (patch.js puts two small blocks into Quarto's editor files, and puts them
-//      back after Quarto updates itself);
+//      back after Quarto updates itself). Setting wordPage.look: "pdf" draws the
+//      page as a paper's PDF (font, margins, headings), "word" as a Word page;
 //   2. the command "Word Page: New Document": makes a .qmd file with the header
 //      the editor needs and opens it as a page;
 //   3. the first .qmd of a session also opens as a page (Quarto itself only does
@@ -112,7 +113,7 @@ function quartoFolders() {
 function refresh(tell) {
   const config = vscode.workspace.getConfiguration("wordPage");
   const enabled = config.get("enabled", true);
-  const options = { pageWidth: config.get("pageWidth", 820) };
+  const options = { pageWidth: config.get("pageWidth", 820), look: config.get("look", "pdf") };
   const folders = quartoFolders();
   if (folders.length === 0) {
     if (tell) { vscode.window.showWarningMessage("Word Page: the Quarto add-on (quarto.quarto) is not installed, so there is no visual editor."); }

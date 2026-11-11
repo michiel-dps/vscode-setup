@@ -1,0 +1,153 @@
+/* ---- the PDF look (setting wordPage.look = "pdf") -----------------------------------
+   The page as the PDF of a paper: the same font, text size, line distance, margins and
+   headings. patch.js puts this file inside the block of word-page.css (before its end
+   mark), with the font files of inject/fonts written into the @font-face rules below.
+
+   Measured on 11 Nov 2026 in a PDF made by R Markdown (pdf_document: LaTeX, A4, 11 pt,
+   margins 2.5 cm). In points:
+     page 595.28 wide and 841.89 high, text from 70.9 to 524.4
+     text 10.91, lines 13.55 apart, 19.5 from the last line of a paragraph to the next
+     section heading 14.35 bold:    40.4 below the line before it, 30.3 above the next line
+     subsection heading 11.96 bold: 35.2 below the line before it, 26.6 above the next line
+   (from the foot of the letters of one line to the foot of the letters of the next).
+   The margins of the headings below are set so that the page gives the same numbers;
+   bench\js\gaps.js measures them on the page.
+   --wp-pt is one such point on the screen. Text and margins are counted in it, so they
+   follow the page width (setting wordPage.pageWidth): a wider page is the same page,
+   zoomed in.
+
+   Not like the PDF: no page breaks or page numbers, no broken words at the end of a line
+   (VS Code has no word-breaking lists), citations stay @keys, headings have no numbers. */
+
+@font-face { font-family: "WP Latin Modern"; font-weight: 400; font-style: normal; src: url("fonts/lmroman10-regular.otf") format("opentype"); }
+@font-face { font-family: "WP Latin Modern"; font-weight: 400; font-style: italic; src: url("fonts/lmroman10-italic.otf") format("opentype"); }
+@font-face { font-family: "WP Latin Modern"; font-weight: 700; font-style: normal; src: url("fonts/lmroman10-bold.otf") format("opentype"); }
+@font-face { font-family: "WP Latin Modern"; font-weight: 700; font-style: italic; src: url("fonts/lmroman10-bolditalic.otf") format("opentype"); }
+/* LaTeX draws headings of 12 pt and larger with its own cut of the font */
+@font-face { font-family: "WP Latin Modern 12"; font-weight: 700; font-style: normal; src: url("fonts/lmroman12-bold.otf") format("opentype"); }
+@font-face { font-family: "WP Latin Modern Mono"; font-weight: 400; font-style: normal; src: url("fonts/lmmono10-regular.otf") format("opentype"); }
+
+/* The sizes. With room for the whole page: an A4 page as wide as the setting, margins of
+   2.5 cm. In a narrower editor the margins get smaller first (down to 24 px) and the text
+   keeps its size; only when the column of text itself does not fit, the text gets smaller
+   (never under 12.5 px). 80 px = what the editor keeps free beside the page (its left
+   edge, its own padding and the scroll bar). */
+html.word-page.pdf-look {
+  --wp-full: var(--word-page-width, 820px);                          /* the page when there is room */
+  --wp-page: min(var(--wp-full), 100vw - 80px);                      /* the page on the screen */
+  --wp-text: min(var(--wp-full) * 0.76183, var(--wp-page) - 48px);   /* the column of text: 453.5 of the 595.28 points */
+  --wp-pt: max(var(--wp-text) / 453.5, 1.1457px);                    /* one point of the PDF */
+  --wp-margin: calc((var(--wp-page) - var(--wp-text)) / 2);
+}
+
+/* the page */
+html.word-page.pdf-look .ProseMirror > .body > .pm-content {
+  max-width: var(--wp-page);
+  min-height: calc(841.89 * var(--wp-pt));
+  padding: var(--wp-margin);
+  border-radius: 0;
+  font-family: "WP Latin Modern", "Latin Modern Roman", Cambria, Georgia, serif;
+  font-size: calc(10.91 * var(--wp-pt));
+  line-height: 1.242;
+  color: #000000;
+  text-align: justify;
+}
+html.word-page.pdf-look .ProseMirror > .notes {
+  font-family: "WP Latin Modern", "Latin Modern Roman", Cambria, Georgia, serif;
+}
+
+/* text */
+html.word-page.pdf-look .pm-content p {
+  margin: 0 0 0.545em 0;
+  line-height: 1.242;
+}
+
+/* headings: # is a section, ## a subsection, ### a subsubsection */
+html.word-page.pdf-look .pm-content .pm-heading {
+  font-family: "WP Latin Modern 12", "WP Latin Modern", "Latin Modern Roman", Cambria, Georgia, serif;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: left;
+  color: #000000;
+}
+html.word-page.pdf-look .pm-content h1.pm-heading { font-size: 1.3153em !important; margin: 1.685em 0 1.098em 0; }
+html.word-page.pdf-look .pm-content h2.pm-heading { font-size: 1.0962em !important; margin: 1.69em 0 1.103em 0; }
+html.word-page.pdf-look .pm-content h3.pm-heading,
+html.word-page.pdf-look .pm-content h4.pm-heading,
+html.word-page.pdf-look .pm-content h5.pm-heading,
+html.word-page.pdf-look .pm-content h6.pm-heading {
+  font-family: "WP Latin Modern", "Latin Modern Roman", Cambria, Georgia, serif;
+  font-size: 1em !important;
+  margin: 1.978em 0 1.222em 0;
+}
+/* a heading right under a heading: only the room under the first one */
+html.word-page.pdf-look .pm-content .pm-heading + .pm-heading { margin-top: 0; }
+
+/* citations and links: the text font, dark blue (in the PDF they are plain black text) */
+html.word-page.pdf-look .pm-content .cite .pm-fixedwidth-font {
+  font-family: inherit !important;
+  font-size: inherit !important;
+}
+html.word-page.pdf-look .pm-content .pm-link-text-color { color: #1c3f94 !important; }
+/* a long @key may be broken at the end of a line: as one unbreakable word it would
+   leave wide gaps in the line before it */
+html.word-page.pdf-look .pm-content .cite .cite-id { word-break: break-all; }
+
+/* code in a line: the PDF's typewriter font, no box around it */
+html.word-page.pdf-look .pm-content code.pm-code {
+  font-family: "WP Latin Modern Mono", Consolas, "Courier New", monospace !important;
+  font-size: 1em !important;
+  color: #000000;
+  background-color: transparent !important;
+  border: none;
+  padding: 0;
+}
+
+/* the box with the document's settings (YAML) and code blocks: lines start at the left */
+html.word-page.pdf-look .pm-content .pm-code-editor { text-align: left; }
+
+/* figures: in the middle of the page; a caption of one line in the middle too, a longer one fills the lines */
+html.word-page.pdf-look .pm-content figure.pm-figure {
+  display: block !important;
+  width: fit-content;
+  max-width: 100%;
+  margin: calc(12 * var(--wp-pt)) auto;
+}
+html.word-page.pdf-look .pm-content figure.pm-figure > div { text-align: center; }
+html.word-page.pdf-look .pm-content .pm-node-caption {
+  width: fit-content;
+  max-width: 100%;
+  margin: calc(10 * var(--wp-pt)) auto 0 auto;
+  font-size: 1em;
+  line-height: 1.242;
+  text-align: justify;
+}
+
+/* tables: a line above, a line under the header row and a line below; no boxes */
+html.word-page.pdf-look .pm-content .pm-table-container table {
+  border-collapse: collapse;
+  border-top: 0.08em solid #000000;
+  border-bottom: 0.08em solid #000000;
+  text-align: left;
+}
+html.word-page.pdf-look .pm-content .pm-table-container .pm-table-cell {
+  border: none;
+  padding: 0.2em 0.55em 0 0.55em;
+}
+html.word-page.pdf-look .pm-content .pm-table-container th.pm-table-cell {
+  border-bottom: 0.05em solid #000000 !important;
+  font-weight: 400;
+}
+html.word-page.pdf-look .pm-content .pm-table-cell > p:last-of-type { margin-bottom: 0.2em; }
+
+/* lists and quotes */
+html.word-page.pdf-look .pm-content .pm-list {
+  margin: 0 0 0.545em 0;
+  padding-inline-start: 2.3em;
+}
+html.word-page.pdf-look .pm-content .pm-list li > .list-item-container > .list-item-content > p { margin-bottom: 0; }
+html.word-page.pdf-look .pm-content .pm-blockquote {
+  border-left: none;
+  margin: 0 2.3em 0.545em 2.3em;
+  padding-left: 0;
+}

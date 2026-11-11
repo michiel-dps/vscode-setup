@@ -24,6 +24,9 @@
         st.setProperty("--word-page-width", OPTIONS.pageWidth + "px");
       }
       if (!root.classList.contains("word-page")) { root.classList.add("word-page"); }
+      // the PDF look: the style block has rules that only count with this class
+      var pdfLook = OPTIONS.look === "pdf";
+      if (root.classList.contains("pdf-look") !== pdfLook) { root.classList.toggle("pdf-look", pdfLook); }
       var body = document.body;
       if (body) {
         // Quarto decides "dark mode" from this class
