@@ -765,6 +765,15 @@ keeper exits at once; the hook call returns in 0.14 s with no output.
 Hooks are read when a chat starts: works from the next new chat or after
 Reload Window. Off: delete the two hooks from `settings.json`.
 
+The power plans themselves are left alone (decided 11 Nov 2026). Earlier
+that day another chat had set sleep and hibernate to "never" when plugged in,
+in the plan **Legion Performance Mode** (Fn+Q). the user chose this hook
+instead, so that change was undone: back to 15 min sleep and 3 h hibernate
+when plugged in, the same as the other three plans (Quiet, Balance, Windows
+Balanced). Performance mode on battery was already "never sleep" before that
+and was not touched. Without Claude working (for example a long R script on
+its own), a locked laptop still sleeps after 15 min.
+
 ### Black code boxes in the Claude chat wrap to the panel width (9 Nov 2026)
 
 The black boxes in the Claude chat (code blocks in replies, and tool output
