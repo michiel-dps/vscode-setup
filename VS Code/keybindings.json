@@ -22,6 +22,17 @@
         "command": "claude-vscode.sidebar.open"
     },
     {
+        "key": "ctrl+numpad5",
+        "command": "runCommands",
+        "args": {
+            "commands": [
+                "claude-vscode.sidebar.open",
+                "claude-vscode.insertAtMention"
+            ]
+        },
+        "when": "editorTextFocus && editorHasSelection"
+    },
+    {
         "key": "ctrl+numpad6",
         "command": "workbench.action.toggleAuxiliaryBar"
     },
