@@ -17,7 +17,7 @@ laptop, `SAVE.cmd` copies this laptop's setup into the folder.
 | `VS Code\settings.json`, `keybindings.json` | copies of `%APPDATA%\Code\User\` (sections 3 and 4) |
 | `VS Code\extensions.txt` | every VS Code add-on on the laptop, written by SAVE from `%USERPROFILE%\.vscode\extensions\extensions.json`. Marketplace add-ons first (id, version; `pinned` = installed at that exact version), which INSTALL installs. Then, since 10 Nov 2026, the own add-ons as `#` lines (id, version, where it comes from), so INSTALL skips them there: `local.r-pipe-indent` (INSTALL copies it), `local.claude-chat-opener` (INSTALL runs its `build.ps1`), `local.startup-screen` (personal: run its `build.ps1` by hand, section 5b), `local.word-page` (INSTALL runs its `build.ps1`, section 5c). Check against VS Code itself: `code --list-extensions --show-versions` |
 | `VS Code\patch-r-extension.pl` | five fixes to the R extension: data viewer columns sized to content, the column-name popup after `, ` instead of right after the comma, a knitted PDF opening in the editor to the right, a new plot bringing the R Plot tab to the front, and Ctrl+wheel zoom on plots like a PDF (run again after every R extension update, section 6) |
-| `VS Code\patch-pdf-viewer.pl` | two fixes to the PDF viewer add-on `tomoki1207.pdf` (10 Nov 2026): Ctrl+wheel and touchpad pinch zoom smoothly in on the spot under the mouse, as with a PNG; and a clean reload after each knit (run again after every update of that add-on, section 6b) |
+| `VS Code\patch-pdf-viewer.pl` | two fixes to the PDF viewer add-on `tomoki1207.pdf` (10 Nov 2026; zoom version 3 on 11 Nov 2026): Ctrl+wheel and touchpad pinch zoom smoothly in on the spot under the mouse (a pinch follows the fingers, the wheel glides); and a clean reload after each knit (run again after every update of that add-on, section 6b) |
 | `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.0); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo; Keep selects the kept lines), section 5 |
 | `VS Code\local.startup-screen-0.1.0\` | the startup screen (6 Nov 2026): a short loading screen with a picture, a tip and the loading steps when VS Code starts; personal, left out of the GitHub copy; section 5b |
 | `VS Code\local.word-page-0.1.0\` | Word Page (11 Nov 2026): write like in Word or Google Docs inside VS Code. Quarto's visual editor as a white page with black text under any colour theme, "Word Page: New Document", citations from a `.bib` file and from Zotero; the file underneath is markdown (`.qmd`). Its `bench\` is an off-screen test VS Code for Claude; section 5c |
@@ -711,22 +711,49 @@ made "it doesn't make an HTML" on 10 Nov 2026:
   run again. After a patch, the window must be reloaded once (Ctrl+Shift+P,
   Reload Window): the R extension reads its code only when the window starts.
   On 10 Nov 2026 the knit worked but no PDF opened for exactly this reason.
-- **Zooming in the PDF** (10 Nov 2026, version 2 the same evening):
-  Ctrl+wheel (or a touchpad pinch) zooms like VS Code's image preview:
-  every wheel step zooms 7.5% around the spot under the mouse. While
-  zooming the pages are only stretched (a bit blurry, but instant); 250 ms
-  after the last step they are drawn sharp once. That is
-  `VS Code\patch-pdf-viewer.pl`. The add-on itself drifted away from the
-  mouse (it first jumped back to an old scroll position), jumped 33% per
-  mouse notch, redrew every page on every step (laggy), and ignored
-  Ctrl+wheel for 1 second after normal scrolling. Test with 20 quick steps
-  over the map page: original 1.4-1.9 s and up to 8 freezes; version 2
-  0.4 s, no freeze while zooming, drift 2 px, one short pause (~180 ms) on
-  the heavy map page when it is drawn sharp. A PDF tab reads the patched
-  code when it opens: close the tab and open it again. Old behaviour back
-  after an add-on update: run `perl patch-pdf-viewer.pl` again. It always
-  starts from the originals, kept as `lib\web\viewer.js.orig` and
-  `lib\main.js.orig` in the add-on folder.
+- **Zooming in the PDF** (version 3, 11 Nov 2026; versions 1 and 2 were
+  10 Nov): Ctrl+wheel or a touchpad pinch. That is
+  `VS Code\patch-pdf-viewer.pl`.
+  - A **pinch follows the fingers** exactly. The **mouse wheel** zooms 7.5%
+    per notch and glides there instead of jumping. The spot under the mouse
+    stays under the mouse.
+  - While zooming, the pages on screen are only moved and stretched (a bit
+    blurry, but done by the graphics card): nothing is laid out and no page
+    is drawn. 250 ms after the last movement the real zoom is set once and
+    the pages are drawn sharp. Every page is shown where it will be then,
+    so nothing jumps when it turns sharp: at most 2.4 px in 19 test cases
+    (edges of the document, the landscape page, a one-page PDF, a fast
+    spin of the wheel, scrolling during a zoom).
+  - Why version 3: version 2 counted every small pinch event as a full 7.5%
+    step, so one pinch ran to the maximum zoom. It also laid out all pages
+    on every step and let pages be drawn in between. Same test for both (a
+    pinch of 60 small steps in and 60 out, headless Chrome, one screen
+    frame = 6 ms): version 2 had 11-13 frames over 20 ms and freezes of
+    50-150 ms; version 3 has 0-1 and no freeze.
+  - Still there: drawing a heavy map page sharp freezes the viewer for
+    about 0.5 s (pages 4 and 7 of `test_mapfigures.pdf`); the add-on draws
+    on the same thread as everything else. That now happens only after the
+    zoom has stopped. Zoom again during it and the first frame can hang
+    about 0.15 s; then the drawing is paused until the zoom stops again.
+  - The mouse wheel zooms far too fast: the mouse sends many small steps
+    (a smooth-scrolling wheel) and they are taken for a pinch. A step
+    smaller than `SMOOTH_ZOOM_FINE` (30) counts as a pinch; the constants
+    are at the top of the patched block in `lib\web\viewer.js` (and in the
+    `.pl`).
+  - Pages side by side, wrapped or horizontal scrolling (the viewer's Tools
+    menu): the zoom is as smooth, but the pages can shift up to about 75 px
+    when they turn sharp (the viewer centres them again).
+  - Tested in headless Chrome only, with made-up wheel events; not yet
+    measured inside VS Code with the real touchpad.
+  - A PDF tab reads the patched code when it opens: close the tab and open
+    it again. Old behaviour back after an add-on update: run
+    `perl patch-pdf-viewer.pl` again. It always starts from the originals,
+    kept as `lib\web\viewer.js.orig` and `lib\main.js.orig` in the add-on
+    folder.
+  - The add-on's own zoom, for the record: 33% per mouse notch, drifting
+    away from the mouse (it first jumped back to an old scroll position),
+    every page redrawn on every step, and no Ctrl+wheel for 1 second after
+    normal scrolling.
 - **After a knit the PDF stays where you were** (same page, spot and zoom;
   second fix in `patch-pdf-viewer.pl`, `lib\main.js`). The add-on reloads a
   changed PDF itself, but it kept the old pages and the old copy of the PDF:
@@ -738,7 +765,10 @@ made "it doesn't make an HTML" on 10 Nov 2026:
 - Testing the viewer without VS Code: Claude copies `lib\` to its
   scratchpad, serves it with a small Python web server and runs test pages
   in headless Chrome that send their results back (`--dump-dom` with
-  `--virtual-time-budget` gives wrong timings: use real time). In
+  `--virtual-time-budget` gives wrong timings: use real time). For the
+  zoom: send `WheelEvent`s with `ctrlKey` (deltaY 1-5 = pinch, 100 = one
+  wheel notch), time the screen frames, and compare each page's place in
+  the last stretched frame with the first sharp one. In
   PowerShell `-match` ignores case, so a check for "END" also matched
   "pagerENDered": use `-cmatch`.
 - `[WARNING] Deprecated: --mathjax` in the output is harmless (pandoc is
