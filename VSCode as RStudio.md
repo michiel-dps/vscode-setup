@@ -16,7 +16,7 @@ laptop, `SAVE.cmd` copies this laptop's setup into the folder.
 | `R\packages.txt` | the R packages on the laptop (written by SAVE, installed by INSTALL) |
 | `VS Code\settings.json`, `keybindings.json` | copies of `%APPDATA%\Code\User\` (sections 3 and 4) |
 | `VS Code\extensions.txt` | every VS Code add-on on the laptop, written by SAVE from `%USERPROFILE%\.vscode\extensions\extensions.json`. Marketplace add-ons first (id, version; `pinned` = installed at that exact version), which INSTALL installs. Then, since 10 Nov 2026, the own add-ons as `#` lines (id, version, where it comes from), so INSTALL skips them there: `local.r-pipe-indent` (INSTALL copies it), `local.claude-chat-opener` (INSTALL runs its `build.ps1`), `local.startup-screen` (personal: run its `build.ps1` by hand, section 5b). Check against VS Code itself: `code --list-extensions --show-versions` |
-| `VS Code\patch-r-extension.pl` | three fixes to the R extension: data viewer columns sized to content, the column-name popup after `, ` instead of right after the comma, and a knitted PDF opening in the editor to the right (run again after every R extension update, section 6) |
+| `VS Code\patch-r-extension.pl` | five fixes to the R extension: data viewer columns sized to content, the column-name popup after `, ` instead of right after the comma, a knitted PDF opening in the editor to the right, a new plot bringing the R Plot tab to the front, and Ctrl+wheel zoom on plots like a PDF (run again after every R extension update, section 6) |
 | `VS Code\patch-pdf-viewer.pl` | two fixes to the PDF viewer add-on `tomoki1207.pdf` (10 Nov 2026): Ctrl+wheel and touchpad pinch zoom smoothly in on the spot under the mouse, as with a PNG; and a clean reload after each knit (run again after every update of that add-on, section 6b) |
 | `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.0); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo; Keep selects the kept lines), section 5 |
 | `VS Code\local.startup-screen-0.1.0\` | the startup screen (6 Nov 2026): a short loading screen with a picture, a tip and the loading steps when VS Code starts; personal, left out of the GitHub copy; section 5b |
@@ -441,9 +441,10 @@ A click or any key stops it at once and goes to VS Code.
   `watch-test.R` (`R\` in this folder, see its header), then re-source
   `watch.R` in the running R terminal (Ctrl+Enter on the `source(...)`
   line of the unit, or Ctrl+Alt+R for a new terminal).
-- Three things in the R extension are changed by editing its code
-  (`VS Code\patch-r-extension.pl` in this folder; the original is kept next
-  to it as `extension.js.orig`). The R extension overwrites both when it
+- Five things in the R extension are changed by editing its code
+  (`VS Code\patch-r-extension.pl` in this folder; the originals are kept next
+  to them as `extension.js.orig` and `webviews\httpgd\index.js.orig`). The R
+  extension overwrites them when it
   updates itself (the folder `reditorsupport.r-x.y.z` gets a new version
   number): run the script again, Reload Window. It reports each fix as
   "applied" or "already in place"; "code not found" means the extension
@@ -462,6 +463,28 @@ A click or any key stops it at once and goes to VS Code.
      extension knows the output path only after knitting, so this is the
      one place where "open it beside" can go; `openOutputFile` would open
      it in the same editor window as the `.Rmd`.
+  4. Plots (11 Nov 2026): a new plot (`print(p)`, `plot(x)`) brings the
+     **R Plot** tab to the front in its editor window (the second one, setting
+     `r.session.viewers.viewColumn` → `plot`, default `Two`), also when a PDF
+     or a data tab was in front there. The cursor stays in the script. The R
+     extension itself only did this when the tab was closed: an open tab
+     behind another one got the new plot without coming forward. Only a plot
+     id httpgd did not have before counts, so a redraw after resizing the
+     window does not pull the tab forward.
+  5. Plots (11 Nov 2026): **Ctrl+wheel or a touchpad pinch zooms the plot**
+     7.5% per step around the spot under the mouse, as in the PDF viewer
+     (section 6b) and VS Code's PNG preview. Zoomed in, the wheel (or a
+     sideways touchpad swipe) or dragging with the mouse moves the plot; a
+     double-click zooms back out; a new plot starts unzoomed. It is a separate
+     block at the end of `webviews\httpgd\index.js` (the plot tab's own page),
+     so it only depends on the box `#largePlot` there. The plot is an SVG: while
+     zooming it is only stretched (instant), 250 ms after the last step it is
+     drawn sharp once, which matters for the big maps. This zoom is not the
+     toolbar's magnifier buttons: those redraw the plot in R with bigger text.
+     21 checks in headless Edge on 11 Nov 2026 (step size, spot under the
+     mouse kept, edges, pan, double-click, new plot, drag bar under the plot
+     still works); the original code fails 11 of them. A plot tab reads the
+     patched page when it opens: close the R Plot tab and plot again.
 - Picking a function from the autocomplete popup inserts `f()` as a snippet;
   the Enter extension works inside it too (its activation rule must NOT
   contain `!inSnippetMode`).

@@ -238,7 +238,7 @@ $rscript = Join-Path "$($rFolder.FullName)" 'bin\Rscript.exe'
 Run 'install the R packages this laptop does not have yet' {
     & $rscript --vanilla "$setup\scripts\install-packages.R" "$setup\R\packages.txt"
 }
-Run 'two fixes to the R add-on (data viewer, column-name popup)' { & $perl "$setup\VS Code\patch-r-extension.pl" }
+Run 'five fixes to the R add-on (data viewer, column-name popup, knit PDF, plot to front, plot zoom)' { & $perl "$setup\VS Code\patch-r-extension.pl" }
 Run 'PDF viewer: smooth zoom at the mouse, clean reload after a knit' { & $perl "$setup\VS Code\patch-pdf-viewer.pl" }
 
 
