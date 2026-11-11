@@ -174,7 +174,10 @@ def main():
                  "ArrowDown": 40, "ArrowUp": 38, "End": 35, "Home": 36, "Numpad5": 101}
         vk = codes.get(key, ord(key.upper()) if len(key) == 1 else 0)
         code = key if len(key) > 1 else "Key" + key.upper()
-        base = {"key": key, "code": code, "windowsVirtualKeyCode": vk, "nativeVirtualKeyCode": vk, "modifiers": m}
+        # with Shift a real keyboard reports the capital letter ("K", not "k"); the page editor
+        # looks at that: with "k" it took Ctrl+Shift+K for Ctrl+K and opened the Link dialog
+        key_value = key.upper() if (len(key) == 1 and "shift" in mods) else key
+        base = {"key": key_value, "code": code, "windowsVirtualKeyCode": vk, "nativeVirtualKeyCode": vk, "modifiers": m}
         if key.startswith("Numpad"):      # a key of the number pad, NumLock on
             base.update(key=key[6:], location=3, isKeypad=True)
         ws.call("Input.dispatchKeyEvent", dict(base, type="rawKeyDown"))

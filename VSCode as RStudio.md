@@ -529,6 +529,45 @@ bibliography: references.bib
 ---
 ```
 
+**The real PDF beside the page (12 Nov 2026, asked: "need to see the page
+endings").** The page cannot show where a page ends: LaTeX decides that when
+it builds the PDF. So the answer is the real PDF next to the page, as in
+Overleaf. With `format: pdf` in the header of the `.qmd`:
+
+- **Ctrl+Shift+K on the page** builds the PDF and shows it in a tab to the
+  right ("Quarto Preview"), with a terminal under it that shows the build.
+  Press it again after a change (about 30 seconds for the term paper). It is
+  Quarto's own command; also Ctrl+Shift+P, `Quarto: Preview`. The PDF is
+  saved next to the `.qmd`. It is the same key as for an `.Rmd` (section 7).
+- Checked in the bench on 12 Nov 2026 with the term paper's draft: the key
+  builds the PDF from the page and the tab shows "1 of 25". (A first test
+  opened the Link dialog instead: the bench sent the key as "k", and the page
+  editor takes Ctrl+Shift+"k" for Ctrl+K. A real keyboard sends "K";
+  `cdp.py key k ctrl,shift` now does too.)
+
+A `.qmd` that is both a page and a PDF, things to know (all checked by
+saving from the page in the bench and comparing the file):
+
+- Saving from the page keeps code chunks, raw LaTeX blocks
+  (```` ```{=latex} ````), `::: landscape` blocks and a second header block
+  further down (for example `nocite`). It only writes list bullets its own
+  way.
+- A table typed in the text: the page **drops `{tbl-colwidths=...}`** from
+  its caption when it saves, and sets the dashes under the header row from
+  the column widths on the page. So the widths of such a table are set by
+  dragging its columns on the page. For a table that a code chunk prints,
+  `tbl-colwidths` in the caption does work (the page never touches it).
+- R code in a line (`` `r x` ``) is shown as code on the page, also inside a
+  table cell: keep it short (one variable).
+- The box at the top of the page is as long as the header. LaTeX settings
+  can live in a file of their own: `include-in-header: draft_header.tex`.
+- Pandoc cuts a table in two at the end of a page. `draft_header.tex` of the
+  term paper has a one-line rule against that (`\keeptogether{5cm}`: new page
+  when less than 5 cm is left). The LaTeX package `needspace` is not used for
+  it: in front of a table it reserved too much room and left half-empty
+  pages. A test on 12 Nov 2026 did make Quarto install `needspace` into
+  TinyTeX (one small package; it is unused).
+
 **Things to know.**
 
 - The first time ever, Quarto asks "You are activating Quarto visual markdown
