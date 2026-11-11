@@ -160,6 +160,8 @@ line between editor groups, not the edge of the side windows or the bottom panel
         "claude-vscode.sidebar.open",
         "claude-vscode.insertAtMention" ] },
       "when": "editorTextFocus && editorHasSelection" },
+    { "key": "ctrl+numpad5", "command": "wordPage.selectionToClaude",
+      "when": "activeCustomEditorId == 'quarto.visualEditor' && !sideBarFocus && !auxiliaryBarFocus && !panelFocus" },
     { "key": "ctrl+numpad7", "command": "runCommands",
       "args": { "commands": [
         "workbench.action.focusSecondEditorGroup",
@@ -174,7 +176,7 @@ line between editor groups, not the edge of the side windows or the bottom panel
 | Ctrl+Shift+M | types ` %>%` (RStudio's pipe shortcut); right after a space just `%>%`, so no double spaces |
 | Ctrl+M | disabled (it toggled "Tab moves focus" by accident) |
 | Ctrl+Enter | run the statement at the cursor, or the selection widened to whole statements; refuses an unfinished statement with a yellow warning (section 5) |
-| Ctrl+Numpad5 | jump to the **Claude Code** chat box in the side panel (opens it if closed). With lines highlighted in a file, it also types a reference to them into the message, e.g. `@code/04_maps.R#12-20` (file from the project folder, first-last line), so Claude reads exactly those lines; without a highlight it only jumps. Two entries for the same key: the plain one first, then one with `"when": "editorTextFocus && editorHasSelection"` that runs `claude-vscode.sidebar.open` and then `claude-vscode.insertAtMention` (the Claude add-on's own Alt+K command); the later entry wins when its `when` is true. The order inside matters: side panel first, because the add-on types the reference into every Claude chat that is visible at that moment (read in its code, version 2.1.322), so a Claude tab that is open next to the code gets the reference too; delete it there. It does not work from a Word Page (section 5c): a highlight there is not an editor selection, so the key only jumps. NumLock must be on (added 11 Nov 2026) |
+| Ctrl+Numpad5 | jump to the **Claude Code** chat box in the side panel (opens it if closed). With lines highlighted in a file, it also types a reference to them into the message, e.g. `@code/04_maps.R#12-20` (file from the project folder, first-last line), so Claude reads exactly those lines; without a highlight it only jumps. Two entries for the same key: the plain one first, then one with `"when": "editorTextFocus && editorHasSelection"` that runs `claude-vscode.sidebar.open` and then `claude-vscode.insertAtMention` (the Claude add-on's own Alt+K command); the later entry wins when its `when` is true. The order inside matters: side panel first, because the add-on types the reference into every Claude chat that is visible at that moment (read in its code, version 2.1.322), so a Claude tab that is open next to the code gets the reference too; delete it there. A highlight on a Word Page is not an editor selection, so there a third entry (`"when": "activeCustomEditorId == 'quarto.visualEditor' ..."`, keyboard on the page) runs the Word Page add-on's own command, which does the same job in another way: section 5c, "Highlighted text to Claude". NumLock must be on (added 11 Nov 2026) |
 | Ctrl+Numpad7 | new **Claude Code** chat as a tab in its own column on the right (runs on the Claude subscription): it first focuses the second editor group (VS Code makes one on the right if there is only one), then runs `claude-vscode.primaryEditor.open`, which opens in that active group (or in a column that already holds only Claude tabs) and, unlike `claude-vscode.editor.open`, does not switch `claudeCode.preferredLocation` from sidebar to panel. Changed 4 Nov 2026: it first opened VS Code's own Claude harness ("Claude copilot"), but that chat cannot send anything here: Copilot Free (`copilot token sku: free_limited_copilot`) offers it no Claude models, and Anthropic does not allow claude.ai subscription logins in Agent SDK products (Agent SDK overview page), so it would need an Anthropic API key or a paid Copilot plan. Old notes on that harness, kept for later: it first focuses the second editor group (VS Code makes one on the right if there is only one), then opens the chat there; if that column already shows a Claude chat, the new one replaces it in place (the old one stays in the sessions list). Layout: Claude Code in the left side bar, code + Claude chat in the middle, Copilot chat ("Chat"; VS Code cannot rename a view) in the right side bar. VS Code has only one chat view, which is why the Claude chat is an editor tab and not a second side bar. Session type `agent-host-claude` (VS Code's Agent Host; the same command as picking "Claude" in the chat's session-type menu). Needed `"chat.agentHost.claudeAgent.enabled": true` in settings.json; **removed again 5 Nov 2026**: with it on, the Copilot chat panel opened this Claude chat type (which cannot send) and the old Copilot chats dropped out of the sessions list. Do not turn it back on (the old name `github.copilot.chat.claudeAgent.enabled` no longer exists in VS Code 1.144). Who pays depends on the model picked in that chat: models from your own Anthropic login (VS Code tags them `anthropic`, "native") bill your Claude account; the others go through Copilot. While signed in to GitHub, Copilot is the default. Native models only appear after VS Code has downloaded the Claude Agent SDK (agenthost.log said "SDK not downloaded yet" on 4 Nov). Added 4 Nov 2026 |
 | Ctrl+Numpad8 | jump to the Copilot chat box in the side window (opens it if closed); NumLock must be on (added 4 Nov 2026) |
 
@@ -490,9 +492,67 @@ bibliography: references.bib
 **Files** (`VS Code\local.word-page-0.1.0\`): `extension.js` (the commands, the
 first-`.qmd` rule, when to patch), `patch.js` (finds Quarto, puts the blocks in
 or takes them out; no VS Code in it), `inject\` (the script block, the style
-block, the 889 colours), `test.js` (35 offline checks of `patch.js`),
+block, the 889 colours), `mention.js` (finds the lines of a highlighted text
+in the `.qmd` file and builds the reference for Claude; no VS Code in it),
+`test.js` (60 offline checks of `patch.js` and `mention.js`),
 `build.ps1` (runs the checks, packs, installs; VS Code switches a newly
-installed add-on on in the open windows by itself).
+installed add-on on in the open windows by itself; a changed add-on needs
+Reload Window).
+
+**Highlighted text to Claude: Ctrl+Numpad5 on a page** (11 Nov 2026).
+Highlight text on the page, press Ctrl+Numpad5: the Claude side panel takes
+the keyboard and its chat box gets a reference such as
+`@paper/draft.qmd#23-25 "Norway forgives part of ... in rural municipalities."`:
+the file, the lines of the highlighted text in the `.qmd` file, and the text
+itself as a short quote (all of it up to 60 characters, else its first and
+last four words). Claude then reads those lines. Nothing highlighted: the key
+only goes to the chat box, as before. In a normal file the same key does this
+through the Claude add-on itself (section 4).
+
+How it works. VS Code cannot see what is highlighted on a page, and the
+Claude add-on has no command that takes a text, so the text travels over the
+clipboard (`selectionToClaude` in `extension.js`):
+
+1. The command copies what is highlighted (`editor.action.clipboardCopyAction`).
+   For that one copy, the script block on the page puts the highlighted text
+   on the clipboard together with the 300 characters before and after it.
+   It knows the copy is ours because Ctrl+Numpad5 was pressed on the page in
+   the last 3 seconds (the key is named in `inject\word-page.template.js`:
+   `CLAUDE_KEY`; change it there too if the key ever moves).
+2. `mention.js` looks the text up in the file by its letters and digits only,
+   because the page shows it without the markdown marks (`**bold**`, a link
+   address, a footnote). The characters around it tell two equal pieces apart
+   (the word "scheme" five times in the paper). A link, footnote or formula
+   inside the highlight: it finds the start and walks to the end. No sure
+   place: the reference comes without line numbers, never with a guess.
+3. The command goes to the Claude panel, waits 0.15 s for the chat box to
+   take the keyboard, and pastes the reference
+   (`editor.action.clipboardPasteAction`).
+4. The clipboard is put back as it was.
+
+Things to know.
+
+- The clipboard is only touched when something is highlighted. It is put
+  back as text: a copied picture or file is lost then. With Windows'
+  clipboard history on (Win+V), the reference shows up in that list.
+- The first time in a VS Code window, with the Claude panel closed, the
+  reference comes after 3 seconds: the chat box may have to start first, and
+  the add-on cannot see whether it has (measured in the bench: a chat box
+  that was never open does not take the keyboard by itself). With the panel
+  open, and every later time, it is there at once.
+- A file with unsaved changes is saved first (Claude reads the file on disk,
+  so the line numbers must be those). With autosave on, nothing to notice.
+- Should the paste ever land on the page instead of in the chat box, the
+  script block stops it: a paste that starts with `@`, within 10 seconds
+  after the key, does nothing on the page.
+- The message "close this document tab and open it again" means the page was
+  opened before the add-on had put its script block in (after a Quarto
+  update, or right after a change to the add-on).
+- A Claude chat that is open as a tab does not get the reference (unlike the
+  key in a normal file): it goes to the side panel only.
+- One line per key press in `%TEMP%\word-page.log` (what was found, what was
+  pasted, how long the copy and the panel took). Read that first when it
+  "does nothing".
 
 **Test bench for Claude** (`bench\`). Claude cannot see the screen, so it
 tests in a second VS Code that runs off-screen: `bench\launch.ps1` copies VS
@@ -500,7 +560,17 @@ Code, Quarto and this add-on to `%TEMP%\word-page-bench` (1 GB, once), starts
 it with its own settings and opens a sample paper; `bench\cdp.py` (plain
 Python) takes screenshots, clicks, types and reads the page through the
 debugging port. That is how the look, the Insert menu, the Zotero dialog,
-typing a heading, `@` completion and saving were checked on 11 Nov 2026. The
+typing a heading, `@` completion and saving were checked on 11 Nov 2026.
+With `-Claude` the bench also gets the Claude Code add-on and the real
+`keybindings.json`; `cdp.py key Numpad5 ctrl` presses the key and
+`cdp.py claude file.js` reads the Claude chat box. That is how Ctrl+Numpad5
+on a page was checked (16 cases: panel open, closed, never opened; a word
+that is there twice; a highlight over two paragraphs; normal copy and paste).
+**Rule (11 Nov 2026): a test window never takes the keyboard from your own
+VS Code window, and is closed when the test is done.** Starting the bench
+still does take it for a moment, so `launch.ps1` now refuses to start
+without `-AllowFocus`; what has to change first (its own Windows desktop) is
+written at the top of the script. The other
 traps are written at the top of `launch.ps1` (a waiting VS Code update blocks
 a second VS Code, hence the copy; Quarto's one-time question; Quick Open only
 finds files opened before). `bench\gen.py` makes `inject\light-theme.json`

@@ -33,6 +33,11 @@
         "when": "editorTextFocus && editorHasSelection"
     },
     {
+        "key": "ctrl+numpad5",
+        "command": "wordPage.selectionToClaude",
+        "when": "activeCustomEditorId == 'quarto.visualEditor' && !sideBarFocus && !auxiliaryBarFocus && !panelFocus"
+    },
+    {
         "key": "ctrl+numpad6",
         "command": "workbench.action.toggleAuxiliaryBar"
     },

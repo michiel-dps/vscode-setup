@@ -12,7 +12,7 @@ $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $pkg = Get-Content -LiteralPath "$root\package.json" -Raw | ConvertFrom-Json
 $vsix = Join-Path $env:TEMP 'word-page.vsix'   # not in this folder: the folder is copied to GitHub
-$files = @('package.json', 'extension.js', 'patch.js', 'test.js',
+$files = @('package.json', 'extension.js', 'patch.js', 'mention.js', 'test.js',
            'inject/word-page.template.js', 'inject/word-page.css', 'inject/light-theme.json')
 
 # --- 1. The checks ---

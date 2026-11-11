@@ -3,8 +3,10 @@
 #   python -I cdp.py shot out.png              screenshot of the VS Code window
 #   python -I cdp.py webview file.js           run JS in the Quarto editor webview; the file holds
 #                                              a function body with (doc, win) = inner document, window
+#   python -I cdp.py claude file.js            the same, in the Claude chat panel (launch.ps1 -Claude)
 #   python -I cdp.py page file.js              run JS in the workbench page
-#   python -I cdp.py key <key> [mods]          press a key in the window (mods: ctrl,shift,alt)
+#   python -I cdp.py key <key> [mods]          press a key in the window (mods: ctrl,shift,alt);
+#                                              Numpad5 = the 5 of the number pad
 #   python -I cdp.py click x y                 mouse click at window coordinates
 #   python -I cdp.py type "text"               type text
 import base64, json, os, socket, struct, sys, time, urllib.request
@@ -144,15 +146,17 @@ def main():
     elif cmd == "page":
         body = open(sys.argv[2], encoding="utf-8").read()
         print(evaluate(ws, "(async function(){%s})()" % body))
-    elif cmd == "webview":
+    elif cmd in ("webview", "claude"):
         body = open(sys.argv[2], encoding="utf-8").read()
+        # both webviews have a #root; only the Claude chat panel sets CLAUDE_PANEL_STARTED
+        wanted = "win.CLAUDE_PANEL_STARTED" if cmd == "claude" else "!win.CLAUDE_PANEL_STARTED"
         # browser-level connection so that the out-of-process webview frames can be reached
         with urllib.request.urlopen("http://127.0.0.1:%d/json/version" % PORT, timeout=10) as r:
             browser = json.loads(r.read())["webSocketDebuggerUrl"]
         bws = WS(browser)
         expr = ("(async function(){ const f = document.querySelector('iframe#active-frame');"
                 " if (!f) return '__NO_ACTIVE_FRAME__'; const doc = f.contentDocument, win = f.contentWindow;"
-                " if (!doc.getElementById('root')) return '__NOT_QUARTO__'; %s })()" % body)
+                " if (!doc.getElementById('root') || !(%s)) return '__NOT_QUARTO__'; %s })()" % (wanted, body))
         hit = False
         for t, sid in webview_sessions(bws):
             val = evaluate(bws, expr, sid)
@@ -161,16 +165,18 @@ def main():
             hit = True
             print(val if isinstance(val, str) else json.dumps(val, indent=1))
         if not hit:
-            print("NO QUARTO WEBVIEW FOUND")
+            print("NO CLAUDE CHAT PANEL FOUND" if cmd == "claude" else "NO QUARTO WEBVIEW FOUND")
     elif cmd == "key":
         key = sys.argv[2]
         mods = sys.argv[3].split(",") if len(sys.argv) > 3 else []
         m = (1 if "alt" in mods else 0) | (2 if "ctrl" in mods else 0) | (8 if "shift" in mods else 0)
         codes = {"F4": 115, "Enter": 13, "Escape": 27, "Tab": 9, "F1": 112, "F8": 119, "Backspace": 8,
-                 "ArrowDown": 40, "ArrowUp": 38, "End": 35, "Home": 36}
+                 "ArrowDown": 40, "ArrowUp": 38, "End": 35, "Home": 36, "Numpad5": 101}
         vk = codes.get(key, ord(key.upper()) if len(key) == 1 else 0)
         code = key if len(key) > 1 else "Key" + key.upper()
         base = {"key": key, "code": code, "windowsVirtualKeyCode": vk, "nativeVirtualKeyCode": vk, "modifiers": m}
+        if key.startswith("Numpad"):      # a key of the number pad, NumLock on
+            base.update(key=key[6:], location=3, isKeypad=True)
         ws.call("Input.dispatchKeyEvent", dict(base, type="rawKeyDown"))
         ws.call("Input.dispatchKeyEvent", dict(base, type="keyUp"))
         print("pressed", key, mods)

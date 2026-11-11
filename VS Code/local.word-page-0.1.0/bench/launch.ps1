@@ -9,7 +9,20 @@
 #   ... launch.ps1 -MoveOnly -Width 760  resize the running window (narrow editor)
 #   ... launch.ps1 -Stop                 close it
 #   ... launch.ps1 -Fresh                throw the bench away first (after a VS Code or Quarto update)
+#   ... launch.ps1 -Claude               also with the Claude Code add-on and the real keybindings.json, to test
+#                                        Ctrl+Numpad5 (highlighted text to the Claude chat box). It uses the real
+#                                        Claude login and the real clipboard: send no message there.
+#   ... launch.ps1 -AllowFocus           needed to start or to use -Open: see the rule below
 # Then, with python:  cdp.py shot out.png | cdp.py webview js\layout.js | cdp.py key F8 ctrl,shift | ...
+#
+# RULE (asked 11 Nov 2026): a test window must never take the keyboard from the real VS Code
+# window, and it is closed when the test is done (launch.ps1 -Stop). Starting the bench, and
+# -Open, DO take the keyboard for a moment (on 11 Nov a start also gave two windows). So the
+# script refuses both unless -AllowFocus is given: only after he said that it is fine now.
+# To do before the next real use: start the bench on its own Windows desktop (CreateProcess
+# with STARTUPINFO.lpDesktop, e.g. "WordPageBench"), where a window cannot take the keyboard
+# of the real desktop; size the window through the debugging port (Browser.setWindowBounds)
+# instead of Move-TestWindow; check with GetForegroundWindow before and after that nothing moved.
 #
 # The first run copies VS Code (about 1 GB) to %TEMP%\word-page-bench; that takes a minute.
 #
@@ -29,10 +42,16 @@
 param(
     [string]$File = "sample.qmd",
     [string]$Open = "",
-    [switch]$Stop, [switch]$MoveOnly, [switch]$Fresh,
+    [switch]$Stop, [switch]$MoveOnly, [switch]$Fresh, [switch]$Claude, [switch]$AllowFocus,
     [int]$Width = 1400, [int]$Height = 950,
     [string]$Work = (Join-Path $env:TEMP 'word-page-bench')
 )
+
+if (-not ($Stop -or $MoveOnly -or $AllowFocus)) {
+    "refused: starting the bench (or -Open) takes the keyboard from the real VS Code window for a moment."
+    "Read the RULE at the top of this script. Add -AllowFocus only when he said it is fine now."
+    exit 1
+}
 
 $addon   = Split-Path $PSScriptRoot -Parent                       # ...\local.word-page-0.1.0
 $install = "$env:LOCALAPPDATA\Programs\Microsoft VS Code"
@@ -119,6 +138,14 @@ if (-not (Test-Path -LiteralPath "$Work\ext")) {
         robocopy $_.FullName "$Work\ext\$($_.Name)" /E /NFL /NDL /NJH /NJS /NP | Out-Null
     }
 }
+if ($Claude -and -not (Get-ChildItem "$Work\ext" -Directory -Filter 'anthropic.claude-code-*')) {
+    $claudeAddon = Get-ChildItem $realExt -Directory -Filter 'anthropic.claude-code-*' | Sort-Object LastWriteTime | Select-Object -Last 1
+    if (-not $claudeAddon) { throw 'the Claude Code add-on is not installed' }
+    "copying the Claude Code add-on to $Work\ext (about 340 MB, once) ..."
+    robocopy $claudeAddon.FullName "$Work\ext\$($claudeAddon.Name)" /E /NFL /NDL /NJH /NJS /NP /MT:16 | Out-Null
+    # VS Code keeps a list of the add-ons it found; without the list it looks through the folder again
+    Remove-Item -LiteralPath "$Work\ext\extensions.json" -ErrorAction SilentlyContinue
+}
 if (-not (Test-Path -LiteralPath "$Work\data\User\settings.json")) {
     New-Item -ItemType Directory -Force "$Work\data\User" | Out-Null
     # the same colour theme as the real VS Code, so the dark case is tested
@@ -141,10 +168,16 @@ if (-not (Test-Path -LiteralPath "$Work\data\User\settings.json")) {
   "window.restoreWindows": "none",
   "window.dialogStyle": "custom",
   "chat.disableAIFeatures": true,
+  "claudeCode.preferredLocation": "sidebar",
+  "claudeCode.hideOnboarding": true,
   "workbench.secondarySideBar.defaultVisibility": "hidden"
 }
 "@
     [IO.File]::WriteAllText("$Work\data\User\settings.json", $settings, $utf8)
+}
+if ($Claude) {
+    # the same keys as the real VS Code (keys of add-ons that are not in the bench do nothing)
+    Copy-Item -LiteralPath "$env:APPDATA\Code\User\keybindings.json" -Destination "$Work\data\User\keybindings.json" -Force
 }
 if (-not (Test-Path -LiteralPath "$Work\ws")) {
     New-Item -ItemType Directory -Force "$Work\ws" | Out-Null

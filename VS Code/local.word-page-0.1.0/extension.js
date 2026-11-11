@@ -2,22 +2,27 @@
 //
 // The editor itself is Quarto's visual editor (add-on quarto.quarto): toolbar,
 // headings, tables, footnotes, citations from a .bib file and from Zotero. This
-// add-on adds three things:
+// add-on adds four things:
 //   1. a white page with black text in that editor, whatever the colour theme
 //      (patch.js puts two small blocks into Quarto's editor files, and puts them
 //      back after Quarto updates itself);
 //   2. the command "Word Page: New Document": makes a .qmd file with the header
 //      the editor needs and opens it as a page;
 //   3. the first .qmd of a session also opens as a page (Quarto itself only does
-//      that for the files opened after it has started).
+//      that for the files opened after it has started);
+//   4. Ctrl+Numpad5 on a page puts a reference to the highlighted text into the
+//      Claude chat box (mention.js finds its lines in the .qmd file).
 "use strict";
 const vscode = require("vscode");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const patch = require("./patch");
+const mention = require("./mention");
 
 const VISUAL_EDITOR = "quarto.visualEditor";   // Quarto's name for its visual editor
 const INJECT = path.join(__dirname, "inject");
+const LOG = path.join(os.tmpdir(), "word-page.log");   // one line per Ctrl+Numpad5 on a page
 
 function activate(context) {
   refresh(false);
@@ -26,6 +31,7 @@ function activate(context) {
     vscode.commands.registerCommand("wordPage.newDocument", newDocument),
     vscode.commands.registerCommand("wordPage.openAsPage", openAsPage),
     vscode.commands.registerCommand("wordPage.putBack", () => refresh(true)),
+    vscode.commands.registerCommand("wordPage.selectionToClaude", selectionToClaude),
     // Quarto was updated or installed: its new files do not have the page yet
     vscode.extensions.onDidChange(() => refresh(false)),
     vscode.workspace.onDidChangeConfiguration((change) => {
@@ -193,6 +199,122 @@ async function openAsPage(clicked) {
     return;
   }
   await vscode.commands.executeCommand("vscode.openWith", uri, VISUAL_EDITOR);
+}
+
+// ---- 4. highlighted text for Claude --------------------------------------------
+
+// For a selection in a normal file, Ctrl+Numpad5 lets the Claude add-on type
+// "@file#lines" into its chat box. VS Code cannot see what is highlighted on a
+// page, so here the text travels over the clipboard:
+//   1. copy what is highlighted; the script block on the page answers with the
+//      text and the words around it (inject/word-page.template.js);
+//   2. find the lines of that text in the .qmd file (mention.js);
+//   3. go to the Claude chat box and paste the reference there;
+//   4. put the clipboard back as it was (text only: a copied picture is lost).
+// Nothing highlighted: the clipboard is not touched, the key only goes to the chat box.
+const CLAUDE_PANEL = "claude-vscode.sidebar.open";
+const PANEL_WAS_OPEN = 25;     // ms: going to a panel that is open takes about 5 ms, opening a closed one 40 or more
+const PANEL_START = 3000;      // ms: time given to a chat box that has to start
+let panelFirstOpened = 0;      // when this command first went to the panel in this window (0 = not yet)
+
+function pause(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function log(text) {
+  try {
+    if (fs.existsSync(LOG) && fs.statSync(LOG).size > 200000) { fs.unlinkSync(LOG); }
+    const stamp = new Date().toISOString().replace("T", " ").slice(0, 19);
+    fs.appendFileSync(LOG, stamp + "  " + text + "\n");
+  } catch (err) { /* a log line is never worth an error */ }
+}
+
+// Wait until the clipboard holds the answer of the page; null when none comes.
+async function answerOfPage(ms) {
+  const until = Date.now() + ms;
+  for (;;) {
+    const picked = mention.readCopied(await vscode.env.clipboard.readText());
+    if (picked) { return picked; }
+    if (Date.now() >= until) { return null; }
+    await pause(15);
+  }
+}
+
+async function selectionToClaude() {
+  const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+  const onPage = tab && tab.input instanceof vscode.TabInputCustom && tab.input.viewType === VISUAL_EDITOR;
+  if (!onPage) {
+    await vscode.commands.executeCommand(CLAUDE_PANEL);
+    return;
+  }
+  const clipboard = vscode.env.clipboard;
+  const uri = tab.input.uri;
+  const started = Date.now();
+  let old = await clipboard.readText();
+  if (mention.readCopied(old)) {       // an answer left over from an earlier press
+    old = "";
+    await clipboard.writeText("");
+  }
+
+  try {
+    // 1. copy; the page answers on the clipboard
+    await vscode.commands.executeCommand("editor.action.clipboardCopyAction");
+    let picked = await answerOfPage(300);
+    if (!picked) {
+      const now = await clipboard.readText();
+      if (now !== old) {
+        // a plain copy came back: this page was opened before the add-on could answer
+        await clipboard.writeText(old);
+        vscode.window.showInformationMessage("Word Page: close this document tab and open it again. After that, Ctrl+Numpad5 takes the highlighted text along to Claude.");
+        log("claude: plain copy, the page has no answer block yet");
+      }
+      if (panelFirstOpened === 0) { panelFirstOpened = Date.now(); }
+      await vscode.commands.executeCommand(CLAUDE_PANEL);
+      picked = await answerOfPage(2500);     // a busy laptop: the answer can still come
+      if (!picked) {
+        if (now === old) { log("claude: nothing highlighted"); }
+        return;
+      }
+    }
+    const copyTime = Date.now() - started;
+
+    // 2. the lines in the file
+    let lines = null;
+    try {
+      const document = await vscode.workspace.openTextDocument(uri);
+      // Claude reads the file on disk, so the line numbers must be those of the saved file
+      if (document.isDirty) { await document.save(); }
+      lines = mention.findLines(document.getText(), picked);
+    } catch (err) { /* a reference without line numbers */ }
+    const reference = mention.buildMention(vscode.workspace.asRelativePath(uri, false), lines, picked.text);
+
+    // 3. paste it into the chat box
+    try {
+      await clipboard.writeText(reference);
+      const opening = Date.now();
+      await vscode.commands.executeCommand(CLAUDE_PANEL);
+      const panelTime = Date.now() - opening;
+      const loaded = panelTime < PANEL_WAS_OPEN || (panelFirstOpened > 0 && opening - panelFirstOpened > PANEL_START);
+      if (panelFirstOpened === 0) { panelFirstOpened = opening; }
+      if (!loaded) {
+        // The panel was closed, and maybe never open in this window. Then the chat box
+        // has to start first, and does not take the keyboard by itself: wait, ask again.
+        await pause(PANEL_START);
+        await vscode.commands.executeCommand(CLAUDE_PANEL);
+      }
+      await pause(150);                      // the chat box takes the keyboard a moment after its panel
+      await vscode.commands.executeCommand("editor.action.clipboardPasteAction");
+      await pause(300);                      // the paste reads the clipboard a moment later
+      log("claude: " + (lines ? "lines " + lines.first + "-" + lines.last : "no lines found") +
+        ", pasted " + JSON.stringify(reference) + " (copy " + copyTime + " ms, panel " + panelTime + " ms" +
+        (loaded ? "" : ", waited for the chat box to start") + ")");
+    } finally {
+      await clipboard.writeText(old);        // 4.
+    }
+  } catch (err) {
+    log("claude: error " + (err && err.message ? err.message : err));
+    vscode.window.showWarningMessage("Word Page: could not send the highlighted text to Claude. " + (err && err.message ? err.message : err));
+  }
 }
 
 function deactivate() {}

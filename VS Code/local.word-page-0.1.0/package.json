@@ -29,6 +29,10 @@
 			{
 				"command": "wordPage.putBack",
 				"title": "Word Page: Put the White Page Back"
+			},
+			{
+				"command": "wordPage.selectionToClaude",
+				"title": "Word Page: Highlighted Text to the Claude Chat Box"
 			}
 		],
 		"menus": {
