@@ -20,3 +20,4 @@ tomoki1207.pdf                       1.2.2
 #   local.claude-chat-opener       0.3.0    ..\Claude Code\tools\chat-opener (INSTALL runs its build.ps1)
 #   local.r-pipe-indent            0.5.0    VS Code\local.r-pipe-indent-0.1.0 (INSTALL copies it)
 #   local.startup-screen           0.1.0    VS Code\local.startup-screen-0.1.0 (personal: run its build.ps1 by hand)
+#   local.word-page                0.1.0    VS Code\local.word-page-0.1.0 (INSTALL runs its build.ps1)

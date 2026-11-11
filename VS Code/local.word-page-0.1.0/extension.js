@@ -2,12 +2,14 @@
 //
 // The editor itself is Quarto's visual editor (add-on quarto.quarto): toolbar,
 // headings, tables, footnotes, citations from a .bib file and from Zotero. This
-// add-on adds two things:
+// add-on adds three things:
 //   1. a white page with black text in that editor, whatever the colour theme
 //      (patch.js puts two small blocks into Quarto's editor files, and puts them
 //      back after Quarto updates itself);
 //   2. the command "Word Page: New Document": makes a .qmd file with the header
-//      the editor needs and opens it as a page.
+//      the editor needs and opens it as a page;
+//   3. the first .qmd of a session also opens as a page (Quarto itself only does
+//      that for the files opened after it has started).
 "use strict";
 const vscode = require("vscode");
 const fs = require("fs");
@@ -28,8 +30,60 @@ function activate(context) {
     vscode.extensions.onDidChange(() => refresh(false)),
     vscode.workspace.onDidChangeConfiguration((change) => {
       if (change.affectsConfiguration("wordPage")) { refresh(true); }
-    })
+    }),
+    vscode.window.tabGroups.onDidChangeTabs((change) => { openFirstPage(change.opened); })
   );
+}
+
+// ---- 3. the first .qmd of a session ---------------------------------------------
+
+// A .qmd with "editor: visual" in its header opens as a page: Quarto does that, but
+// only while it runs. Opening the first .qmd is what starts Quarto, so that file
+// was opened as plain text before Quarto could look. This does it for that file.
+async function openFirstPage(openedTabs) {
+  const quarto = vscode.extensions.getExtension("quarto.quarto");
+  if (!quarto || quarto.isActive) { return; }        // Quarto runs: it does this itself
+  for (const tab of openedTabs) {
+    if (!(tab.input instanceof vscode.TabInputText)) { continue; }
+    const uri = tab.input.uri;
+    if (uri.scheme !== "file" || !/\.qmd$/i.test(uri.fsPath) || !asksForVisual(uri.fsPath)) { continue; }
+    try {
+      await quarto.activate();
+      // the tab as it is now (the user may have closed or changed it in the meantime)
+      const now = findTextTab(uri);
+      if (!now) { return; }
+      const column = now.group.viewColumn;
+      await vscode.window.tabGroups.close(now, true);
+      await vscode.commands.executeCommand("vscode.openWith", uri, VISUAL_EDITOR, { viewColumn: column, preview: false });
+    } catch (err) {
+      // the file stays open as text: Ctrl+Shift+F4 still switches by hand
+    }
+    return;
+  }
+}
+
+function findTextTab(uri) {
+  for (const group of vscode.window.tabGroups.all) {
+    for (const tab of group.tabs) {
+      if (tab.input instanceof vscode.TabInputText && tab.input.uri.toString() === uri.toString() && !tab.isDirty) {
+        return tab;
+      }
+    }
+  }
+  return undefined;
+}
+
+// Does the header of the file (between the first two --- lines) say "editor: visual"?
+function asksForVisual(file) {
+  let text;
+  try {
+    text = fs.readFileSync(file, "utf8").slice(0, 4000);
+  } catch (err) {
+    return false;
+  }
+  const header = /^﻿?---\r?\n([\s\S]*?)\r?\n(---|\.\.\.)[ \t]*(\r?\n|$)/.exec(text);
+  if (!header) { return false; }
+  return /^editor:[ \t]+visual[ \t]*$/m.test(header[1]) || /^[ \t]+mode:[ \t]+visual[ \t]*$/m.test(header[1]);
 }
 
 // ---- 1. the white page -------------------------------------------------------

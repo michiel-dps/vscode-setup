@@ -240,6 +240,9 @@ Run 'install the R packages this laptop does not have yet' {
 }
 Run 'five fixes to the R add-on (data viewer, column-name popup, knit PDF, plot to front, plot zoom)' { & $perl "$setup\VS Code\patch-r-extension.pl" }
 Run 'PDF viewer: smooth zoom at the mouse, clean reload after a knit' { & $perl "$setup\VS Code\patch-pdf-viewer.pl" }
+Run 'Word Page add-on (write like in Word: a white page in the Quarto visual editor)' {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File "$setup\VS Code\local.word-page-0.1.0\build.ps1"
+}
 
 
 # --- 6. git ---

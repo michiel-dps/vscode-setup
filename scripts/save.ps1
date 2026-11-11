@@ -7,8 +7,9 @@
 # changed. Files that did not change are skipped.
 #
 # Not saved here because they are used straight from the setup folder:
-# R\Rprofile.R, R\watch.R, the Enter add-on (VS Code\local.r-pipe-indent-0.1.0)
-# and the startup screen (VS Code\local.startup-screen-0.1.0).
+# R\Rprofile.R, R\watch.R, the Enter add-on (VS Code\local.r-pipe-indent-0.1.0),
+# the startup screen (VS Code\local.startup-screen-0.1.0) and Word Page
+# (VS Code\local.word-page-0.1.0).
 
 param([switch]$Quiet)
 
@@ -58,6 +59,7 @@ if (Test-Path -LiteralPath $registry) {
         'local.r-pipe-indent'      = 'VS Code\local.r-pipe-indent-0.1.0 (INSTALL copies it)'
         'local.claude-chat-opener' = '..\Claude Code\tools\chat-opener (INSTALL runs its build.ps1)'
         'local.startup-screen'     = 'VS Code\local.startup-screen-0.1.0 (personal: run its build.ps1 by hand)'
+        'local.word-page'          = 'VS Code\local.word-page-0.1.0 (INSTALL runs its build.ps1)'
     }
 
     $lines = @(

@@ -15,11 +15,12 @@ laptop, `SAVE.cmd` copies this laptop's setup into the folder.
 | `R\.lintr` | no warnings about trailing spaces / indentation / commented code / "use |> instead of %>%" (copy of `C:\Users\<you>\.lintr`) |
 | `R\packages.txt` | the R packages on the laptop (written by SAVE, installed by INSTALL) |
 | `VS Code\settings.json`, `keybindings.json` | copies of `%APPDATA%\Code\User\` (sections 3 and 4) |
-| `VS Code\extensions.txt` | every VS Code add-on on the laptop, written by SAVE from `%USERPROFILE%\.vscode\extensions\extensions.json`. Marketplace add-ons first (id, version; `pinned` = installed at that exact version), which INSTALL installs. Then, since 10 Nov 2026, the own add-ons as `#` lines (id, version, where it comes from), so INSTALL skips them there: `local.r-pipe-indent` (INSTALL copies it), `local.claude-chat-opener` (INSTALL runs its `build.ps1`), `local.startup-screen` (personal: run its `build.ps1` by hand, section 5b). Check against VS Code itself: `code --list-extensions --show-versions` |
+| `VS Code\extensions.txt` | every VS Code add-on on the laptop, written by SAVE from `%USERPROFILE%\.vscode\extensions\extensions.json`. Marketplace add-ons first (id, version; `pinned` = installed at that exact version), which INSTALL installs. Then, since 10 Nov 2026, the own add-ons as `#` lines (id, version, where it comes from), so INSTALL skips them there: `local.r-pipe-indent` (INSTALL copies it), `local.claude-chat-opener` (INSTALL runs its `build.ps1`), `local.startup-screen` (personal: run its `build.ps1` by hand, section 5b), `local.word-page` (INSTALL runs its `build.ps1`, section 5c). Check against VS Code itself: `code --list-extensions --show-versions` |
 | `VS Code\patch-r-extension.pl` | five fixes to the R extension: data viewer columns sized to content, the column-name popup after `, ` instead of right after the comma, a knitted PDF opening in the editor to the right, a new plot bringing the R Plot tab to the front, and Ctrl+wheel zoom on plots like a PDF (run again after every R extension update, section 6) |
 | `VS Code\patch-pdf-viewer.pl` | two fixes to the PDF viewer add-on `tomoki1207.pdf` (10 Nov 2026): Ctrl+wheel and touchpad pinch zoom smoothly in on the spot under the mouse, as with a PNG; and a clean reload after each knit (run again after every update of that add-on, section 6b) |
 | `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.0); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo; Keep selects the kept lines), section 5 |
 | `VS Code\local.startup-screen-0.1.0\` | the startup screen (6 Nov 2026): a short loading screen with a picture, a tip and the loading steps when VS Code starts; personal, left out of the GitHub copy; section 5b |
+| `VS Code\local.word-page-0.1.0\` | Word Page (11 Nov 2026): write like in Word or Google Docs inside VS Code. Quarto's visual editor as a white page with black text under any colour theme, "Word Page: New Document", citations from a `.bib` file and from Zotero; the file underneath is markdown (`.qmd`). Its `bench\` is an off-screen test VS Code for Claude; section 5c |
 | `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `awake\awake.py` (laptop stays awake while Claude works, section 9), `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\` (the /chats add-on, which also makes code blocks in the Claude chat wrap, section 9), `memory\` (one folder per project) |
 | `git\.gitconfig` | name, e-mail, GitHub login through `gh` |
 
@@ -400,6 +401,107 @@ A click or any key stops it at once and goes to VS Code.
   `helper: show <picture>, tip N`, `helper: closed (N frames in S s)`,
   `add-on: the helper shows the screen; reported in`; without the helper
   `show <picture>, tip N, full screen` and `full screen: closed`.
+
+## 5c. Word Page: write like in Word inside VS Code (own add-on, 11 Nov 2026)
+
+For writing text (a paper, an essay) in something that looks like Word or
+Google Docs, without leaving VS Code: a white page with black text, a toolbar,
+headings, lists, tables, footnotes, formulas and citations. The file underneath
+is markdown (`.qmd`), so Claude can move the text into an `.Rmd` paper as it is.
+
+**What it is made of.** The editor is not ours: it is the *visual editor* of the
+Quarto add-on (`quarto.quarto`, needs the Quarto program, both installed). An
+agent compared the Word-like add-ons on the Marketplace on 11 Nov 2026 (read
+their pages and code, installed none): Quarto's is the only one that both
+writes real pandoc markdown and has citations from a `.bib` file and Zotero
+built in. Two things were missing, and the own add-on `local.word-page` adds
+them:
+
+1. **A white page under a dark theme.** Quarto's editor takes every colour from
+   the VS Code theme, and has no setting for another look (none among its
+   `quarto.visualEditor.*` settings). The add-on puts two blocks into Quarto's files
+   `assets\www\editor\index.js` (at the top) and `style.css` (at the end),
+   between `word-page:start` and `word-page:end` marks; nothing else in those
+   files changes, and "take out" gives the files back byte for byte. The script
+   block gives the editor the colours of VS Code's Light Modern theme (889
+   colours; fonts and sizes stay your own settings), puts them back whenever
+   VS Code sends its theme again, and switches off the "dark mode" yes/no that
+   VS Code sends with the preferences (without that, formulas are drawn white
+   on white). The style block makes the page: grey desk, white sheet 820 px
+   wide with margins and a shadow, smaller margins in a narrow editor.
+2. **It comes back by itself.** A Quarto update brings new files without the
+   blocks. The add-on checks at every start of VS Code and when an add-on is
+   installed or updated, and puts the blocks back (it reads only the first
+   50 KB of the 10 MB file to check).
+
+**Using it.**
+
+- New document: Ctrl+Shift+P, `Word Page: New Document` (also: right-click a
+  folder in the Explorer, or File > New File...). It asks for a name, makes
+  `<name>.qmd` in the folder of the open file with the header below, and opens
+  it as a page. A `.bib` file in that folder becomes its list of sources.
+- A `.qmd` whose header has `editor: visual` opens as a page by itself.
+  Quarto does that only for files opened after it has started, so the add-on
+  does it for the first `.qmd` of a session. A `.md` never opens as a page by
+  itself: right-click it, `Word Page: Open as Page`.
+- **Ctrl+Shift+F4** switches between the page and the plain markdown text.
+- Citing: type `@` and the first letters of an author (a list comes up), or
+  Insert > Citation (Ctrl+Shift+F8). The dialog shows the document's `.bib`
+  file, **your Zotero library** (read straight from `C:\Users\<you>\Zotero`,
+  Zotero does not have to be open, Better BibTeX is not used), and a search
+  by DOI, in Crossref and in PubMed. A source picked from Zotero is added to
+  the `.bib` file by itself. A source added in Zotero shows up here after
+  Zotero has saved its database (closing Zotero does that).
+- Footnote: Ctrl+Shift+F7. Table, picture, formula: the Insert menu.
+- Settings: `wordPage.enabled` (off = the editor follows the theme again),
+  `wordPage.pageWidth` (820). Font and size of the text are Quarto's:
+  `quarto.visualEditor.fontFamily`, `quarto.visualEditor.fontSize`.
+
+```yaml
+---
+title: "Draft"
+editor: visual
+bibliography: references.bib
+---
+```
+
+**Things to know.**
+
+- The first time ever, Quarto asks "You are activating Quarto visual markdown
+  editing mode": click **Use Visual Mode**. Once.
+- The page rewrites the markdown in pandoc's own tidy style when it saves
+  (`*text*`, table columns lined up). Fine for a writing document. Do not open
+  `README.md`, `CLAUDE.md` or a memory file as a page.
+- A file opened as a page shows as changed (the dot on the tab) right away
+  when its markdown was not yet in that tidy style.
+- It is for `.qmd` and `.md`. An `.Rmd` cannot be opened as a page (Quarto
+  does not allow it): write in a `.qmd`, Claude moves the text into the `.Rmd`.
+- No word count and no Norwegian spell check in this editor.
+- After a change to the add-on the open page keeps its old look: close the tab
+  and open it again.
+
+**Files** (`VS Code\local.word-page-0.1.0\`): `extension.js` (the commands, the
+first-`.qmd` rule, when to patch), `patch.js` (finds Quarto, puts the blocks in
+or takes them out; no VS Code in it), `inject\` (the script block, the style
+block, the 889 colours), `test.js` (35 offline checks of `patch.js`),
+`build.ps1` (runs the checks, packs, installs; VS Code switches a newly
+installed add-on on in the open windows by itself).
+
+**Test bench for Claude** (`bench\`). Claude cannot see the screen, so it
+tests in a second VS Code that runs off-screen: `bench\launch.ps1` copies VS
+Code, Quarto and this add-on to `%TEMP%\word-page-bench` (1 GB, once), starts
+it with its own settings and opens a sample paper; `bench\cdp.py` (plain
+Python) takes screenshots, clicks, types and reads the page through the
+debugging port. That is how the look, the Insert menu, the Zotero dialog,
+typing a heading, `@` completion and saving were checked on 11 Nov 2026. The
+traps are written at the top of `launch.ps1` (a waiting VS Code update blocks
+a second VS Code, hence the copy; Quarto's one-time question; Quick Open only
+finds files opened before). `bench\gen.py` makes `inject\light-theme.json`
+again from a dump of the theme colours (`bench\js\dumpvars.js`, taken in the
+bench under a light theme). If the page look breaks after a Quarto update
+(they renamed a box): `bench\js\layout.js` prints the boxes and their rules;
+the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
+`.fui-Toolbar`.
 
 ## 6. R extension (reditorsupport.r) gotchas
 
