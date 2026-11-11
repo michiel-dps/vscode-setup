@@ -1,0 +1,40 @@
+/* word-page:start (local add-on "Word Page": the page look for Quarto's visual editor) */
+
+/* the desk: light grey behind the page */
+html.word-page #editor,
+html.word-page .ProseMirror > .body.pm-background-color {
+  background-color: #e9ebee !important;
+}
+
+/* the page: a white sheet with margins and a soft shadow */
+html.word-page .ProseMirror > .body > .pm-content {
+  box-sizing: border-box;
+  max-width: var(--word-page-width, 820px);
+  min-height: calc(100% - 48px);
+  margin: 20px auto 28px auto;
+  padding: 64px 84px 110px 84px;
+  background-color: #ffffff;
+  border: 1px solid #d9dce1;
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.10), 0 6px 18px rgba(0, 0, 0, 0.07);
+  line-height: 1.5;
+}
+
+/* a narrow editor (split view): smaller margins, so the text keeps its room */
+@media (max-width: 900px) {
+  html.word-page .ProseMirror > .body > .pm-content {
+    padding: 36px 40px 90px 40px;
+  }
+}
+@media (max-width: 560px) {
+  html.word-page .ProseMirror > .body > .pm-content {
+    padding: 22px 20px 80px 20px;
+    margin-top: 8px;
+  }
+}
+
+/* the toolbar: a thin line under it, like a ribbon */
+html.word-page .fui-Toolbar {
+  border-bottom: 1px solid #d9dce1;
+}
+/* word-page:end */

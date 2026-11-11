@@ -1,0 +1,72 @@
+{
+	"name": "word-page",
+	"publisher": "local",
+	"displayName": "Word Page",
+	"description": "Write like in Word or Google Docs inside VS Code: Quarto's visual editor as a white page with black text under any colour theme, plus a command for a new document. The file underneath stays markdown (.qmd). Personal add-on.",
+	"version": "0.1.0",
+	"engines": {
+		"vscode": "^1.80.0"
+	},
+	"capabilities": {
+		"untrustedWorkspaces": {
+			"supported": true
+		}
+	},
+	"main": "./extension.js",
+	"activationEvents": [
+		"*"
+	],
+	"contributes": {
+		"commands": [
+			{
+				"command": "wordPage.newDocument",
+				"title": "Word Page: New Document"
+			},
+			{
+				"command": "wordPage.openAsPage",
+				"title": "Word Page: Open as Page"
+			},
+			{
+				"command": "wordPage.putBack",
+				"title": "Word Page: Put the White Page Back"
+			}
+		],
+		"menus": {
+			"explorer/context": [
+				{
+					"command": "wordPage.newDocument",
+					"when": "explorerResourceIsFolder",
+					"group": "navigation@30"
+				},
+				{
+					"command": "wordPage.openAsPage",
+					"when": "!explorerResourceIsFolder && resourceExtname =~ /^\\.(qmd|md)$/",
+					"group": "navigation@30"
+				}
+			],
+			"file/newFile": [
+				{
+					"command": "wordPage.newDocument",
+					"group": "file"
+				}
+			]
+		},
+		"configuration": {
+			"title": "Word Page",
+			"properties": {
+				"wordPage.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show Quarto's visual editor as a white page with black text, whatever the colour theme of VS Code. Off: the visual editor follows the theme again."
+				},
+				"wordPage.pageWidth": {
+					"type": "number",
+					"default": 820,
+					"minimum": 400,
+					"maximum": 2000,
+					"description": "Width of the page in pixels (text plus margins)."
+				}
+			}
+		}
+	}
+}

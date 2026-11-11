@@ -20,7 +20,7 @@ laptop, `SAVE.cmd` copies this laptop's setup into the folder.
 | `VS Code\patch-pdf-viewer.pl` | two fixes to the PDF viewer add-on `tomoki1207.pdf` (10 Nov 2026): Ctrl+wheel and touchpad pinch zoom smoothly in on the spot under the mouse, as with a PNG; and a clean reload after each knit (run again after every update of that add-on, section 6b) |
 | `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.0); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo; Keep selects the kept lines), section 5 |
 | `VS Code\local.startup-screen-0.1.0\` | the startup screen (6 Nov 2026): a short loading screen with a picture, a tip and the loading steps when VS Code starts; personal, left out of the GitHub copy; section 5b |
-| `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\` (the /chats add-on, which also makes code blocks in the Claude chat wrap, section 9), `memory\` (one folder per project) |
+| `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `awake\awake.py` (laptop stays awake while Claude works, section 9), `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\` (the /chats add-on, which also makes code blocks in the Claude chat wrap, section 9), `memory\` (one folder per project) |
 | `git\.gitconfig` | name, e-mail, GitHub login through `gh` |
 
 Since 30 Oct 2026 nothing is per project any more: a new R folder works
@@ -628,6 +628,40 @@ centre of a municipality, the number boxes on the maps) are in Claude's memory
 Claude Code then never offers the survey, neither in the VS Code chat panel nor in
 the terminal (checked in the code of version 2.1.319). Takes effect in a new chat
 or after Reload Window. Undo: delete the `env` block.
+
+### The laptop stays awake while Claude works, also when locked (11 Nov 2026)
+
+Lock the laptop (Win+L) while Claude is busy and walk away: it no longer
+falls asleep after 15 minutes (10 on battery), so Claude keeps working. The
+screen still turns off (after 5 / 3 minutes) and the laptop stays locked.
+Closing the lid or pressing the power button still puts it to sleep, as
+before. This laptop has classic sleep (S3, `powercfg /a`), where such a
+request reliably holds off idle sleep and hibernate.
+
+How: two hooks in `~/.claude/settings.json`, **SessionStart** and
+**UserPromptSubmit**, run `~/.claude/awake/awake.py`. It starts a small
+keeper in the background (`pythonw`, no window, about 0.15 s, prints
+nothing; a hook's output would go to Claude) and returns. The keeper asks
+Windows not to sleep (`SetThreadExecutionState`, `ES_SYSTEM_REQUIRED`, the
+request a video player or a download makes; no admin rights needed). It
+looks once a minute whether Claude still writes: any chat transcript
+(`~/.claude/projects/**/*.jsonl`, also subagents) changed in the last 30
+minutes. After 30 quiet minutes it lets go and stops, and Windows' own sleep
+timer counts again from zero: so after Claude finishes, the laptop sleeps
+about 45 minutes later. The next message to Claude starts it again. Only one
+keeper runs (lock file `%LOCALAPPDATA%\claude-awake\keeper.lock`), also with
+several Claude chats open. Log: `%LOCALAPPDATA%\claude-awake\log.txt` (`awake:` /
+`released:` lines). The 30 minutes is `IDLE_MINUTES` at the top of
+`awake.py`.
+
+Test (11 Nov 2026, 7 checks, all pass): Windows' "system required" flag
+(read with `CallNtPowerInformation`) is off before, on while the keeper runs,
+off again once the transcript stays quiet longer than the idle time; a second
+keeper exits at once; the hook call returns in 0.14 s with no output.
+`powercfg /requests` would also show it, but needs admin rights.
+
+Hooks are read when a chat starts: works from the next new chat or after
+Reload Window. Off: delete the two hooks from `settings.json`.
 
 ### Black code boxes in the Claude chat wrap to the panel width (9 Nov 2026)
 

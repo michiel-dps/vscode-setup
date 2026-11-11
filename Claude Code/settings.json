@@ -8,7 +8,7 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "opus[1m]",
+  "model": "fable",
   "skillOverrides": {
     "docs": "off",
     "docx": "off",
@@ -25,6 +25,26 @@
     "computer-use": "off"
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"C:/Users/<you>/AppData/Local/Programs/Python/Python312/python.exe\" -I \"C:/Users/<you>/.claude/awake/awake.py\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"C:/Users/<you>/AppData/Local/Programs/Python/Python312/python.exe\" -I \"C:/Users/<you>/.claude/awake/awake.py\""
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit",
@@ -80,6 +100,9 @@
       "effortLevel": "xhigh"
     },
     "claude-opus-5-5": {
+      "effortLevel": "xhigh"
+    },
+    "claude-fable-5-2": {
       "effortLevel": "xhigh"
     }
   },

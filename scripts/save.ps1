@@ -110,6 +110,7 @@ Copy-Files $userHome "$setup\git" @('.gitconfig')
 # --- Claude Code: rules, settings, hook script, slash commands, chat opener ---
 Copy-Files  $claude "$setup\Claude Code" @('CLAUDE.md', 'settings.json')
 Copy-Files  "$claude\review" "$setup\Claude Code\review" @('review.py')
+Copy-Files  "$claude\awake" "$setup\Claude Code\awake" @('awake.py')
 Copy-Folder "$claude\commands" "$setup\Claude Code\commands"
 Copy-Folder "$claude\tools\chat-opener" "$setup\Claude Code\tools\chat-opener" @('chat-opener.vsix')
 

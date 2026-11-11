@@ -1,0 +1,36 @@
+---
+title: "Sample paper"
+editor: visual
+bibliography: refs.bib
+---
+
+# Introduction
+
+Norway forgives part of the **student loan** for people who live in rural municipalities. This paper asks whether the scheme brought *young adults* to these places [@angrist2009]. Earlier work finds small effects of place-based policies [see @kline2014, pp. 630-640].
+
+A second paragraph with a footnote[^1] and a [link](https://www.ssb.no). Inline maths: $y_{it} = \alpha_i + \beta D_{it} + \varepsilon_{it}$.
+
+## Data
+
+We use three sources:
+
+- Population by age from Statistics Norway
+- The centrality index
+- The list of eligible municipalities
+
+1.  Download the raw files
+2.  Build the crosswalk
+3.  Estimate the model
+
+| Group   | Municipalities | Mean population |
+|---------|---------------:|----------------:|
+| Treated |             58 |           2,340 |
+| Control |             61 |           3,115 |
+
+> A block quote: the grade rests on the pipeline, not on the causal result.
+
+# Results
+
+The effect is small and not statistically significant.
+
+[^1]: This is the footnote text.

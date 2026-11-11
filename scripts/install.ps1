@@ -4,7 +4,7 @@
 #   R:           startup file (watch.R), .lintr, all R packages
 #   git:         name, e-mail, GitHub login helper
 #   Claude Code: rules (CLAUDE.md), settings and hooks, slash commands,
-#                chat opener, memory
+#                chat opener, keep-awake helper, memory
 #
 # Run by INSTALL.cmd (double-click). Safe to run again: add-ons and packages
 # that are already there are skipped. Every file it replaces is first copied
@@ -252,6 +252,7 @@ Say 'Claude Code'
 Install-File   "$setup\Claude Code\CLAUDE.md"     (Join-Path $claude 'CLAUDE.md')
 Install-File   "$setup\Claude Code\settings.json" (Join-Path $claude 'settings.json')
 Install-Folder "$setup\Claude Code\review"   (Join-Path $claude 'review')
+Install-Folder "$setup\Claude Code\awake"    (Join-Path $claude 'awake')
 Install-Folder "$setup\Claude Code\commands" (Join-Path $claude 'commands')
 Install-Folder "$setup\Claude Code\tools"    (Join-Path $claude 'tools')
 
