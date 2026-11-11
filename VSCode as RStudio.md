@@ -784,18 +784,13 @@ Balanced). Performance mode on battery was already "never sleep" before that
 and was not touched. Without Claude working (for example a long R script on
 its own), a locked laptop still sleeps after 15 min.
 
-**Faster long R runs (11 Nov 2026).** The normal mode is Legion Balance Mode.
-For a long run (the map versions took 20 to 40 minutes), press **Fn+Q** until
-the light in the power button turns red (Performance; white = Balance, blue =
-Quiet), and press it back to white afterwards. Only while plugged in: on
-battery the performance plan never sleeps. It makes R about 10-20% faster,
-no more: one R process uses only one CPU core (this laptop has 8 cores and
-16 threads), and RAM (14 GB) was not the limit. Giving VS Code a higher
-priority does nothing: the work runs in `Rscript` processes, not in VS Code.
-What really helps is several R processes side by side (one per core): split
-the work, e.g. one process per group of versions. Fn+Q switches the Legion
-hardware mode and its Windows plan together; `powercfg /setactive` would only
-change the Windows plan, so it is not used (the plans are left alone, above).
+**Long R runs use the cores (11 Nov 2026, his idea).** One R process uses one
+CPU core; this laptop has 8 cores (16 threads). A rule in `~/.claude/CLAUDE.md`
+("Long R runs: use the cores") tells Claude to split a run of more than a few
+minutes into about 6 `Rscript` processes side by side (2 cores stay free),
+e.g. one per group of figure versions, instead of one long run. Background:
+the map versions of 11 Nov took 20 to 40 minutes as one or two processes,
+with the CPU at 30% and RAM not the limit.
 
 ### Black code boxes in the Claude chat wrap to the panel width (9 Nov 2026)
 
