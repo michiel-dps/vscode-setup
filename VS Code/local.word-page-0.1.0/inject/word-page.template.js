@@ -473,6 +473,9 @@
     if (body.indent) {
       css.push("html.word-page.pdf-look.wp-styled.wp-indent .ProseMirror > .body > .pm-content > p, " +
         "html.word-page.pdf-look.wp-styled.wp-indent .ProseMirror > .body > .pm-content > .pm-div > p { text-indent: calc(" + body.indent + PT + "; }");
+      // as in LaTeX, no indent right after a heading (this rule must come after the one above)
+      css.push("html.word-page.pdf-look.wp-styled.wp-indent .ProseMirror > .body > .pm-content > .pm-heading + p, " +
+        "html.word-page.pdf-look.wp-styled.wp-indent .ProseMirror > .body > .pm-content > .pm-div > .pm-heading + p { text-indent: 0; }");
     }
     function below(L, F, m) { return L / 2 - (m.a - m.d) * F / 2; }      // from the foot of the letters to the bottom of the line
     function above(L, F, m) { return L / 2 + (m.a - m.d) * F / 2; }      // from the top of the line to the foot of the letters
@@ -603,9 +606,12 @@
           if (!path) { continue; }
           // the brackets are black in the PDF (the link is only the author and year);
           // a long @key may be broken anywhere (pdf-look.css), the author and year may not
-          rules.push(ROOT + path + " { font-size: 0 !important; }");
+          // line-height 0: a part with letters of size 0 but the line height of the text gets a box
+          // reaching half a line below the foot of the letters, which made the line with a citation
+          // about 5 px taller than the others (found 12 Nov 2026 by the session that edits draft.qmd)
+          rules.push(ROOT + path + " { font-size: 0 !important; line-height: 0 !important; }");
           rules.push(ROOT + path + "::before { content: " + cssText(shown) + "; font-size: " + size +
-            "; word-break: normal;" + (shown === "(" || shown === ")" ? " color: #000000;" : "") + " }");
+            "; line-height: 0; word-break: normal;" + (shown === "(" || shown === ")" ? " color: #000000;" : "") + " }");
           parts.push({ el: child, path: path });
         }
       }
