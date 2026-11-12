@@ -484,6 +484,16 @@ it").** Four more things, all in the PDF look:
   for the title part). Measured: every line within 0.2 pt of the PDF
   (`bench\js\title.js`). **Click on it to change the header**: the box opens
   as code; click in the text and it folds back.
+- **Paragraphs as in the PDF** when the header says `indent: true` (the term
+  paper: `draft_header.tex` sets `\parindent` 1.25 cm and `\parskip` 0pt;
+  asked the same evening through another Claude session): the first line
+  1.25 cm in, no room between paragraphs, no indent right after a heading,
+  and the room around headings, lists and the title block as LaTeX gives it
+  without `\parskip` (measured in the PDF; on the page within 0.5 pt). The
+  script block reads `indent: true` from the header and gives the page the
+  class `wp-indent`; without it the page keeps room between paragraphs. The
+  1.25 cm itself is written in `pdf-look.css` (the page cannot read
+  `draft_header.tex`).
 - **Folded code**: R chunks, raw LaTeX (`\afterpage{`, `\input{...}`) and a
   second header further down (`nocite`) are one thin grey line, for example
   "R code: Table 3 is made here (click to see the code)" or "LaTeX:
@@ -671,7 +681,7 @@ the style block `word-page.css`, the PDF look `pdf-look.css` with its
 `fonts\`, the 889 colours), `pdfpages.py` (the first lines of every page of a
 PDF), `mention.js` (finds the lines of a highlighted text
 in the `.qmd` file and builds the reference for Claude; no VS Code in it),
-`test.js` (80 offline checks of `patch.js` and `mention.js`),
+`test.js` (81 offline checks of `patch.js` and `mention.js`),
 `build.ps1` (runs the checks, packs, installs; VS Code switches a newly
 installed add-on on in the open windows by itself; a changed add-on needs
 Reload Window).

@@ -317,3 +317,41 @@ html.word-page.pdf-look .pm-content .pm-code-editor.wp-folded.pm-yaml-metadata-b
   margin-top: 0 !important;
   margin-bottom: calc(-0.6 * var(--wp-pt)) !important;
 }
+
+/* Paragraphs as LaTeX sets them with "indent: true" in the header (12 Nov 2026; in the term
+   paper draft_header.tex sets \parindent 1.25cm and \parskip 0pt). The script block gives
+   the page the class wp-indent when the header says so. The first line of a paragraph is
+   35.43 pt (1.25 cm) in, there is no room between paragraphs, and the first paragraph after
+   a heading starts at the margin, as LaTeX does it. Measured in the term paper's PDF of
+   12 Nov 2026, foot of the letters to foot of the letters: paragraph to paragraph 13.55;
+   before a section heading 34.0, after it 24.3; section to subsection heading 24.8; before
+   a subsection or subsubsection heading 29.0, after it 20.6; paragraph to list 23.1 (one
+   line and 9.6), list to subsection heading 28.85. The margins are set so that the page
+   gives these numbers, all within 0.5 pt (bench\js\gaps.js). */
+html.word-page.pdf-look.wp-indent .pm-content p { margin-bottom: 0; }
+html.word-page.pdf-look.wp-indent .pm-content > p,
+html.word-page.pdf-look.wp-indent .pm-content > .pm-div > p { text-indent: calc(35.43 * var(--wp-pt)); }
+html.word-page.pdf-look.wp-indent .pm-content > .pm-heading + p,
+html.word-page.pdf-look.wp-indent .pm-content > .pm-div > .pm-heading + p { text-indent: 0; }
+html.word-page.pdf-look.wp-indent .pm-content h1.pm-heading { margin: 1.239em 0 0.680em 0; }
+html.word-page.pdf-look.wp-indent .pm-content h2.pm-heading { margin: 1.213em 0 0.601em 0; }
+html.word-page.pdf-look.wp-indent .pm-content h3.pm-heading { margin: 1.449em 0 0.672em 0; }
+html.word-page.pdf-look.wp-indent .pm-content .pm-heading + .pm-heading { margin-top: 0; }
+html.word-page.pdf-look.wp-indent .pm-content .pm-list { margin: 0.88em 0; }
+/* a subsection heading straight under a section heading, and a heading straight under a list */
+html.word-page.pdf-look.wp-indent .pm-content h1.pm-heading + h2.pm-heading { margin-top: calc(-0.55 * var(--wp-pt)); }
+html.word-page.pdf-look.wp-indent .pm-content .pm-list + h1.pm-heading { margin-top: calc(1.239em - 1.1 * var(--wp-pt)); }
+html.word-page.pdf-look.wp-indent .pm-content .pm-list + h2.pm-heading { margin-top: calc(1.213em - 1.25 * var(--wp-pt)); }
+
+/* Without room between paragraphs LaTeX also sets the title block closer together: in the
+   PDF of 12 Nov 2026 subtitle 90.6, names 120.9, date 145.3, "Abstract" 185.4, the abstract
+   from 204.0, and the first heading 34.4 under the last line of the abstract (points from
+   the top of the column; the title itself stays at 54.7). */
+html.word-page.pdf-look.wp-indent .pm-content .wp-title-block .wp-subtitle { margin-top: calc(-2.2 * var(--wp-pt)); }
+html.word-page.pdf-look.wp-indent .pm-content .wp-title-block .wp-authors { margin-top: calc(15.79 * var(--wp-pt)); }
+html.word-page.pdf-look.wp-indent .pm-content .wp-title-block .wp-date { margin-top: calc(9.99 * var(--wp-pt)); }
+html.word-page.pdf-look.wp-indent .pm-content .wp-title-block .wp-abstract-title { margin-top: calc(27.89 * var(--wp-pt)); }
+html.word-page.pdf-look.wp-indent .pm-content .wp-title-block .wp-abstract { margin-top: calc(6.73 * var(--wp-pt)); }
+html.word-page.pdf-look.wp-indent .pm-content .pm-code-editor.wp-folded.pm-yaml-metadata-block:not(.wp-open) {
+  margin-bottom: calc(0.1 * var(--wp-pt)) !important;
+}

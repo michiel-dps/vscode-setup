@@ -520,6 +520,13 @@
       watchedContent = content;
     }
     try { if (FOLD) { foldBoxes(content); } } catch (err) { /* the page stays as Quarto made it */ }
+    // "indent: true" in the header: paragraphs as in the PDF, first line in, no room between
+    // them (the rules for the class wp-indent are at the end of inject/pdf-look.css)
+    var header = content.querySelector(".pm-yaml-metadata-block");
+    var indent = !!header && /^\s*indent:\s*(true|yes)\s*$/m.test(boxText(header));
+    if (document.documentElement.classList.contains("wp-indent") !== indent) {
+      document.documentElement.classList.toggle("wp-indent", indent);
+    }
     // the cursor in a folded box that the user did not open (the page was opened in the
     // background, so no focusin came): take it out, typing must not go into hidden code
     var active = document.activeElement;

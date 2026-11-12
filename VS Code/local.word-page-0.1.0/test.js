@@ -91,6 +91,9 @@ check("PDF look: all eight fonts are written into the rules",
 check("PDF look: folded code and page ends are on unless switched off",
   pdfBlocks.js.includes('"fold":true') && pdfBlocks.js.includes('"pageEnds":true') &&
   patch.buildBlocks(inject, { pageWidth: 820, look: "pdf", fold: false, pageEnds: false }).js.includes('"fold":false,"pageEnds":false'));
+check("PDF look: \"indent: true\" in the header gives indented paragraphs (class wp-indent)",
+  pdfBlocks.js.includes('classList.toggle("wp-indent"') &&
+  pdfBlocks.css.includes("html.word-page.pdf-look.wp-indent .pm-content > p") && pdfBlocks.css.includes("calc(35.43 * var(--wp-pt))"));
 check("PDF look: numbered headings, but not {.unnumbered} ones",
   pdfBlocks.css.includes("h1.pm-heading:not(.unnumbered)::before") && pdfBlocks.css.includes('counter(wp-h1) "." counter(wp-h2)'));
 check("PDF look: a font comes back byte for byte", (() => {

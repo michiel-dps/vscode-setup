@@ -28,9 +28,15 @@ const face = content.querySelector(".wp-title-block");
 const box = face.parentElement;
 const out = ["pt=" + pt.toFixed(3) + " face width " + (face.getBoundingClientRect().width / pt).toFixed(1) + "pt, box " + (box.getBoundingClientRect().width / pt).toFixed(1) + " box top " + ((box.getBoundingClientRect().top - textTop)/pt).toFixed(1)];
 out.push("box classes: " + box.className + " | cm-editor: " + win.getComputedStyle(box.querySelector(".cm-editor")).outline + " h=" + box.querySelector(".cm-editor").getBoundingClientRect().height + " border " + win.getComputedStyle(box).borderTop + " margin " + win.getComputedStyle(box).margin);
-const want = { "wp-title": 54.69, "wp-subtitle": 96.36, "wp-authors": 132.48, "wp-date": 162.75, "wp-abstract-title": 202.38, "wp-abstract": 223.62 };
+// the PDF of 11 Nov (room between paragraphs) and of 12 Nov 2026 ("indent: true", \parskip 0pt)
+const indent = doc.documentElement.classList.contains("wp-indent");
+const want = indent
+  ? { "wp-title": 54.69, "wp-subtitle": 90.56, "wp-authors": 120.87, "wp-date": 145.33, "wp-abstract-title": 185.35, "wp-abstract": 204.02 }
+  : { "wp-title": 54.69, "wp-subtitle": 96.36, "wp-authors": 132.48, "wp-date": 162.75, "wp-abstract-title": 202.38, "wp-abstract": 223.62 };
+const wantLast = indent ? 299.67 : 319.26;
+const wantH1 = indent ? 334.02 : 359.30;
 Object.keys(want).forEach((k) => { const el = face.querySelector("." + k); const b = base(el); out.push(k.padEnd(18) + " page " + b.toFixed(2) + "  pdf " + want[k] + "  diff " + (want[k] - b).toFixed(2)); });
 const t = face.querySelector(".wp-title"); out.push("title last line base " + lastBase(t).toFixed(2) + " pdf 76.61; title lines: " + (t.getBoundingClientRect().height / pt).toFixed(1) + "pt high");
-const ab = face.querySelector(".wp-abstract"); out.push("abstract last base " + lastBase(ab).toFixed(2) + " pdf 319.26");
-const h1 = content.querySelector("h1.pm-heading"); out.push("first h1 base " + base(h1).toFixed(2) + " pdf 359.30");
+const ab = face.querySelector(".wp-abstract"); out.push("abstract last base " + lastBase(ab).toFixed(2) + " pdf " + wantLast + " (the page has no broken words: it can be a line longer)");
+const h1 = content.querySelector("h1.pm-heading"); out.push("first h1 base " + base(h1).toFixed(2) + " pdf " + wantH1 + "; abstract to h1: " + (base(h1) - lastBase(ab)).toFixed(2) + " pdf " + (wantH1 - wantLast).toFixed(2));
 return out.join("\n");
