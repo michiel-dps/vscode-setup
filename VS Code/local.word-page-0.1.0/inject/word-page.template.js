@@ -631,7 +631,9 @@
     return null;
   }
 
-  // the height on the page (from the top of the sheet) of the line where a text place is
+  // Where a page starts on the screen, measured from the top of the sheet: the line of a
+  // text place. When the page starts with a paragraph or heading (not in the middle of one),
+  // "block" is that paragraph or heading: it gets grey room above it, as between two sheets.
   function heightOf(content, node, offset, top) {
     var range = document.createRange();
     range.setStart(node, offset);
@@ -643,11 +645,28 @@
     var lineHeight = parseFloat(style.lineHeight) || rect.height;
     var lineTop = rect.top - (lineHeight - rect.height) / 2;
     var blockRect = block.getBoundingClientRect();
-    if (lineTop - blockRect.top < 2) {
-      // the first line of a paragraph or heading: halfway into the room above it
-      return blockRect.top - top - (parseFloat(style.marginTop) || 0) / 2;
+    if (lineTop - blockRect.top - (parseFloat(style.paddingTop) || 0) < 2) {
+      var whole = /^(P|H[1-6])$/.test(block.tagName) && !block.closest(".pm-code-editor, figure, li, td, th");
+      return { y: blockRect.top - top - (whole ? 0 : (parseFloat(style.marginTop) || 0) / 2), block: whole ? block : null };
     }
-    return lineTop - top;
+    return { y: lineTop - top, block: null };
+  }
+
+  // the grey room at a page end between two paragraphs, by the place of the paragraph on the
+  // page (as the citations): checked after every change, and dropped at once when it no
+  // longer fits, until the next drawing
+  var gapStyle = null;
+  var gapParts = [];
+  function checkGaps() {
+    if (!gapParts.length) { return; }
+    var content = pageContent();
+    for (var i = 0; i < gapParts.length; i++) {
+      if (!content || !content.contains(gapParts[i].el) || pathOf(gapParts[i].el, content) !== gapParts[i].path) {
+        gapParts = [];
+        if (gapStyle) { gapStyle.textContent = ""; }
+        return;
+      }
+    }
   }
 
   var endsStyle = null;
@@ -656,8 +675,13 @@
       endsStyle = document.createElement("style");
       endsStyle.id = "word-page-ends";
       document.head.appendChild(endsStyle);
+      gapStyle = document.createElement("style");
+      gapStyle.id = "word-page-gaps";
+      document.head.appendChild(gapStyle);
     }
     var css = "";
+    var gapCss = [];
+    var gaps = [];
     if (PAGE_ENDS && pdf.docs.length) {
       var page = textOfPage(content);
       var best = null;
@@ -685,13 +709,30 @@
         var margin = parseFloat(getComputedStyle(content).paddingRight) || 40;
         var size = margin >= 56 ? 11 : 9;
         var parts = ['<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '">'];
+        var pt = parseFloat(getComputedStyle(content).fontSize) / 10.91;
+        var gap = Math.round(30 * pt);
         best.marks.forEach(function (mark) {
-          var y = heightOf(content, page.nodes[mark.at], page.offsets[mark.at], box.top);
-          if (y === null) { return; }
-          y = Math.round(y) + 0.5;
-          parts.push('<line x1="0" x2="' + width + '" y1="' + y + '" y2="' + y + '" stroke="#aab1ba" stroke-width="1" stroke-dasharray="6 4"/>');
-          parts.push('<text x="' + (width - 6) + '" y="' + (y - 4) + '" text-anchor="end" font-family="Segoe UI, Arial, sans-serif" font-size="' + size +
-            '" fill="#7d858f">' + (size === 11 ? "page " : "p. ") + mark.n + "</text>");
+          var at = heightOf(content, page.nodes[mark.at], page.offsets[mark.at], box.top);
+          if (at === null) { return; }
+          var y = Math.round(at.y) + 0.5;
+          var label = (size === 11 ? "page " : "p. ") + mark.n;
+          var path = at.block ? pathOf(at.block, content) : null;
+          if (path) {
+            // a new page starts with this paragraph or heading: grey room above it, as the
+            // desk between two sheets (asked 12 Nov 2026: "leave a bit of space between page ends")
+            gapCss.push(ROOT + path + " { padding-top: " + gap + "px !important; }");
+            gaps.push({ el: at.block, path: path });
+            parts.push('<rect x="0" y="' + y + '" width="' + width + '" height="' + gap + '" fill="#e9ebee"/>');
+            parts.push('<line x1="0" x2="' + width + '" y1="' + y + '" y2="' + y + '" stroke="#d9dce1" stroke-width="1"/>');
+            parts.push('<line x1="0" x2="' + width + '" y1="' + (y + gap - 1) + '" y2="' + (y + gap - 1) + '" stroke="#d9dce1" stroke-width="1"/>');
+            parts.push('<text x="' + (width / 2) + '" y="' + (y + gap / 2 + 4) + '" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="' + size +
+              '" fill="#7d858f">' + label + "</text>");
+          } else {
+            // a new page starts in the middle of a paragraph: a dashed line between the lines
+            parts.push('<line x1="0" x2="' + width + '" y1="' + y + '" y2="' + y + '" stroke="#aab1ba" stroke-width="1" stroke-dasharray="6 4"/>');
+            parts.push('<text x="' + (width - 6) + '" y="' + (y - 4) + '" text-anchor="end" font-family="Segoe UI, Arial, sans-serif" font-size="' + size +
+              '" fill="#7d858f">' + label + "</text>");
+          }
         });
         // (a page that starts with a figure, a table made by R or the reference list has no
         // line of its own: those are not text on this page)
@@ -705,6 +746,24 @@
       }
     }
     if (endsStyle.textContent !== css) { endsStyle.textContent = css; }
+    gapParts = gaps;
+    var gapText = gapCss.join("\n");
+    if (gapStyle.textContent !== gapText) { gapStyle.textContent = gapText; }
+  }
+
+  // A sheet lying on its side is wider than the page: centred on the page, but never
+  // starting left of the window (in a narrow window the editor then scrolls sideways).
+  function placeSideways(content) {
+    var root = document.documentElement;
+    var cs = getComputedStyle(content);
+    var pt = parseFloat(cs.fontSize) / 10.91;
+    var body = content.parentElement;
+    if (!body || !pt) { return; }
+    var textLeft = content.getBoundingClientRect().left - body.getBoundingClientRect().left + (parseFloat(cs.paddingLeft) || 0);
+    var textWidth = content.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+    var sheet = 841.89 * pt;
+    var left = Math.round(Math.max((textWidth - sheet) / 2, 12 + 22 * pt - textLeft)) + "px";
+    if (root.style.getPropertyValue("--wp-land-left") !== left) { root.style.setProperty("--wp-land-left", left); }
   }
 
   // ---- when to do it: after the page changes (typing, a picture loads, a box opens) ----
@@ -737,12 +796,14 @@
     var hidden = active && active.closest ? active.closest(".pm-code-editor.wp-folded:not(.wp-open)") : null;
     if (hidden && active.blur) { active.blur(); }
     try { if (FROM_PDF) { drawCites(content); } } catch (err) { /* citations stay @keys this time */ }
+    try { placeSideways(content); } catch (err) { /* the sheets stay centred */ }
     try { drawPageEnds(content); } catch (err) { /* no page ends this time */ }
   }
   if (PDF_LOOK && document.body) {
     // checkCites runs straight away (before the screen is drawn again), the rest a moment later
     new MutationObserver(function () {
       try { checkCites(); } catch (err) { /* drawn again with the rest */ }
+      try { checkGaps(); } catch (err) { /* drawn again with the rest */ }
       schedule();
     }).observe(document.body, { childList: true, subtree: true, characterData: true });
     if (document.fonts && document.fonts.ready) { document.fonts.ready.then(schedule); }

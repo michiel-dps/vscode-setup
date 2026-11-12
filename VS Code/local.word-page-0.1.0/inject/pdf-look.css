@@ -129,33 +129,39 @@ html.word-page.pdf-look .pm-content .pm-node-caption {
   text-align: justify;
 }
 
-/* A page turned 90 degrees (a "::: landscape" block in the document, used for the maps of
-   the term paper): drawn as a sheet of its own that lies sideways across the page. It is as
-   wide as an A4 page is high (841.89 points), or as wide as the editor when that is
-   narrower, and the picture in it fills the sheet. In the column of text a map of 24.7 cm
-   would be shown only 16 cm wide, and its numbers could not be read (asked 12 Nov 2026).
-   The sheet is centred on the page: it sticks out the same on both sides. */
-html.word-page.pdf-look {
-  --wp-land: min(841.89 * var(--wp-pt), 100vw - 48px);
-}
+/* A page turned 90 degrees (a "::: landscape" block in the document, used for the maps and
+   wide tables of the term paper): a sheet of its own, an A4 page lying on its side at the
+   same scale as the page (841.89 x 595.28 points), with the margins of the PDF's landscape
+   pages (draft_header.tex: 1.2 cm, and 1.5 cm on the side of the page number), so a map is
+   as large as in the PDF: 765.4 points (27 cm). First asked 11-12 Nov 2026 ("the numbers are
+   not readable"); since the evening of 12 Nov at its true size ("figures are not shown in
+   their true size", "some pages can be turned 90 degrees", "leave a bit of space between
+   page ends"): before, the sheet shrank to the window and a map was 654 instead of 765
+   points. Grey room above and below (a ring in the colour of the desk) makes it look like a
+   page of its own between two pages. The sheet is centred on the page, but never starts left
+   of the window: the script block sets --wp-land-left; in a narrow window the editor scrolls
+   sideways. */
 html.word-page.pdf-look .pm-content > .pm-div.landscape {
   box-sizing: border-box;
-  width: var(--wp-land);
+  width: calc(841.89 * var(--wp-pt));
+  min-height: calc(595.28 * var(--wp-pt));
   max-width: none;
-  margin: calc(24 * var(--wp-pt)) 0 calc(24 * var(--wp-pt)) calc((var(--wp-text) - var(--wp-land)) / 2);
-  padding: calc(var(--wp-land) * 0.04);
+  margin: calc(40 * var(--wp-pt)) 0 calc(40 * var(--wp-pt)) var(--wp-land-left, calc((var(--wp-text) - 841.89 * var(--wp-pt)) / 2));
+  padding: calc(34 * var(--wp-pt)) calc(38.25 * var(--wp-pt));
   background-color: #ffffff !important;
   border: 1px solid #d9dce1;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.10), 0 6px 18px rgba(0, 0, 0, 0.07);
+  box-shadow: 0 0 0 calc(22 * var(--wp-pt)) #e9ebee, 0 1px 2px rgba(0, 0, 0, 0.10), 0 6px 18px rgba(0, 0, 0, 0.07);
 }
 html.word-page.pdf-look .pm-content > .pm-div.landscape figure.pm-figure {
   width: 100%;
   margin-top: 0;
   margin-bottom: 0;
 }
-/* Quarto writes the width of a picture on it in pixels, counted in the column of text */
+/* Quarto writes the width of a picture on it in pixels, counted in the column of text: on the
+   sheet it is as wide as the sheet's column of text, 765.4 points as in the PDF */
 html.word-page.pdf-look .pm-content > .pm-div.landscape img.pm-img {
-  width: 100% !important;
+  width: calc(765.4 * var(--wp-pt)) !important;
+  max-width: 100%;
   height: auto !important;
 }
 
@@ -272,7 +278,7 @@ html.word-page.pdf-look .pm-content .wp-pictures .wp-pic {
   height: auto;
   margin: 0 auto;
 }
-/* on a sheet lying on its side (::: landscape) the picture fits the sheet, as the maps do */
+/* on a sheet lying on its side (::: landscape) the picture is in the middle of the sheet */
 html.word-page.pdf-look .pm-content .pm-div.landscape .wp-pictures .wp-pic { max-width: 100%; margin-left: auto !important; }
 html.word-page.pdf-look .pm-content .wp-pictures:hover { outline: 1px dashed #b8bec6; outline-offset: 2px; }
 html.word-page.pdf-look .pm-content .wp-pictures .wp-tag {

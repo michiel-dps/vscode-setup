@@ -592,7 +592,21 @@ What it still cannot copy, so the real PDF still differs:
 - Boxes that make nothing in the PDF (the setup chunk, `\afterpage{`) are
   still a grey line, which takes a little room the PDF does not have; the
   page ends are tied to the text, so they stay right.
-- No space at the bottom of a page: a page end is a line, not a gap.
+- A page that ends in the middle of a paragraph is a dashed line, not a gap
+  (the editor cannot split a paragraph). A page that starts with a new
+  paragraph or heading does get a gap: grey room with "page 11" in it, as the
+  desk between two sheets (12 Nov 2026 evening, asked: "leave a bit of space
+  between page ends"; style rules by the place of the paragraph, checked
+  after every change like the citations).
+- **Pages turned 90 degrees** (`::: landscape`, same evening, asked: "figures
+  are not shown in their true size", "some pages can be turned 90 degrees"):
+  a sheet of A4 lying on its side at the scale of the page (841.89 x 595.28
+  points) with the PDF's landscape margins, so a map is 765 points wide as
+  in the PDF (it was 654: the sheet shrank to the window), and grey room
+  around it, so it looks like a page of its own. In a window narrower than
+  that sheet the editor scrolls sideways (or make the editor wider: Ctrl+B
+  hides the side bar). The figures on upright pages were already at their
+  PDF size (measured: Figure 5 452.3 points on the page, 453.5 in the PDF).
 - No ligatures (fi, fl drawn as one letter): the editor switches them off.
 
 The fonts are eight files in `inject\fonts` (copied unchanged from TinyTeX,
