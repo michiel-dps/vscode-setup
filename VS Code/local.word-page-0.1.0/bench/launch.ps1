@@ -177,6 +177,21 @@ function Clear-EditorVariables {
     }
 }
 
+# At start-up every VS Code on Windows makes itself the program for vscode:// links
+# (HKCU\Software\Classes\vscode). The bench copy did that too, and from then on a vscode://
+# link (Claude Code uses them) started the bench copy with his own settings: on 12 Nov 2026
+# Claude would not open in his H26 window. So the link goes back to the real VS Code after
+# every start and every stop of the bench.
+function Restore-UrlHandler {
+    $command = "HKCU:\Software\Classes\vscode\shell\open\command"
+    if (-not (Test-Path $command)) { return }
+    $now = (Get-ItemProperty $command).'(default)'
+    if ($now -match [regex]::Escape($Work)) {
+        Set-ItemProperty $command -Name "(default)" -Value "`"$install\Code.exe`" --open-url -- `"%1`""
+        "vscode:// links point to the real VS Code again"
+    }
+}
+
 # open a file of the test folder in the running bench window (as a user would: after start-up)
 function Open-InBench($name) {
     Clear-EditorVariables
@@ -194,7 +209,7 @@ if ($MoveOnly) {
 if ($Open) { Open-InBench $Open; return }
 
 foreach ($id in Get-TestPids) { Stop-Process -Id $id -Force -ErrorAction SilentlyContinue }
-if ($Stop) { "stopped"; return }
+if ($Stop) { Restore-UrlHandler; "stopped"; return }
 Start-Sleep -Milliseconds 800
 if ($Fresh -and (Test-Path -LiteralPath $Work)) { Remove-Item -LiteralPath $Work -Recurse -Force }
 
@@ -294,6 +309,7 @@ Start-Sleep -Seconds 1
 Invoke-OnBench "-MoveOnly -Width $Width -Height $Height" 90000
 Start-Sleep -Seconds 10          # let the add-ons start, then open the file as a user would
 Open-InBench $File
+Restore-UrlHandler
 if ([BenchDesktop]::GetForegroundWindow() -eq $keyboardBefore) {
     "keyboard check: the same window has the keyboard as before the start"
 } else {

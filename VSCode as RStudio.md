@@ -702,7 +702,16 @@ VS Code's command line (at the end it was read as the value of the option
 before it, the window had no folder open, and the page then shows no
 pictures from outside the document's own folder); and the window to size is
 looked up by its title (the "main window" that PowerShell reports was one
-without a title). The other
+without a title). **12 Nov 2026: the bench took over `vscode://` links.** At
+start-up every VS Code on Windows makes itself the program for `vscode://`
+links (`HKCU\Software\Classes\vscode\shell\open\command`). The bench copy did
+that too, so from then on a `vscode://` link, which Claude Code uses, started
+the bench copy with his own settings, and Claude would not open in his H26
+window. Fixed by pointing the link back at
+`%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe`. `launch.ps1` now does
+that itself after every start and every `-Stop` (`Restore-UrlHandler`). If
+Claude or a `vscode://` link ever opens a strange VS Code again: check that
+registry value first. The other
 traps are written at the top of `launch.ps1` (a waiting VS Code update blocks
 a second VS Code, hence the copy; Quarto's one-time question; Quick Open only
 finds files opened before). For the page look there are three more probes in
