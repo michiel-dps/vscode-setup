@@ -6,7 +6,8 @@
 //   - a script at the top of  assets/www/editor/index.js  (light colours)
 //   - styles at the end of    assets/www/editor/style.css  (the page look)
 // Each block sits between "word-page:start" and "word-page:end" marks, so it can
-// be found again, replaced or removed. Nothing else in Quarto's files is changed.
+// be found again, replaced or removed. Nothing else in Quarto's files is changed;
+// one file is added: word-page-pdf.css, where the pages of a PDF start (see below).
 //
 // No VS Code API in this file: test.js runs it with plain node.
 "use strict";
@@ -66,7 +67,9 @@ function buildBlocks(injectDir, options) {
   const js = template
     .replace("/*LIGHT*/", JSON.stringify(theme.colours))
     .replace("/*DROP*/", JSON.stringify(theme.drop))
-    .replace("/*OPTIONS*/", JSON.stringify({ pageWidth: options.pageWidth, look: look }))
+    .replace("/*OPTIONS*/", JSON.stringify({
+      pageWidth: options.pageWidth, look: look, fold: options.fold !== false, pageEnds: options.pageEnds !== false
+    }))
     .replace(/\r\n/g, "\n").trim() + "\n";
   let css = fs.readFileSync(path.join(injectDir, "word-page.css"), "utf8").replace(/\r\n/g, "\n").trim() + "\n";
   if (look === "pdf") {
@@ -135,10 +138,41 @@ function apply(quartoDir, injectDir, options) {
   return "applied";
 }
 
+// ---- the page ends of the PDF ----
+// The add-on writes where each page of the PDF starts into this file next to Quarto's
+// index.js; the page reads it as a style sheet (Quarto's page may load style sheets from
+// its own folder, but no other files). The data is JSON, as base64 in a CSS variable.
+const PDF_DATA = "word-page-pdf.css";
+
+function pdfDataFile(quartoDir) {
+  return path.join(quartoDir, "assets", "www", "editor", PDF_DATA);
+}
+
+// docs: [{ name: "draft.pdf", built: "15:30", pages: [{ n, sideways, lines }] }]
+function pdfDataCss(docs) {
+  const base64 = Buffer.from(JSON.stringify({ docs: docs }), "utf8").toString("base64");
+  return "/* word-page: where the pages of the PDF start (extension.js, pdfpages.py) */\n" +
+    ':root { --wp-pdf-pages: "' + base64 + '"; }\n';
+}
+
+// the docs back from such a file (for the checks in test.js)
+function readPdfDataCss(css) {
+  const found = /--wp-pdf-pages:\s*"([A-Za-z0-9+/=]*)"/.exec(css);
+  return found ? JSON.parse(Buffer.from(found[1], "base64").toString("utf8")).docs : null;
+}
+
+function writePdfData(quartoDir, docs) {
+  writeFileSafely(pdfDataFile(quartoDir), pdfDataCss(docs));
+}
+
 // Take the blocks out. Returns "removed" or "clean".
 function remove(quartoDir) {
   const files = editorFiles(quartoDir);
   let changed = false;
+  if (fs.existsSync(pdfDataFile(quartoDir))) {
+    fs.unlinkSync(pdfDataFile(quartoDir));
+    changed = true;
+  }
   for (const file of [files.js, files.css]) {
     const text = fs.readFileSync(file, "utf8");
     const stripped = strip(text);
@@ -161,4 +195,7 @@ function state(quartoDir, injectDir, options) {
   return head.toString("utf8") === START ? "other" : "none";
 }
 
-module.exports = { findQuarto, editorFiles, buildBlocks, strip, apply, remove, state, START, END };
+module.exports = {
+  findQuarto, editorFiles, buildBlocks, strip, apply, remove, state, START, END,
+  pdfDataFile, pdfDataCss, readPdfDataCss, writePdfData
+};

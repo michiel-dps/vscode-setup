@@ -237,6 +237,12 @@ if (-not (Test-Path -LiteralPath "$Work\ext")) {
         robocopy $_.FullName "$Work\ext\$($_.Name)" /E /NFL /NDL /NJH /NJS /NP | Out-Null
     }
 }
+# Windows clears old files out of %TEMP% now and then. On 12 Nov 2026 three files of the Quarto
+# copy were gone (out\lsp\resources\abbreviations, parser.lua, sourcepos.lua) and the page said
+# "Unexpected Error Loading Editor ... pandoc_markdown_to_ast failed". So put back what is
+# missing at every start. /XO leaves the files that the add-on has patched as they are (newer).
+$quartoNow = Get-ChildItem $realExt -Directory -Filter 'quarto.quarto-*' | Sort-Object LastWriteTime | Select-Object -Last 1
+if ($quartoNow) { robocopy $quartoNow.FullName "$Work\ext\$($quartoNow.Name)" /E /XO /NFL /NDL /NJH /NJS /NP | Out-Null }
 if ($Claude -and -not (Get-ChildItem "$Work\ext" -Directory -Filter 'anthropic.claude-code-*')) {
     $claudeAddon = Get-ChildItem $realExt -Directory -Filter 'anthropic.claude-code-*' | Sort-Object LastWriteTime | Select-Object -Last 1
     if (-not $claudeAddon) { throw 'the Claude Code add-on is not installed' }

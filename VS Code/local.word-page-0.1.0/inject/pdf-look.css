@@ -16,8 +16,11 @@
    follow the page width (setting wordPage.pageWidth): a wider page is the same page,
    zoomed in.
 
-   Not like the PDF: no page breaks or page numbers, no broken words at the end of a line
-   (VS Code has no word-breaking lists), citations stay @keys, headings have no numbers. */
+   Since 12 Nov 2026 also like the PDF: numbered headings, the title block drawn from the
+   header, code boxes folded to one grey line, and dashed lines where the PDF's pages end
+   (the last three: the script block, inject/word-page.template.js; rules at the end here).
+   Not like the PDF: no broken words at the end of a line (VS Code has no word-breaking
+   lists), citations stay @keys, tables that R makes are not there. */
 
 @font-face { font-family: "WP Latin Modern"; font-weight: 400; font-style: normal; src: url("fonts/lmroman10-regular.otf") format("opentype"); }
 @font-face { font-family: "WP Latin Modern"; font-weight: 400; font-style: italic; src: url("fonts/lmroman10-italic.otf") format("opentype"); }
@@ -26,6 +29,9 @@
 /* LaTeX draws headings of 12 pt and larger with its own cut of the font */
 @font-face { font-family: "WP Latin Modern 12"; font-weight: 700; font-style: normal; src: url("fonts/lmroman12-bold.otf") format("opentype"); }
 @font-face { font-family: "WP Latin Modern Mono"; font-weight: 400; font-style: normal; src: url("fonts/lmmono10-regular.otf") format("opentype"); }
+/* the title block: the title in the 17 pt cut, subtitle, names and date in the 12 pt cut */
+@font-face { font-family: "WP Latin Modern 17"; font-weight: 400; font-style: normal; src: url("fonts/lmroman17-regular.otf") format("opentype"); }
+@font-face { font-family: "WP Latin Modern 12"; font-weight: 400; font-style: normal; src: url("fonts/lmroman12-regular.otf") format("opentype"); }
 
 /* The sizes. With room for the whole page: an A4 page as wide as the setting, margins of
    2.5 cm. In a narrower editor the margins get smaller first (down to 24 px) and the text
@@ -180,4 +186,134 @@ html.word-page.pdf-look .pm-content .pm-blockquote {
   border-left: none;
   margin: 0 2.3em 0.545em 2.3em;
   padding-left: 0;
+}
+
+/* ---- More of the PDF (12 Nov 2026, asked: "want the visual version of the .qmd to be
+   exactly how the eventual pdf will look, just that I am able to edit it") ---------------- */
+
+/* Numbered headings, as "number-sections: true" numbers them in the PDF: 1, 1.1, 1.1.1,
+   then the room of one letter (LaTeX's \quad). A heading with {.unnumbered} gets no
+   number and is not counted. Measured in the term paper's PDF: "1" at 70.9 pt and
+   "Introduction" at 93.3 pt (the number is 8.1 pt wide, 14.35 pt of room). */
+html.word-page.pdf-look .pm-content { counter-reset: wp-h1 wp-h2 wp-h3; }
+html.word-page.pdf-look .pm-content h1.pm-heading:not(.unnumbered) { counter-increment: wp-h1; counter-set: wp-h2 0 wp-h3 0; }
+html.word-page.pdf-look .pm-content h2.pm-heading:not(.unnumbered) { counter-increment: wp-h2; counter-set: wp-h3 0; }
+html.word-page.pdf-look .pm-content h3.pm-heading:not(.unnumbered) { counter-increment: wp-h3; }
+html.word-page.pdf-look .pm-content h1.pm-heading:not(.unnumbered)::before {
+  content: counter(wp-h1);
+  margin-right: 1em;
+}
+html.word-page.pdf-look .pm-content h2.pm-heading:not(.unnumbered)::before {
+  content: counter(wp-h1) "." counter(wp-h2);
+  margin-right: 1em;
+}
+html.word-page.pdf-look .pm-content h3.pm-heading:not(.unnumbered)::before {
+  content: counter(wp-h1) "." counter(wp-h2) "." counter(wp-h3);
+  margin-right: 1em;
+}
+
+/* Folded boxes. The PDF does not show the header (YAML), the R chunks or raw LaTeX, so
+   on the page they are folded: the script block gives each such box the class wp-folded
+   and puts a face in it (.wp-face): the title block for the header, one grey line for
+   the others. While the user has the cursor in a box (class wp-open) the box is open as
+   before and the face is gone. A click on the face puts the cursor in the code. The code
+   is folded to a height of 0, not hidden, so the cursor can still go into it with the
+   arrow keys (the box then opens). */
+html.word-page.pdf-look .pm-content .wp-face { display: none; }
+html.word-page.pdf-look .pm-content .pm-code-editor.wp-folded:not(.wp-open) {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  border-width: 0 !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+html.word-page.pdf-look .pm-content .pm-code-editor.wp-folded:not(.wp-open) > .cm-editor {
+  max-height: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  border: none !important;
+  outline: none !important;
+}
+html.word-page.pdf-look .pm-content .pm-code-editor.wp-folded:not(.wp-open) > .wp-face {
+  display: block;
+  cursor: pointer;
+}
+
+/* the grey line of a folded R chunk or LaTeX block */
+html.word-page.pdf-look .pm-content .wp-face.wp-line {
+  margin: calc(2 * var(--wp-pt)) 0;
+  padding: 0 0 0 calc(5 * var(--wp-pt));
+  border-left: 2px solid #d5d8dc;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: calc(7.5 * var(--wp-pt));
+  line-height: 1.5;
+  color: #9aa0a6;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+html.word-page.pdf-look .pm-content .wp-face.wp-line:hover { color: #4b5563; border-left-color: #9aa0a6; }
+
+/* The title block, as on page 1 of the PDF (Quarto's article: \maketitle and the
+   abstract). Measured in the term paper's PDF, in points from the top of the column of
+   text to the foot of the letters: title 54.7 and 76.6 (17.22 pt, the 17 pt cut),
+   subtitle 96.4, names 132.5 (side by side, 39 pt apart), date 162.8 (11.96 pt, the
+   12 pt cut), "Abstract" 202.4 (9.96 pt bold), the abstract from 223.6 in lines 11.96
+   apart (9.96 pt, 27.3 pt in from both sides, first line 14.9 pt further in). The room
+   above each part is set so that the page gives these numbers (bench\js\title.js). */
+html.word-page.pdf-look .pm-content .wp-face.wp-title-block {
+  color: #000000;
+  text-align: center;
+  cursor: text;
+}
+html.word-page.pdf-look .pm-content .wp-title-block > div { margin: 0; }
+html.word-page.pdf-look .pm-content .wp-title-block .wp-title {
+  /* LaTeX fills the first line of the title to the last point of the column: a little
+     room on both sides, so the lines break at the same words as in the PDF */
+  margin: 0 calc(-3 * var(--wp-pt)) !important;
+  padding-top: calc(36.1 * var(--wp-pt));
+  font-family: "WP Latin Modern 17", "WP Latin Modern", serif;
+  font-size: calc(17.22 * var(--wp-pt));
+  line-height: calc(21.92 * var(--wp-pt));
+}
+html.word-page.pdf-look .pm-content .wp-title-block .wp-subtitle,
+html.word-page.pdf-look .pm-content .wp-title-block .wp-authors,
+html.word-page.pdf-look .pm-content .wp-title-block .wp-date {
+  font-family: "WP Latin Modern 12", "WP Latin Modern", serif;
+  font-size: calc(11.96 * var(--wp-pt));
+  line-height: calc(14.5 * var(--wp-pt));
+}
+html.word-page.pdf-look .pm-content .wp-title-block .wp-subtitle { margin-top: calc(3.6 * var(--wp-pt)); }
+html.word-page.pdf-look .pm-content .wp-title-block .wp-authors {
+  display: flex;
+  justify-content: center;
+  gap: calc(39 * var(--wp-pt));
+  margin-top: calc(21.6 * var(--wp-pt));
+}
+html.word-page.pdf-look .pm-content .wp-title-block .wp-date { margin-top: calc(15.8 * var(--wp-pt)); }
+html.word-page.pdf-look .pm-content .wp-title-block .wp-abstract-title {
+  margin-top: calc(27.5 * var(--wp-pt));
+  font-family: "WP Latin Modern", serif;
+  font-weight: 700;
+  font-size: calc(9.96 * var(--wp-pt));
+  line-height: calc(11.96 * var(--wp-pt));
+}
+html.word-page.pdf-look .pm-content .wp-title-block .wp-abstract {
+  margin: calc(9.3 * var(--wp-pt)) calc(27.27 * var(--wp-pt)) 0 calc(27.27 * var(--wp-pt));
+  font-family: "WP Latin Modern", serif;
+  font-size: calc(9.96 * var(--wp-pt));
+  line-height: calc(11.955 * var(--wp-pt));
+  text-align: justify;
+}
+html.word-page.pdf-look .pm-content .wp-title-block .wp-abstract p {
+  margin: 0;
+  text-indent: calc(14.94 * var(--wp-pt));
+}
+/* the header box itself: at the top of the column, as the title block is in the PDF; the
+   first heading under it then has its own room above it, as in the PDF */
+html.word-page.pdf-look .pm-content .pm-code-editor.wp-folded.pm-yaml-metadata-block:not(.wp-open) {
+  margin-top: 0 !important;
+  margin-bottom: calc(-0.6 * var(--wp-pt)) !important;
 }

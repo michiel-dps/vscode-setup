@@ -2,31 +2,37 @@
 //
 // The editor itself is Quarto's visual editor (add-on quarto.quarto): toolbar,
 // headings, tables, footnotes, citations from a .bib file and from Zotero. This
-// add-on adds four things:
+// add-on adds five things:
 //   1. a white page with black text in that editor, whatever the colour theme
 //      (patch.js puts two small blocks into Quarto's editor files, and puts them
 //      back after Quarto updates itself). Setting wordPage.look: "pdf" draws the
-//      page as a paper's PDF (font, margins, headings), "word" as a Word page;
+//      page as a paper's PDF (font, margins, numbered headings, the title block,
+//      code folded away), "word" as a Word page;
 //   2. the command "Word Page: New Document": makes a .qmd file with the header
 //      the editor needs and opens it as a page;
 //   3. the first .qmd of a session also opens as a page (Quarto itself only does
 //      that for the files opened after it has started);
 //   4. Ctrl+Numpad5 on a page puts a reference to the highlighted text into the
-//      Claude chat box (mention.js finds its lines in the .qmd file).
+//      Claude chat box (mention.js finds its lines in the .qmd file);
+//   5. the page ends of the PDF on the page: each time the PDF next to an open page
+//      changes, pdfpages.py reads where its pages start, and the page draws a
+//      dashed line there.
 "use strict";
 const vscode = require("vscode");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const childProcess = require("child_process");
 const patch = require("./patch");
 const mention = require("./mention");
 
 const VISUAL_EDITOR = "quarto.visualEditor";   // Quarto's name for its visual editor
 const INJECT = path.join(__dirname, "inject");
-const LOG = path.join(os.tmpdir(), "word-page.log");   // one line per Ctrl+Numpad5 on a page
+const LOG = path.join(os.tmpdir(), "word-page.log");   // one line per Ctrl+Numpad5 on a page, and per PDF read
 
 function activate(context) {
   refresh(false);
+  watchPdfs(context);
 
   context.subscriptions.push(
     vscode.commands.registerCommand("wordPage.newDocument", newDocument),
@@ -113,7 +119,10 @@ function quartoFolders() {
 function refresh(tell) {
   const config = vscode.workspace.getConfiguration("wordPage");
   const enabled = config.get("enabled", true);
-  const options = { pageWidth: config.get("pageWidth", 820), look: config.get("look", "pdf") };
+  const options = {
+    pageWidth: config.get("pageWidth", 820), look: config.get("look", "pdf"),
+    fold: config.get("foldCode", true), pageEnds: config.get("pageEnds", true)
+  };
   const folders = quartoFolders();
   if (folders.length === 0) {
     if (tell) { vscode.window.showWarningMessage("Word Page: the Quarto add-on (quarto.quarto) is not installed, so there is no visual editor."); }
@@ -315,6 +324,122 @@ async function selectionToClaude() {
   } catch (err) {
     log("claude: error " + (err && err.message ? err.message : err));
     vscode.window.showWarningMessage("Word Page: could not send the highlighted text to Claude. " + (err && err.message ? err.message : err));
+  }
+}
+
+// ---- 5. the page ends of the PDF ---------------------------------------------------
+
+// The PDF of a page is the file with the same name next to it (draft.qmd -> draft.pdf),
+// as Quarto makes it (Ctrl+Shift+K). Each time that PDF changes, pdfpages.py reads the
+// first lines of each of its pages (Python with the package PyMuPDF). The add-on writes
+// them into Quarto's folder (patch.writePdfData), and the open page reads them from
+// there every 3 seconds (inject/word-page.template.js) and draws the page ends.
+const pdfRead = new Map();      // PDF file -> { mtime, doc }; doc is what the page gets
+const pdfTimers = new Map();    // PDF file -> timer (wait until Quarto has written the whole PDF)
+const PDF_WAIT = 1500;          // ms
+
+function pageEndsOn() {
+  const config = vscode.workspace.getConfiguration("wordPage");
+  return config.get("enabled", true) && config.get("look", "pdf") === "pdf" && config.get("pageEnds", true);
+}
+
+function keyOf(file) {
+  return path.normalize(file).toLowerCase();
+}
+
+// the PDF files of the .qmd files that are open as a page
+function pdfsOfOpenPages() {
+  const pdfs = [];
+  for (const group of vscode.window.tabGroups.all) {
+    for (const tab of group.tabs) {
+      const input = tab.input;
+      if (input instanceof vscode.TabInputCustom && input.viewType === VISUAL_EDITOR && /\.qmd$/i.test(input.uri.fsPath)) {
+        pdfs.push(input.uri.fsPath.replace(/\.qmd$/i, ".pdf"));
+      }
+    }
+  }
+  return pdfs;
+}
+
+function watchPdfs(context) {
+  const watcher = vscode.workspace.createFileSystemWatcher("**/*.pdf");
+  const changed = (uri) => pdfChanged(uri.fsPath);
+  context.subscriptions.push(
+    watcher, watcher.onDidChange(changed), watcher.onDidCreate(changed),
+    // a page was opened: read its PDF (when that is newer than what was read before)
+    vscode.window.tabGroups.onDidChangeTabs(() => { pdfsOfOpenPages().forEach(pdfChanged); })
+  );
+  pdfsOfOpenPages().forEach(pdfChanged);
+}
+
+function pdfChanged(pdf) {
+  if (!pageEndsOn()) { return; }
+  const key = keyOf(pdf);
+  if (!pdfsOfOpenPages().some((open) => keyOf(open) === key)) { return; }    // no page of it is open
+  clearTimeout(pdfTimers.get(key));
+  pdfTimers.set(key, setTimeout(() => { pdfTimers.delete(key); readPdf(pdf); }, PDF_WAIT));
+}
+
+function readPdf(pdf) {
+  const key = keyOf(pdf);
+  let stat;
+  try {
+    stat = fs.statSync(pdf);
+  } catch (err) {
+    return;                              // not built yet
+  }
+  const known = pdfRead.get(key);
+  if (known && known.mtime === stat.mtimeMs) {
+    writePdfData();                      // the same PDF: only make sure the page can find it
+    return;
+  }
+  const python = vscode.workspace.getConfiguration("wordPage").get("python", "python");
+  const started = Date.now();
+  const script = path.join(__dirname, "pdfpages.py");
+  childProcess.execFile(python, ["-I", script, pdf], { timeout: 60000, maxBuffer: 20 * 1024 * 1024, windowsHide: true },
+    (err, stdout, stderr) => {
+      if (err) {
+        const why = String(stderr || err.message).trim().split("\n").pop();
+        log("pdf: could not read " + path.basename(pdf) + " with " + python + " pdfpages.py: " + why);
+        return;
+      }
+      let pages;
+      try {
+        pages = JSON.parse(stdout).pages;
+      } catch (parseErr) {
+        log("pdf: pdfpages.py gave no list of pages for " + path.basename(pdf));
+        return;
+      }
+      pdfRead.set(key, { mtime: stat.mtimeMs, doc: { name: path.basename(pdf), built: builtAt(stat.mtime), pages: pages } });
+      log("pdf: read " + path.basename(pdf) + ", " + pages.length + " pages (" + (Date.now() - started) + " ms)");
+      writePdfData();
+    });
+}
+
+// "15:30", or "11 Nov 15:30" when the PDF is not from today
+function builtAt(date) {
+  const two = (n) => (n < 10 ? "0" : "") + n;
+  const time = two(date.getHours()) + ":" + two(date.getMinutes());
+  if (date.toDateString() === new Date().toDateString()) { return time; }
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return date.getDate() + " " + months[date.getMonth()] + " " + time;
+}
+
+// the PDFs of the pages open now, into the file the page reads
+function writePdfData() {
+  const docs = [];
+  for (const pdf of pdfsOfOpenPages()) {
+    const read = pdfRead.get(keyOf(pdf));
+    if (read && !docs.includes(read.doc)) { docs.push(read.doc); }
+  }
+  for (const folder of quartoFolders()) {
+    try {
+      const file = patch.pdfDataFile(folder);
+      const css = patch.pdfDataCss(docs);
+      if (!fs.existsSync(file) || fs.readFileSync(file, "utf8") !== css) { patch.writePdfData(folder, docs); }
+    } catch (err) {
+      log("pdf: could not write the page ends into " + folder + ": " + (err && err.message ? err.message : err));
+    }
   }
 }
 

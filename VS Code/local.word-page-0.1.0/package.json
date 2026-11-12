@@ -82,6 +82,21 @@
 					"minimum": 400,
 					"maximum": 2000,
 					"description": "Width of the page in pixels (text plus margins). In the PDF look this is the zoom: text size and margins grow with the page."
+				},
+				"wordPage.foldCode": {
+					"type": "boolean",
+					"default": true,
+					"description": "PDF look: fold the header, R chunks and raw LaTeX, as the PDF does not show them. The header becomes the title block, the others one grey line; a click opens them. Close the document tab and open it again after a change."
+				},
+				"wordPage.pageEnds": {
+					"type": "boolean",
+					"default": true,
+					"description": "PDF look: a dashed line with the page number where each page of the PDF next to the document starts (draft.qmd -> draft.pdf), read again each time the PDF changes. Needs Python with PyMuPDF (pip install pymupdf)."
+				},
+				"wordPage.python": {
+					"type": "string",
+					"default": "python",
+					"description": "The Python that reads the PDF for the page ends (needs the package PyMuPDF)."
 				}
 			}
 		}

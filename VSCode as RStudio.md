@@ -470,27 +470,79 @@ text of 15 px, 1000 gives 18 px). In an editor that is too narrow for the
 page, the margins shrink first (down to 24 px) and the text keeps its size;
 only below that the text shrinks, never under 12.5 px.
 
-What it cannot copy, so the real PDF still differs:
+**Even closer to the PDF (12 Nov 2026, asked: "want the visual version of the
+.qmd to be exactly how the eventual pdf will look, just that I am able to edit
+it").** Four more things, all in the PDF look:
 
-- **No page breaks and no page numbers**: the page is one long sheet.
+- **Numbered headings**: 1, 1.1, 1.1.1 with the room of one letter after the
+  number, as `number-sections: true` gives them. A heading with
+  `{.unnumbered}` gets no number and is not counted. Style rules only (CSS
+  counters); the number cannot be clicked or typed over.
+- **The title block**: the header at the top (YAML) is drawn as page 1 of the
+  PDF: title, subtitle, the names side by side, the date (`date: today` with
+  `date-format`) and the abstract, in the PDF's fonts (Latin Modern 17 and 12
+  for the title part). Measured: every line within 0.2 pt of the PDF
+  (`bench\js\title.js`). **Click on it to change the header**: the box opens
+  as code; click in the text and it folds back.
+- **Folded code**: R chunks, raw LaTeX (`\afterpage{`, `\input{...}`) and a
+  second header further down (`nocite`) are one thin grey line, for example
+  "R code: Table 3 is made here (click to see the code)" or "LaTeX:
+  \afterpage{". A click opens the box; arrow keys into it open it too.
+- **Page ends**: a dashed line across the page with "page 7" in the right
+  margin where each page of the PDF next to the document starts
+  (`draft.qmd` -> `draft.pdf`), and at the top right "page ends: draft.pdf,
+  built 15:51". After Ctrl+Shift+K the lines move by themselves within a few
+  seconds. They are as right as the last build: text typed since then is
+  not counted until the next build. A page that starts with a figure, a
+  table made by R or LaTeX, or the reference list gets no line (that is not
+  text on the page); a page on its side (a map) is skipped.
+
+How the folding works. Quarto's code boxes tell the editor to leave
+everything inside them alone (`ignoreMutation`, checked in Quarto's
+`index.js`), so the script block puts its "face" (the title block or the grey
+line) *inside* the box, and it never becomes part of the document (checked in
+the bench: typed, saved, no face text in the file). The code is folded to a
+height of 0, not hidden, so the arrow keys still reach it. A box opens only
+when you put the cursor there (click or key); when the editor puts the cursor
+in the header by itself (it does that when a document opens), the cursor is
+taken out again, so typing never goes into hidden code.
+
+How the page ends work. The add-on watches `*.pdf` in the workspace. When the
+PDF of an open page changes, it waits 1.5 s (Quarto writes it in steps) and
+runs `pdfpages.py` (Python with **PyMuPDF**; on another laptop: `pip install
+pymupdf`; setting `wordPage.python`), which gives the first 12 lines of every
+page. The add-on writes them into `word-page-pdf.css` next to Quarto's
+`index.js` (base64 JSON in a CSS variable: Quarto's page may load style
+sheets from its own folder, but no other files, `default-src 'none'` in its
+page header). The page reads that file every 3 seconds, looks for the first
+lines of each page in its own text (letters and digits only, so quotes,
+dashes and hyphenated words still match; code boxes and figure captions left
+out), and draws the lines as a picture behind the text. The log
+`%TEMP%\word-page.log` has a line per read (`pdf: read draft.pdf, 28 pages
+(1630 ms)`) or why it failed.
+
+What it still cannot copy, so the real PDF still differs:
+
 - **Words are not broken at the end of a line** (VS Code has no
   word-breaking lists; checked in the bench). A line in front of a long word
   that cannot be broken, such as a file path, gets wide gaps. A long `@key`
-  may be broken anywhere for that reason.
-- **Citations stay `@keys`**, and there is no reference list.
-- **Headings have no numbers.** The page cannot know which headings the PDF
-  leaves without a number (Abstract), so counting them would give wrong
-  numbers.
-- The box with the document's settings at the top (title, bibliography) is
-  not drawn as a title. Tables and numbers that R fills in are not there.
+  may be broken anywhere for that reason. So a paragraph can be a line
+  longer than in the PDF (the abstract: 10 lines, the PDF 9).
+- **Citations stay `@keys`**, and there is no reference list. Showing
+  "(Høydahl, 2023)" would need the page to change text inside the editor,
+  which breaks typing.
+- Tables and figures that R makes are a grey line, not the table. The grey
+  lines take a little room the PDF does not have; the page ends are tied to
+  the text, so they stay right.
+- No space at the bottom of a page: a page end is a line, not a gap.
 - No ligatures (fi, fl drawn as one letter): the editor switches them off.
 
-The fonts are six files in `inject\fonts` (copied unchanged from TinyTeX,
+The fonts are eight files in `inject\fonts` (copied unchanged from TinyTeX,
 free under the GUST Font License; `README.txt` there). `patch.js` writes them
 into the style block as `data:` addresses, so nothing is installed in Windows
-and no file is added to Quarto's folder; Quarto's page allows fonts from
+and no font file is added to Quarto's folder; Quarto's page allows fonts from
 `data:` addresses (`font-src data:` in its page header). The style block is
-0.9 MB with them. The script block only adds the class `pdf-look` to the
+1.2 MB with them. The script block only adds the class `pdf-look` to the
 page; all PDF rules ask for that class, so `"word"` gives exactly the old
 page (the rules and fonts are then not even written into Quarto's file).
 
@@ -516,7 +568,10 @@ page (the rules and fonts are then not even written into Quarto's file).
 - Settings: `wordPage.enabled` (off = the editor follows the theme again),
   `wordPage.look` (`"pdf"` = the page as a paper's PDF, `"word"` = the
   Word-like page of before), `wordPage.pageWidth` (820; in the PDF look this
-  is the zoom). After a change: close the document tab and open it again.
+  is the zoom), `wordPage.foldCode` (on: header as title block, code as a
+  grey line), `wordPage.pageEnds` (on: the PDF's page ends),
+  `wordPage.python` (`"python"`: the Python with PyMuPDF that reads the PDF).
+  After a change: close the document tab and open it again.
   In the Word look, font and size of the text are Quarto's:
   `quarto.visualEditor.fontFamily`, `quarto.visualEditor.fontSize`; the PDF
   look does not use them.
@@ -559,8 +614,9 @@ saving from the page in the bench and comparing the file):
   `tbl-colwidths` in the caption does work (the page never touches it).
 - R code in a line (`` `r x` ``) is shown as code on the page, also inside a
   table cell: keep it short (one variable).
-- The box at the top of the page is as long as the header. LaTeX settings
-  can live in a file of their own: `include-in-header: draft_header.tex`.
+- The header is drawn as the PDF's title block (since 12 Nov 2026; click it
+  to edit). LaTeX settings can still live in a file of their own:
+  `include-in-header: draft_header.tex`.
 - **A map on a sheet of its own (12 Nov 2026, asked: "the numbers are not
   readable, it is all too small").** A `::: landscape` block is a page lying
   on its side in the PDF. On the page it is now a wide sheet of its own too:
@@ -608,12 +664,14 @@ saving from the page in the bench and comparing the file):
   and open it again.
 
 **Files** (`VS Code\local.word-page-0.1.0\`): `extension.js` (the commands, the
-first-`.qmd` rule, when to patch), `patch.js` (finds Quarto, puts the blocks in
-or takes them out; no VS Code in it), `inject\` (the script block, the style
-block `word-page.css`, the PDF look `pdf-look.css` with its `fonts\`, the 889
-colours), `mention.js` (finds the lines of a highlighted text
+first-`.qmd` rule, when to patch, watching the PDF), `patch.js` (finds Quarto,
+puts the blocks in or takes them out, writes `word-page-pdf.css`; no VS Code in
+it), `inject\` (the script block with the title block, folding and page ends,
+the style block `word-page.css`, the PDF look `pdf-look.css` with its
+`fonts\`, the 889 colours), `pdfpages.py` (the first lines of every page of a
+PDF), `mention.js` (finds the lines of a highlighted text
 in the `.qmd` file and builds the reference for Claude; no VS Code in it),
-`test.js` (74 offline checks of `patch.js` and `mention.js`),
+`test.js` (80 offline checks of `patch.js` and `mention.js`),
 `build.ps1` (runs the checks, packs, installs; VS Code switches a newly
 installed add-on on in the open windows by itself; a changed add-on needs
 Reload Window).

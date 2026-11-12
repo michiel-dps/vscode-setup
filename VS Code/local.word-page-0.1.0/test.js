@@ -86,8 +86,13 @@ check("PDF look: one start mark and one end mark",
   pdfBlocks.css.split(patch.START).length === 2 && pdfBlocks.css.split(patch.END).length === 2);
 check("PDF look: the Word rules stay, the PDF rules come after them",
   pdfBlocks.css.indexOf("html.word-page.pdf-look") > pdfBlocks.css.indexOf("html.word-page #editor"));
-check("PDF look: all six fonts are written into the rules",
-  (pdfBlocks.css.match(/url\("data:font\/otf;base64,[A-Za-z0-9+\/=]+"\)/g) || []).length === 6 && !pdfBlocks.css.includes('url("fonts/'));
+check("PDF look: all eight fonts are written into the rules",
+  (pdfBlocks.css.match(/url\("data:font\/otf;base64,[A-Za-z0-9+\/=]+"\)/g) || []).length === 8 && !pdfBlocks.css.includes('url("fonts/'));
+check("PDF look: folded code and page ends are on unless switched off",
+  pdfBlocks.js.includes('"fold":true') && pdfBlocks.js.includes('"pageEnds":true') &&
+  patch.buildBlocks(inject, { pageWidth: 820, look: "pdf", fold: false, pageEnds: false }).js.includes('"fold":false,"pageEnds":false'));
+check("PDF look: numbered headings, but not {.unnumbered} ones",
+  pdfBlocks.css.includes("h1.pm-heading:not(.unnumbered)::before") && pdfBlocks.css.includes('counter(wp-h1) "." counter(wp-h2)'));
 check("PDF look: a font comes back byte for byte", (() => {
   const found = /font-weight: 400; font-style: normal; src: url\("data:font\/otf;base64,([^"]+)"\)/.exec(pdfBlocks.css);
   return found !== null && Buffer.from(found[1], "base64").equals(fs.readFileSync(path.join(inject, "fonts", "lmroman10-regular.otf")));
@@ -102,6 +107,17 @@ check("back to the Word look: applied, and one style block in the file",
 patch.apply(old, inject, pdfOptions);
 check("remove after the PDF look: both files are the originals again",
   patch.remove(old) === "removed" && fs.readFileSync(files.js, "utf8") === jsBefore && fs.readFileSync(files.css, "utf8") === cssBefore);
+
+// the page ends of the PDF: the file the page reads
+const docs = [{ name: "draft.pdf", built: "15:30", pages: [{ n: 2, sideways: false, lines: ["Høydahl’s “line” – 25,000 kr"] }] }];
+const dataCss = patch.pdfDataCss(docs);
+check("page ends: one CSS variable with the data as base64", /^:root \{ --wp-pdf-pages: "[A-Za-z0-9+\/=]+"; \}$/m.test(dataCss));
+check("page ends: the data comes back as it went in (also ø, curly quotes, dash)",
+  JSON.stringify(patch.readPdfDataCss(dataCss)) === JSON.stringify(docs));
+patch.writePdfData(old, docs);
+check("page ends: the file is written next to Quarto's index.js",
+  path.dirname(patch.pdfDataFile(old)) === path.dirname(files.js) && fs.readFileSync(patch.pdfDataFile(old), "utf8") === dataCss);
+check("page ends: remove takes the file away too", patch.remove(old) === "removed" && !fs.existsSync(patch.pdfDataFile(old)));
 
 // a style file without a last line break comes back without one
 fs.writeFileSync(files.css, ".a{color:red}");
