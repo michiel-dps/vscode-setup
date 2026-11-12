@@ -103,7 +103,7 @@
       "effortLevel": "xhigh"
     },
     "claude-fable-5-2": {
-      "effortLevel": "high"
+      "effortLevel": "medium"
     }
   },
   "autoUpdatesChannel": "latest",

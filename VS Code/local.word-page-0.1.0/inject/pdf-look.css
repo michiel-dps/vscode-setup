@@ -123,6 +123,36 @@ html.word-page.pdf-look .pm-content .pm-node-caption {
   text-align: justify;
 }
 
+/* A page turned 90 degrees (a "::: landscape" block in the document, used for the maps of
+   the term paper): drawn as a sheet of its own that lies sideways across the page. It is as
+   wide as an A4 page is high (841.89 points), or as wide as the editor when that is
+   narrower, and the picture in it fills the sheet. In the column of text a map of 24.7 cm
+   would be shown only 16 cm wide, and its numbers could not be read (asked 12 Nov 2026).
+   The sheet is centred on the page: it sticks out the same on both sides. */
+html.word-page.pdf-look {
+  --wp-land: min(841.89 * var(--wp-pt), 100vw - 48px);
+}
+html.word-page.pdf-look .pm-content > .pm-div.landscape {
+  box-sizing: border-box;
+  width: var(--wp-land);
+  max-width: none;
+  margin: calc(24 * var(--wp-pt)) 0 calc(24 * var(--wp-pt)) calc((var(--wp-text) - var(--wp-land)) / 2);
+  padding: calc(var(--wp-land) * 0.04);
+  background-color: #ffffff !important;
+  border: 1px solid #d9dce1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.10), 0 6px 18px rgba(0, 0, 0, 0.07);
+}
+html.word-page.pdf-look .pm-content > .pm-div.landscape figure.pm-figure {
+  width: 100%;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+/* Quarto writes the width of a picture on it in pixels, counted in the column of text */
+html.word-page.pdf-look .pm-content > .pm-div.landscape img.pm-img {
+  width: 100% !important;
+  height: auto !important;
+}
+
 /* tables: a line above, a line under the header row and a line below; no boxes */
 html.word-page.pdf-look .pm-content .pm-table-container table {
   border-collapse: collapse;

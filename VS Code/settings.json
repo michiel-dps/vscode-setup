@@ -143,5 +143,7 @@
     "terminal.integrated.enableMultiLinePasteWarning": "never",
     "chat.viewSessions.orientation": "stacked",
     "chat.editing.revealNextChangeOnResolve": false,
-    "explorer.confirmDelete": false
+    "explorer.confirmDelete": false,
+    // Spell check on the page of a .qmd file: British English ("neighbours", "colour")
+    "quarto.visualEditor.spellingDictionary": "en_GB"
 }

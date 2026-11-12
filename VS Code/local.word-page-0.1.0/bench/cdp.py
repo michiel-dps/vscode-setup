@@ -8,6 +8,8 @@
 #   python -I cdp.py key <key> [mods]          press a key in the window (mods: ctrl,shift,alt);
 #                                              Numpad5 = the 5 of the number pad
 #   python -I cdp.py click x y                 mouse click at window coordinates
+#   python -I cdp.py dblclick x y              double click (selects the word there)
+#   python -I cdp.py drag x1 y1 x2 y2          press, move, release (selects the text in between)
 #   python -I cdp.py type "text"               type text
 import base64, json, os, socket, struct, sys, time, urllib.request
 
@@ -183,11 +185,22 @@ def main():
         ws.call("Input.dispatchKeyEvent", dict(base, type="rawKeyDown"))
         ws.call("Input.dispatchKeyEvent", dict(base, type="keyUp"))
         print("pressed", key, mods)
-    elif cmd == "click":
+    elif cmd in ("click", "dblclick"):
+        # dblclick: two clicks on the same spot, which selects the word there
         x, y = float(sys.argv[2]), float(sys.argv[3])
-        for typ in ("mousePressed", "mouseReleased"):
-            ws.call("Input.dispatchMouseEvent", {"type": typ, "x": x, "y": y, "button": "left", "clickCount": 1})
-        print("clicked", x, y)
+        for count in ((1, 2) if cmd == "dblclick" else (1,)):
+            for typ in ("mousePressed", "mouseReleased"):
+                ws.call("Input.dispatchMouseEvent", {"type": typ, "x": x, "y": y, "button": "left", "clickCount": count})
+        print("clicked" if cmd == "click" else "double-clicked", x, y)
+    elif cmd == "drag":
+        # press at (x1, y1), move to (x2, y2), release: selects the text in between
+        x1, y1, x2, y2 = (float(v) for v in sys.argv[2:6])
+        ws.call("Input.dispatchMouseEvent", {"type": "mousePressed", "x": x1, "y": y1, "button": "left", "clickCount": 1})
+        for step in range(1, 11):
+            ws.call("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": x1 + (x2 - x1) * step / 10,
+                                                 "y": y1 + (y2 - y1) * step / 10, "button": "left", "buttons": 1})
+        ws.call("Input.dispatchMouseEvent", {"type": "mouseReleased", "x": x2, "y": y2, "button": "left", "clickCount": 1})
+        print("dragged", x1, y1, "to", x2, y2)
     elif cmd == "type":
         ws.call("Input.insertText", {"text": sys.argv[2]})
         print("typed")

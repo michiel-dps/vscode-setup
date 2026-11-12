@@ -561,6 +561,18 @@ saving from the page in the bench and comparing the file):
   table cell: keep it short (one variable).
 - The box at the top of the page is as long as the header. LaTeX settings
   can live in a file of their own: `include-in-header: draft_header.tex`.
+- **A map on a sheet of its own (12 Nov 2026, asked: "the numbers are not
+  readable, it is all too small").** A `::: landscape` block is a page lying
+  on its side in the PDF. On the page it is now a wide sheet of its own too:
+  as wide as an A4 page on its side, or as wide as the window when that is
+  narrower, with the picture across the whole sheet. The rule is in
+  `inject\pdf-look.css` (`.pm-div.landscape`, width `--wp-land`); the page
+  gives a `:::` block its name as a class, which is how the rule finds it.
+  In the PDF of the term paper the landscape pages have 1.2 cm margins, so a
+  map is 27 cm wide (`draft_header.tex`: `\newgeometry` before a landscape
+  page, `\restoregeometry` after it, and three lines that set the page
+  height back; without those the next page ran to the bottom edge of the
+  paper).
 - Pandoc cuts a table in two at the end of a page. `draft_header.tex` of the
   term paper has a one-line rule against that (`\keeptogether{5cm}`: new page
   when less than 5 cm is left). The LaTeX package `needspace` is not used for
@@ -579,7 +591,19 @@ saving from the page in the bench and comparing the file):
   when its markdown was not yet in that tidy style.
 - It is for `.qmd` and `.md`. An `.Rmd` cannot be opened as a page (Quarto
   does not allow it): write in a `.qmd`, Claude moves the text into the `.Rmd`.
-- No word count and no Norwegian spell check in this editor.
+- Spell check on the page is British English since 12 Nov 2026:
+  `"quarto.visualEditor.spellingDictionary": "en_GB"` in settings.json. The
+  default is American and marked "neighbours" as wrong. Quarto has en_AU,
+  en_CA, en_GB, en_US, es_ES, fr_FR, de_DE and ru_RU: no Norwegian.
+- No word count in this editor. The length of a paper is read from the PDF
+  (Ctrl+Shift+K).
+- What works on the page, checked in the bench on 12 Nov 2026 with the term
+  paper: Ctrl+Numpad5 from a paragraph, a table cell, a caption, a heading
+  and a list item (right lines every time); the formula; Find and Replace
+  (Ctrl+F); the outline (the button with three lines, top left); Insert
+  Citation (Ctrl+Shift+F8) with the `.bib` file and Zotero; `@` and the
+  first letters of an author gives the list of keys. Not checked: running a
+  code chunk from the page.
 - After a change to the add-on the open page keeps its old look: close the tab
   and open it again.
 
@@ -684,7 +708,11 @@ a second VS Code, hence the copy; Quarto's one-time question; Quick Open only
 finds files opened before). For the page look there are three more probes in
 `bench\js`: `nodes.js` (which tags and classes the page is built of),
 `theme.js` (the rules Quarto writes itself, how a picture gets its width,
-whether words can be broken) and `gaps.js` (the page measured in PDF points). `bench\gen.py` makes `inject\light-theme.json`
+whether words can be broken) and `gaps.js` (the page measured in PDF points).
+Since 12 Nov 2026 also `divs.js` (the `:::` blocks on the page and their
+classes), and in `cdp.py`: `dblclick x y` (selects a word), `drag x1 y1 x2 y2`
+(selects the text in between) and `typekeys "text"` (one real key press per
+letter, so the `@` list of citations opens). `bench\gen.py` makes `inject\light-theme.json`
 again from a dump of the theme colours (`bench\js\dumpvars.js`, taken in the
 bench under a light theme). If the page look breaks after a Quarto update
 (they renamed a box): `bench\js\layout.js` prints the boxes and their rules;
