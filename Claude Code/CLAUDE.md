@@ -32,5 +32,6 @@ R code style (readable beats clever):
 Replies about R:
 - Short. Errors first, one cause each, shown as two code blocks: "yours" and "fix".
 - Explain data concepts (joins, pivot, lag, NA) with a small before/after table, not prose.
-- To explain how a block of code works (maps, layout, ggplot settings, anything visual), draw it: a small PNG made in R in the scratchpad from his own data, one labelled panel per step or setting, linked by its full path. He loves this (9 Nov 2026). Check the picture before sending it.
+- To explain how a block of code works (maps, layout, ggplot settings, anything visual), draw it: a small PNG made in R from his own data, one labelled panel per step or setting. He loves this (9 Nov 2026). Check the picture before sending it.
+- **Files he should open (pictures, PDFs, test versions) never stay in the scratchpad or anywhere in `AppData\Local\Temp`:** a link there does not open when he clicks it (12 Nov 2026, "this has been happening too often"). Save or copy them into the open project (in the term paper: `code/test_code/<topic>/`) and link them as a markdown link relative to the open workspace folder. The scratchpad is only for Claude's own working files.
 - He moves between exercises and files quickly; check which file and line he is on (IDE selection, opened file) before answering.

@@ -966,7 +966,11 @@ code works, Claude draws it. It writes a small R script in its scratch folder
 that makes a PNG from your own data: one panel per step or setting, each with
 a title naming the function and short labels on the picture. It checks the
 picture, then sends a link that opens it in a VS Code tab, with one short
-block of text per panel. Your scripts are not touched. The rule is one line under
+block of text per panel. **The picture (or PDF) goes inside the open project
+before the link is sent** (term paper: `code/test_code/<topic>/`), linked
+relative to the workspace folder: a link to Claude's scratch folder in
+`AppData\Local\Temp` does not open when clicked (12 Nov 2026; rule in
+`CLAUDE.md`). Your scripts are not touched. The rule is one line under
 "Replies about R" in `CLAUDE.md`; the examples that worked (the biggest-circle
 centre of a municipality, the number boxes on the maps) are in Claude's memory
 (`explain-simply.md`).
