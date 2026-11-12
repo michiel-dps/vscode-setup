@@ -389,6 +389,17 @@ html.word-page.pdf-look.wp-indent .pm-content > p,
 html.word-page.pdf-look.wp-indent .pm-content > .pm-div > p { text-indent: calc(35.43 * var(--wp-pt)); }
 html.word-page.pdf-look.wp-indent .pm-content > .pm-heading + p,
 html.word-page.pdf-look.wp-indent .pm-content > .pm-div > .pm-heading + p { text-indent: 0; }
+/* Quarto draws a formula as an inline-block, which takes over the indent of its paragraph:
+   every formula in a line had 1.25 cm of white in front of it, and a display equation was
+   pushed 1.25 cm to the right and cut off (found 12 Nov 2026 in the Methods section). No
+   indent inside a paragraph, and none for a paragraph that is a display equation, as in LaTeX. */
+html.word-page.pdf-look .pm-content p * { text-indent: 0 !important; }
+html.word-page.pdf-look .pm-content p:has(> .math[data-type="DisplayMath"]:first-child) { text-indent: 0 !important; }
+/* A display equation is a picture (MathJax's SVG) that says "width 100%" but has no size of
+   its own, so the browser made it 300 px wide and cut the equation and its number (1) off. As
+   wide as the column: the equation in the middle, its number at the right edge, as in LaTeX. */
+html.word-page.pdf-look .pm-content .math[data-type="DisplayMath"] { display: block !important; }
+html.word-page.pdf-look .pm-content .math[data-type="DisplayMath"] img { width: 100% !important; }
 html.word-page.pdf-look.wp-indent .pm-content h1.pm-heading { margin: 1.239em 0 0.680em 0; }
 html.word-page.pdf-look.wp-indent .pm-content h2.pm-heading { margin: 1.213em 0 0.601em 0; }
 html.word-page.pdf-look.wp-indent .pm-content h3.pm-heading { margin: 1.449em 0 0.672em 0; }

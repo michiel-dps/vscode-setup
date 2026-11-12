@@ -374,7 +374,9 @@
       var text = boxText(box);
       var labels = doc ? labelsOf(kind, text, variables).filter(function (label) { return doc.items && doc.items[label]; }) : [];
       var refs = doc && kind === "settings" && /^nocite:/m.test(text) && doc.refs && doc.refs.length ? doc.refs : null;
-      var shows = kind === "header" ? "wp-title-block" : (labels.length || refs ? "wp-pictures" : "wp-line");
+      // the title block as a picture of page 1 of the PDF (its fonts and room exactly), else drawn from the header
+      var titlePicture = kind === "header" && doc && doc.title ? doc.title : null;
+      var shows = titlePicture ? "wp-pictures wp-title-picture" : kind === "header" ? "wp-title-block" : (labels.length || refs ? "wp-pictures" : "wp-line");
       // LaTeX's wrapfigure: a figure beside the text, on the right or the left
       var beside = kind === "raw" && labels.length ? /\\begin\{wrapfigure\}\{([rlRL])\}/.exec(text) : null;
       var faceClass = "wp-face " + shows + (beside ? (/[rR]/.test(beside[1]) ? " wp-beside-right" : " wp-beside-left") : "");
@@ -387,13 +389,20 @@
       if (face.className !== faceClass) {
         face.className = faceClass;
         face.title = kind === "header" ? "Click to change the header (title, names, abstract, settings)" :
-          (shows === "wp-pictures" ? "A picture from the PDF. Click to see the code that makes it." : "Click to open");
+          (shows.indexOf("wp-pictures") >= 0 ? "A picture from the PDF. Click to see the code that makes it." : "Click to open");
         face.removeAttribute("data-wp-text");
       }
-      var key = text + "\n" + (shows === "wp-pictures" ? docKey : "");
+      var key = text + "\n" + (shows.indexOf("wp-pictures") >= 0 ? docKey : "");
       if (face.getAttribute("data-wp-text") !== key) {
         face.setAttribute("data-wp-text", key);
-        if (kind === "header") {
+        if (titlePicture) {
+          face.innerHTML = '<div class="wp-tag">' + escapeHtml("The header (title, names, abstract): a picture of " + doc.name +
+            ". Click to change it.") + "</div>" + picture(doc, titlePicture);
+          if (typeof titlePicture.y === "number") {
+            face.style.paddingTop = "calc(" + titlePicture.y + " * var(--wp-pt))";
+          }
+        } else if (kind === "header") {
+          face.style.paddingTop = "";
           face.innerHTML = titleBlockHtml(text);
         } else if (refs) {
           face.innerHTML = '<div class="wp-tag">' + escapeHtml(lineText(box, text) + " – the reference list is a picture of " + doc.name) + "</div>" +
@@ -406,6 +415,115 @@
       }
       if (!box.classList.contains("wp-folded")) { box.classList.add("wp-folded"); }
     }
+  }
+
+  // ---- the look of the PDF itself (12 Nov 2026 evening) ----
+  // Asked: "the qmd file in visual mode is not the same as the pdf" (a test copy of the paper
+  // builds with Times New Roman 12 pt, other headings and smaller captions; the page kept the
+  // look of the first PDF). pdfpages.py measures the PDF (style): the font and size of the
+  // text, its line distance and indent, each level of heading (font, size, bold or italic,
+  // room above and below, room after its number), the captions, the colour of the citations
+  // and the font of code. These rules, in a style block of our own, give the page that look.
+  // The room around a heading is worked out from the metrics of the fonts on this screen:
+  // in a line of height L and a font of size F with ascent A and descent D (parts of F), the
+  // foot of the letters is L/2 + (A - D) F/2 below the top of the line.
+  var lookStyle = null;
+  var lookKey = "";
+  var metricCanvas = null;
+
+  // the font for the page: Latin Modern from the add-on's own files (LaTeX's 12 pt cut for
+  // headings of 12 pt and larger), any other font as installed in Windows
+  function cssFamily(family, size) {
+    if (family === "Latin Modern") {
+      return (size >= 11.5 ? '"WP Latin Modern 12", ' : "") + '"WP Latin Modern", serif';
+    }
+    if (family === "Latin Modern Mono") { return '"WP Latin Modern Mono", Consolas, monospace'; }
+    return '"' + String(family).replace(/["\\]/g, "") + '", serif';
+  }
+
+  // ascent and descent of a font on this screen, as parts of its size
+  function fontMetrics(familyCss, bold, italic) {
+    if (!metricCanvas) { metricCanvas = document.createElement("canvas").getContext("2d"); }
+    metricCanvas.font = (italic ? "italic " : "") + (bold ? "700 " : "400 ") + "100px " + familyCss;
+    var m = metricCanvas.measureText("x");
+    return { a: (m.fontBoundingBoxAscent || 80) / 100, d: (m.fontBoundingBoxDescent || 20) / 100 };
+  }
+
+  function drawLook() {
+    var doc = currentDoc();
+    var s = FROM_PDF && doc && doc.style && doc.style.body ? doc.style : null;
+    var key = s ? JSON.stringify(s) + (document.fonts ? document.fonts.status : "") : "";
+    if (key === lookKey) { return; }
+    lookKey = key;
+    if (!lookStyle) {
+      lookStyle = document.createElement("style");
+      lookStyle.id = "word-page-look";
+      document.head.appendChild(lookStyle);
+    }
+    document.documentElement.classList.toggle("wp-styled", !!s);
+    if (!s) { lookStyle.textContent = ""; return; }
+    var P = "html.word-page.pdf-look.wp-styled .ProseMirror > .body > .pm-content";
+    var PT = " * var(--wp-pt))";
+    var body = s.body;
+    var bodyCss = cssFamily(body.family, body.size, false);
+    var bm = fontMetrics(bodyCss, false, false);
+    var css = [];
+    css.push(P + " { font-family: " + bodyCss + " !important; font-size: calc(" + body.size + PT + " !important; line-height: calc(" + body.line + PT + "; }");
+    css.push(P + " p { line-height: calc(" + body.line + PT + " !important; }");
+    if (body.indent) {
+      css.push("html.word-page.pdf-look.wp-styled.wp-indent .ProseMirror > .body > .pm-content > p, " +
+        "html.word-page.pdf-look.wp-styled.wp-indent .ProseMirror > .body > .pm-content > .pm-div > p { text-indent: calc(" + body.indent + PT + "; }");
+    }
+    function below(L, F, m) { return L / 2 - (m.a - m.d) * F / 2; }      // from the foot of the letters to the bottom of the line
+    function above(L, F, m) { return L / 2 + (m.a - m.d) * F / 2; }      // from the top of the line to the foot of the letters
+    var heads = s.headings || {};
+    var bottoms = {};
+    ["1", "2", "3"].forEach(function (level) {
+      var h = heads[level] || heads[String(Number(level) - 1)];
+      if (!h) { return; }
+      var tags = level === "3" ? ["h3", "h4", "h5", "h6"] : ["h" + level];
+      var familyCss = cssFamily(h.family, h.size, h.bold);
+      var hm = fontMetrics(familyCss, h.bold, h.italic);
+      var L = h.size * 1.2;
+      var before = h.before;
+      var after = h.after;
+      var parent = heads[String(Number(level) - 1)];
+      if (!after && parent) { after = parent.after; }
+      if (level === "3" && parent && parent.before && (!before || before > parent.before + 6)) { before = parent.before; }
+      var top = before ? Math.max(0, before - below(body.line, body.size, bm) - above(L, h.size, hm)) : null;
+      var bottom = after ? Math.max(0, after - below(L, h.size, hm) - above(body.line, body.size, bm)) : null;
+      bottoms[level] = { margin: bottom || 0, L: L, size: h.size, m: hm };
+      tags.forEach(function (tag) {
+        var rule = P + " " + tag + ".pm-heading { font-family: " + familyCss + " !important; font-size: calc(" + h.size + PT + " !important; " +
+          "font-weight: " + (h.bold ? 700 : 400) + " !important; font-style: " + (h.italic ? "italic" : "normal") + " !important; " +
+          "line-height: calc(" + L.toFixed(2) + PT + " !important;";
+        if (top !== null) { rule += " margin-top: calc(" + top.toFixed(2) + PT + " !important;"; }
+        if (bottom !== null) { rule += " margin-bottom: calc(" + bottom.toFixed(2) + PT + " !important;"; }
+        css.push(rule + " }");
+        if (h.numberToText) {
+          css.push(P + " " + tag + ".pm-heading:not(.unnumbered)::before { margin-right: " + h.numberToText + "em !important; }");
+        }
+      });
+    });
+    // a subsection heading straight under a section heading
+    var pair = (s.headingPairs || {})["1-2"];
+    if (pair && bottoms["1"] && bottoms["2"]) {
+      var want = pair - below(bottoms["1"].L, bottoms["1"].size, bottoms["1"].m) - above(bottoms["2"].L, bottoms["2"].size, bottoms["2"].m);
+      var given = bottoms["1"].margin;                                  // margins meet: the larger counts, a negative one is added
+      var margin = want >= given ? want : want - given;
+      css.push(P + " h1.pm-heading + h2.pm-heading { margin-top: calc(" + margin.toFixed(2) + PT + " !important; }");
+    }
+    if (s.caption) {
+      css.push(P + " .pm-node-caption { font-size: calc(" + s.caption.size + PT + " !important; line-height: calc(" + s.caption.line + PT + " !important; }");
+    }
+    if (s.citeColour) {
+      css.push(P + " .pm-link-text-color { color: " + s.citeColour + " !important; }");
+    }
+    if (s.code) {
+      css.push(P + " code.pm-code { font-family: " + cssFamily(s.code.family, body.size, false).replace(", serif", ", monospace") +
+        " !important; font-size: " + s.code.ratio + "em !important; }");
+    }
+    lookStyle.textContent = css.join("\n");
   }
 
   // ---- citations as the PDF prints them ----
@@ -587,10 +705,14 @@
   // the text of the page as one string of letters and digits, and for each of them the
   // text node and place it comes from. Code boxes, faces and figure captions are left
   // out (in the PDF a figure floats to another place).
+  // headingStarts: the places in that string where the text of a heading starts
+  var headingStarts = {};
   function textOfPage(content) {
     var letters = [];
     var nodes = [];
     var offsets = [];
+    var lastHeading = null;
+    headingStarts = {};
     var walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, {
       acceptNode: function (node) {
         var parent = node.parentElement;
@@ -601,6 +723,8 @@
     while (walker.nextNode()) {
       var node = walker.currentNode;
       var value = node.nodeValue;
+      var heading = node.parentElement.closest("h1, h2, h3, h4, h5, h6");
+      var before = letters.length;
       for (var i = 0; i < value.length; i++) {
         var kept = plain(value.charAt(i));
         for (var k = 0; k < kept.length; k++) {
@@ -609,23 +733,53 @@
           offsets.push(i);
         }
       }
+      if (letters.length > before) {
+        if (heading && heading !== lastHeading) { headingStarts[before] = true; }
+        lastHeading = heading;
+      }
     }
     return { text: letters.join(""), nodes: nodes, offsets: offsets };
   }
 
-  // where one PDF page starts in the text of the page: the place of the first of its
-  // lines that is found after the start of the page before (-1 = not found)
+  // Where one PDF page starts in the text of the page: of all its first lines that are found
+  // after the start of the page before, the one found first (a line from a table at the top of
+  // a page could otherwise be found pages further on, found 12 Nov 2026), and no further than
+  // about two pages of text on (WINDOW letters). null = not found.
+  var WINDOW = 6000;
   function findPageStart(page, text, from) {
+    var best = null;
     for (var k = 0; k < page.lines.length; k++) {
-      var line = plain(page.lines[k]);
-      if (line.length < 8) { continue; }
-      var tries = [line, line.slice(0, 40), line.slice(0, 22), line.slice(-24)];
-      for (var t = 0; t < tries.length; t++) {
-        if (tries[t].length < 8) { continue; }
-        var at = text.indexOf(tries[t], from);
-        if (at >= 0 && at - from < 15000) {
-          return { at: at, end: at + tries[t].length };
-        }
+      var found = findLine(page.lines[k], text, from);
+      if (found && (!best || found.at < best.at)) { best = found; }
+    }
+    return best;
+  }
+
+  // where one line of the PDF is in the text of the page (null = not found)
+  function findLine(pdfLine, text, from) {
+    // a numbered heading: in the PDF "3 Methods", on the page the number is drawn by the style
+    // rules and only "Methods" is text, so the number goes, and the line must be a heading here
+    var raw = pdfLine.trim();
+    var numbered = /^\d{1,2}(\.\d{1,2}){0,2}\s+(?=[A-Z])/.test(raw);
+    raw = raw.replace(/^\d{1,2}(\.\d{1,2}){0,2}\s+(?=[A-Z])/, "");
+    var line = plain(raw);
+    // a line of one or two words (a cell of a table, a label in a figure) is found in too many
+    // places (found 12 Nov 2026: "municipality" from a table put page 18 in the wrong place,
+    // and with it the pages after it): such a line only counts where a heading starts with it
+    var short = numbered || raw.split(/\s+/).length < 3;
+    if (line.length < (short ? 5 : 10)) { return null; }
+    if (short) {
+      var at = text.indexOf(line, from);
+      while (at >= 0 && at - from < WINDOW && !headingStarts[at]) { at = text.indexOf(line, at + 1); }
+      return at >= 0 && at - from < WINDOW ? { at: at, end: at + line.length } : null;
+    }
+    var tries = [line, line.slice(0, 40), line.slice(0, 22), line.slice(-24)];
+    for (var t = 0; t < tries.length; t++) {
+      if (tries[t].length < 8) { continue; }
+      var found = text.indexOf(tries[t], from);
+      if (found >= 0 && found - from < WINDOW) {
+        // the tail of a line: the line, and so the page, starts a little before it
+        return { at: t === 3 ? Math.max(from, found - (line.length - tries[t].length)) : found, end: found + tries[t].length };
       }
     }
     return null;
@@ -782,6 +936,7 @@
       resizes.observe(content);
       watchedContent = content;
     }
+    try { drawLook(); } catch (err) { /* the page keeps its own look */ }
     try { if (FOLD) { foldBoxes(content); } } catch (err) { /* the page stays as Quarto made it */ }
     // "indent: true" in the header: paragraphs as in the PDF, first line in, no room between
     // them (the rules for the class wp-indent are at the end of inject/pdf-look.css)
@@ -824,8 +979,19 @@
   // the file), the page takes the change: for this one message the editor has no focus. While
   // typing it cannot take it without losing what was typed; a bar at the top then says so.
   var EXTERNAL_EDIT = "vsc_ve_apply_external_edit";
+  // what counts as typing: keys that change the text (a letter, Enter, Backspace, Delete, Tab,
+  // Ctrl+Z/Y/V/X), and pasting, cutting, dropping. Not a shortcut such as Ctrl+Numpad5, not the
+  // arrow keys: those change nothing that Quarto still has to write into the file.
   var lastTyping = 0;
-  ["keydown", "beforeinput", "paste", "cut", "drop"].forEach(function (name) {
+  document.addEventListener("keydown", function (event) {
+    var key = event.key || "";
+    var plain = !event.ctrlKey && !event.metaKey && !event.altKey;
+    if ((plain && (key.length === 1 || /^(Enter|Backspace|Delete|Tab)$/.test(key))) ||
+        ((event.ctrlKey || event.metaKey) && /^[zyvx]$/i.test(key))) {
+      lastTyping = Date.now();
+    }
+  }, true);
+  ["beforeinput", "paste", "cut", "drop"].forEach(function (name) {
     document.addEventListener(name, function () { lastTyping = Date.now(); }, true);
   });
 
@@ -844,21 +1010,30 @@
       "over that change. To see the file as it is now: close this tab and open it again (click to close this bar).";
   }
 
+  // Quarto asks two things: does the page have the keyboard (document.hasFocus), and does the
+  // editor (ProseMirror asks: is it document.activeElement)? The second stays "yes" while the
+  // keyboard is elsewhere, for example in the Claude chat box after Ctrl+Numpad5: the first
+  // version of this fix let Quarto decide then, and Quarto dropped the change (found 12 Nov 2026,
+  // 17:29 UTC, by the session that edits draft.qmd). So both answers are made "no" here.
   window.addEventListener("message", function (event) {
     var data = event.data;
     if (!data || typeof data !== "object" || data.method !== EXTERNAL_EDIT) { return; }
-    if (!document.hasFocus()) { return; }                   // Quarto takes the change itself
-    if (Date.now() - lastTyping < 2500) { outsideWarning(); return; }
+    var pageHasKeyboard = document.hasFocus();
     var active = document.activeElement;
+    var editorHasFocus = !!(active && active.closest && active.closest(".ProseMirror"));
+    if (!pageHasKeyboard && !editorHasFocus) { return; }    // Quarto takes the change itself
+    if (Date.now() - lastTyping < 2500) { outsideWarning(); return; }
     var scroller = document.querySelector(".ProseMirror") && document.querySelector(".ProseMirror").parentElement;
     var scrollTop = scroller ? scroller.scrollTop : 0;
-    // Quarto's handler runs right after this one and asks: does the editor, does the page have the focus?
+    // Quarto's handler runs right after this one
     document.hasFocus = function () { return false; };
     if (active && active.blur) { active.blur(); }
     setTimeout(function () {
       delete document.hasFocus;                               // the browser's own again
       if (scroller) { scroller.scrollTop = scrollTop; }
-      if (active && active.focus && document.contains(active)) {
+      // the cursor back where it was, but only when the page had the keyboard: focusing it now
+      // would take the keyboard away from the chat box or wherever it is
+      if (pageHasKeyboard && active && active.focus && document.contains(active)) {
         try { active.focus({ preventScroll: true }); } catch (err) { /* the user clicks back in */ }
       }
     }, 300);

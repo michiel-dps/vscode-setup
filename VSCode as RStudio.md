@@ -565,6 +565,33 @@ gives:
   older build are taken away.
 - Everything here is **as of the last build** (Ctrl+Shift+K): a table
   changed in R shows the old picture until the PDF is built again.
+- **The look of the PDF itself** (12 Nov 2026 night, asked: "the qmd file in
+  visual mode is not the same as the pdf"; a test copy of the paper builds
+  with Times New Roman 12 pt). `pdfpages.py` measures the PDF (`style`):
+  font and size of the text, line distance, paragraph indent, each heading
+  level (font, size, bold or italic, room above and below, room after the
+  number), caption size, the colour of the citations, the font of code. The
+  script block turns that into style rules; the room around a heading is
+  worked out from the fonts' own ascent and descent on this screen, so
+  the gaps match the PDF (measured on the Times copy: section to subsection
+  23.0 pt, PDF 22.9; subsection to text 18.7, PDF 18.7; lines 14.47 apart,
+  PDF 14.45). A font other than Latin Modern is taken as installed in
+  Windows (Times New Roman, Consolas). The title block is then a picture of
+  page 1 of the PDF (title to abstract), at its place. Without a PDF the
+  page keeps the look measured on 11 Nov.
+- **Formulas** (same night): Quarto draws a formula as an inline-block, which
+  took over the 1.25 cm indent of its paragraph (white before every formula
+  in a line), and a display equation is a MathJax picture without a size of
+  its own, so it was 300 px wide and cut off with its number (1) on top of
+  it. Now: no indent inside a paragraph or for a paragraph that is a display
+  equation, and display equations as wide as the column, the number at the
+  right edge as in LaTeX.
+- **Page ends, made surer** (same night): the running head and page number of
+  a page are left out, a line of one or two words only counts where a heading
+  starts with it ("3 Methods" without its number), of all first lines of a
+  page the one found first counts, and no further than about two pages of
+  text on (a table cell on top of page 5 had put page 5 at "Results", and
+  pages 6 to 12 were lost).
 
 **Changes made to the file outside the page (12 Nov 2026, found when another
 Claude session edited `draft.qmd` while it was open as a page).** How the page
@@ -577,7 +604,22 @@ does not try again: the page kept the old text, and the next keystroke wrote
 that old text over the file. Now the script block takes such a change itself
 when nothing was typed on the page for 2.5 seconds (Quarto has then written
 everything typed into the file): for that one message the editor has no focus,
-and the cursor and scroll place are put back. While you type, the change cannot
+and the cursor and scroll place are put back. Quarto asks two things (does the
+page have the keyboard, and is the editor `document.activeElement`); the
+second stays "yes" while the keyboard is in the Claude chat box after
+Ctrl+Numpad5, and the first version of this fix let Quarto decide then, which
+dropped an edit at 17:29 UTC (found by the session that edits `draft.qmd`).
+Both are now made "no". Only keys that change text count as typing (not
+Ctrl+Numpad5 or the arrow keys).
+
+Red lintr mark on the last ```` ``` ```` line of a chunk before a closing
+`:::` (found the same night by the session that edits `draft.qmd`): not the R
+add-on but Quarto's cell diagnostics. Quarto copies the R chunks into a hidden
+`.vdoc.<id>.r` file for the R language server, and its cutting takes the
+closing fence along when `:::` follows without a blank line (the page always
+writes it so). A `.lintr` exclusion cannot reach that file; the fix is
+`"quarto.cells.diagnostics.enabled": false` in the project's
+`.vscode/settings.json`. While you type, the change cannot
 be taken without losing what was typed: a red bar at the top says so (close
 the tab and open it again to see the file as it is). Tested in the bench with
 autosave as on this laptop: an edit on disk while the page had the focus is

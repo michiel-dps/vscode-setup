@@ -27,7 +27,7 @@ import sys
 
 import pymupdf
 
-LINES_PER_PAGE = 12        # enough to get past a figure or a table at the top of a page
+LINES_PER_PAGE = 40        # enough to get past a table at the top of a page (its cells are lines too)
 DPI = 150                  # pictures: about two screen pixels per point of the PDF
 CAPTION = re.compile(r"^(Table|Figure) ([A-Z]?\d+)\.")
 YEAR = re.compile(r"(\d{4}[a-z]?|n\.d\.(?:-[a-z])?)")
@@ -62,7 +62,13 @@ def page_number_line(page, line):
 
 
 def first_lines(page):
-    return [text for _, text, _, _ in text_lines(page)[:LINES_PER_PAGE]]
+    """The first lines of the text of a page, without its running head and page number (they
+    are in the top or bottom margin; a running head is the same on every page and would be
+    found in the wrong place)."""
+    lines = [line for line in text_lines(page) if not page_number_line(page, line)]
+    if page.rotation == 0:
+        lines = [line for line in lines if line[0].y1 > COLUMN_LEFT - 4 and line[0].y0 < page.rect.height - COLUMN_LEFT + 4]
+    return [text for _, text, _, _ in lines[:LINES_PER_PAGE]]
 
 
 # ---- cites ------------------------------------------------------------------------------
@@ -282,16 +288,217 @@ def pictures(document, folder, prefix):
     return items, ref_pictures
 
 
+def title_picture(document, folder, prefix, style):
+    """The title block of page 1 (title, subtitle, names, date, abstract), down to the first
+    section heading: the page shows it in the place of the header (YAML)."""
+    page = document[0]
+    lines = [line for line in text_lines(page) if not page_number_line(page, line)]
+    if not lines:
+        return None
+    first_heading = None
+    for rect, text, size, bold in lines:
+        if style and bold and re.match(r"^\d+(\s|$)", text) and size > style["body"]["size"] + 1 and rect.y0 > 120:
+            first_heading = rect
+            break
+    if first_heading is None:
+        return None
+    top = min(line[0].y0 for line in lines)
+    area = pymupdf.Rect(COLUMN_LEFT - 3, top - 2, page.rect.width - COLUMN_LEFT + 3, first_heading.y0 - 10)
+    picture = save(page, area, folder, "%s-title.png" % prefix, page.rect)
+    # "y": how far below the top of the column of text the picture starts (2.5 cm margins)
+    picture["y"] = round(area.y0 - 3 - COLUMN_LEFT, 1)
+    return picture
+
+
+# ---- the look of the PDF -----------------------------------------------------------------
+# What the page needs to look like the PDF: the font of the text, its size and line distance,
+# the indent of a paragraph, each level of heading (font, size, room above and below), the
+# captions, the colour of the citations and the font of code. Measured on the PDF itself, so
+# the page follows whatever the document's header and LaTeX settings make of it. All sizes in
+# points; "before" and "after" are from the foot of the letters of one line to the next.
+
+def family_of(font):
+    """'ABCDEF+TimesNewRomanPS-BoldMT' -> ('Times New Roman', True, False);
+    'LMRoman12-Bold' -> ('Latin Modern', True, False)"""
+    base = font.split("+", 1)[-1]
+    bold = bool(re.search(r"Bold|Black|Semibold|Demi", base))
+    italic = bool(re.search(r"Italic|Oblique|Slant", base))
+    name = base.split("-")[0].split(",")[0]
+    if name.startswith("LMRoman"):
+        return "Latin Modern", bold, italic
+    if name.startswith("LMMono"):
+        return "Latin Modern Mono", bold, italic
+    name = re.sub(r"(PS)?MT$|PS$|Std$", "", name)
+    name = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", name)
+    return name.strip(), bold, italic
+
+
+def median(values):
+    values = sorted(values)
+    if not values:
+        return None
+    middle = len(values) // 2
+    return values[middle] if len(values) % 2 else (values[middle - 1] + values[middle]) / 2
+
+
+def style_of(document):
+    from collections import Counter
+    spans = []          # (page, line rect, baseline, span) of the upright pages
+    for page in document:
+        if page.rotation:
+            continue
+        for block in page.get_text("dict")["blocks"]:
+            for line in block.get("lines", []):
+                for span in line["spans"]:
+                    if span["text"].strip():
+                        spans.append((page.number, displayed(page, line["bbox"]), span["origin"][1], span, block["number"]))
+    if not spans:
+        return None
+    weight = Counter()
+    for _, _, _, span, _ in spans:
+        family, bold, italic = family_of(span["font"])
+        if not bold and not italic:
+            weight[(family, round(span["size"], 2))] += len(span["text"])
+    (body_family, body_size), _ = weight.most_common(1)[0]
+    style = {"body": {"family": body_family, "size": body_size}}
+
+    def is_body(span):
+        family, bold, italic = family_of(span["font"])
+        return family == body_family and abs(span["size"] - body_size) < 0.2
+
+    # line distance and indent: the first span of every line of running text
+    # one entry per line on the page: its leftmost span (PyMuPDF can split a line in pieces)
+    lines = {}
+    for number, rect, base, span, block in spans:
+        key = (number, round(base, 1))
+        if key not in lines or span["bbox"][0] < lines[key][3]["bbox"][0]:
+            lines[key] = (number, pymupdf.Rect(span["bbox"]) * document[number].rotation_matrix, base, span, block)
+    ordered = sorted(lines.values(), key=lambda item: (item[0], item[2]))
+    steps, indents = [], Counter()
+    for (n1, r1, b1, s1, k1), (n2, r2, b2, s2, k2) in zip(ordered, ordered[1:]):
+        if n1 == n2 and is_body(s1) and is_body(s2) and body_size * 1.05 < b2 - b1 < body_size * 1.6:
+            steps.append(b2 - b1)
+    # the indent: the first line of a paragraph of running text, whose next two lines start at
+    # the left edge of the column (lists and quotes are in on every line, and in the reference
+    # list only one line at the edge follows an indented one)
+    for (n1, r1, b1, s1, k1), (n2, r2, b2, s2, k2), (n3, r3, b3, s3, k3) in zip(ordered, ordered[1:], ordered[2:]):
+        offset = r1.x0 - COLUMN_LEFT
+        if (n1 == n2 == n3 and is_body(s1) and is_body(s2) and is_body(s3) and 5 < offset < 60
+                and abs(r2.x0 - COLUMN_LEFT) < 1 and abs(r3.x0 - COLUMN_LEFT) < 1 and b3 - b1 < body_size * 3.2):
+            indents[round(offset, 1)] += 1
+    style["body"]["line"] = round(median(steps) or body_size * 1.2, 2)
+    style["body"]["indent"] = indents.most_common(1)[0][0] if indents else 0
+
+    # headings: a number (1, 1.1, 1.1.1) at the left edge, the heading text after it
+    levels = {}
+    pairs = {}
+    for i, (number, rect, base, span, block) in enumerate(ordered):
+        found = re.match(r"^(\d+(?:\.\d+){0,2})$", span["text"].strip())
+        if not found or abs(rect.x0 - COLUMN_LEFT) > 2:
+            continue
+        level = found.group(1).count(".") + 1
+        number_right = span["bbox"][2]
+        same = [s for s in spans if s[0] == number and abs(s[2] - base) < 0.5 and s[3]["bbox"][0] > number_right - 0.5
+                and s[3]["text"].strip()]
+        if not same:
+            continue
+        text_span = min(same, key=lambda s: s[3]["bbox"][0])
+        family, bold, italic = family_of(text_span[3]["font"])
+        if not (bold or italic) and text_span[3]["size"] < body_size + 0.5:
+            continue
+        info = levels.setdefault(level, {"family": family, "bold": bold, "italic": italic,
+                                         "size": round(text_span[3]["size"], 2), "before": [], "after": [], "gap": []})
+        info["gap"].append((text_span[3]["bbox"][0] - number_right) / span["size"])
+        before = [item for item in ordered[:i] if item[0] == number and item[2] < base - 1]
+        after = [item for item in ordered[i + 1:] if item[0] == number and item[2] > base + 1]
+        if before:
+            prev = before[-1]
+            prev_number = re.match(r"^(\d+(?:\.\d+){0,2})$", prev[3]["text"].strip())
+            if is_body(prev[3]):
+                info["before"].append(base - prev[2])
+            elif prev_number and abs(prev[1].x0 - COLUMN_LEFT) < 2:
+                pairs.setdefault("%d-%d" % (prev_number.group(1).count(".") + 1, level), []).append(base - prev[2])
+        if after and is_body(after[0][3]):
+            info["after"].append(after[0][2] - base)
+    style["headings"] = {}
+    for level, info in levels.items():
+        # the room between the number and the text, counted in the heading's own size
+        widths = info["gap"]
+        # room above: the smallest usual value (a figure or table between the text and the
+        # heading only adds room), the lower quarter of what was measured
+        before = sorted(info["before"])
+        style["headings"][str(level)] = {
+            "family": info["family"], "bold": info["bold"], "italic": info["italic"], "size": info["size"],
+            "before": round(before[len(before) // 4], 2) if before else None,
+            "after": round(median(info["after"]), 2) if info["after"] else None,
+            "numberToText": round(median(widths), 3) if widths else None,
+        }
+    style["headingPairs"] = {key: round(median(values), 2) for key, values in pairs.items()}
+
+    # captions: the size of the words after "Figure 1." / "Table 1."
+    sizes, cap_steps = [], []
+    for page in document:
+        if page.rotation:
+            continue
+        for block in page.get_text("dict")["blocks"]:
+            block_lines = block.get("lines", [])
+            for j, line in enumerate(block_lines):
+                text = "".join(s["text"] for s in line["spans"]).strip()
+                if CAPTION.match(text) and len(line["spans"]) > 1:
+                    rest = [s for s in line["spans"][1:] if s["text"].strip() and not family_of(s["font"])[1]]
+                    if rest:
+                        sizes.append(round(rest[0]["size"], 2))
+                        if j + 1 < len(block_lines):
+                            cap_steps.append(block_lines[j + 1]["spans"][0]["origin"][1] - line["spans"][0]["origin"][1])
+    if sizes:
+        size = Counter(sizes).most_common(1)[0][0]
+        steps = [s for s in cap_steps if size < s < size * 1.6]
+        style["caption"] = {"size": size, "line": round(median(steps), 2) if steps else round(size * 1.2, 2)}
+
+    # the colour of the citations (the words of the links to the reference list)
+    colours = Counter()
+    for page in document:
+        rects = [link["from"] for link in page.get_links() if "ref-" in str(link.get("nameddest") or link.get("name") or "")]
+        if not rects:
+            continue
+        for block in page.get_text("dict")["blocks"]:
+            for line in block.get("lines", []):
+                for span in line["spans"]:
+                    x = (span["bbox"][0] + span["bbox"][2]) / 2
+                    y = (span["bbox"][1] + span["bbox"][3]) / 2
+                    if span["text"].strip() and any(r.x0 <= x <= r.x1 and r.y0 <= y <= r.y1 for r in rects):
+                        colours["#%06x" % span["color"]] += 1
+    if colours:
+        style["citeColour"] = colours.most_common(1)[0][0]
+
+    # code in a line
+    mono = Counter()
+    for _, _, _, span, _ in spans:
+        family = family_of(span["font"])[0]
+        if re.search(r"Mono|Consolas|Courier|Code", family):
+            mono[(family, round(span["size"] / body_size, 3))] += len(span["text"])
+    if mono:
+        (family, ratio), _ = mono.most_common(1)[0]
+        style["code"] = {"family": family, "ratio": ratio}
+    return style
+
+
 def main():
     file = sys.argv[1]
     document = pymupdf.open(file)
     out = {"pages": [], "cites": cites_of(document)}
     for number, page in enumerate(document, start=1):
         out["pages"].append({"n": number, "sideways": page.rotation in (90, 270), "lines": first_lines(page)})
+    try:
+        out["style"] = style_of(document)
+    except Exception as err:            # the page keeps its own look
+        out["style"] = None
+        out["styleError"] = str(err)
     if len(sys.argv) >= 4:
         folder, prefix = sys.argv[2], sys.argv[3]
         os.makedirs(folder, exist_ok=True)
         out["items"], out["refs"] = pictures(document, folder, prefix)
+        out["title"] = title_picture(document, folder, prefix, out["style"])
     sys.stdout.reconfigure(encoding="utf-8")
     print(json.dumps(out, ensure_ascii=True))
 

@@ -521,7 +521,8 @@ function readPdf(pdf) {
         mtime: stat.mtimeMs,
         doc: {
           name: path.basename(pdf), built: builtAt(stat.mtime), pages: read.pages || [],
-          cites: read.cites || {}, items: read.items || {}, refs: read.refs || [], pictures: patch.PICTURE_DIR + "/"
+          cites: read.cites || {}, items: read.items || {}, refs: read.refs || [], pictures: patch.PICTURE_DIR + "/",
+          style: read.style || null, title: read.title || null
         }
       });
       log("pdf: read " + path.basename(pdf) + ", " + (read.pages || []).length + " pages, " +
