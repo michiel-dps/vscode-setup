@@ -256,6 +256,56 @@ html.word-page.pdf-look .pm-content .wp-face.wp-line {
 }
 html.word-page.pdf-look .pm-content .wp-face.wp-line:hover { color: #4b5563; border-left-color: #9aa0a6; }
 
+/* Pictures from the PDF (12 Nov 2026): a table, figure or the reference list that R or LaTeX
+   makes, cut out of the last build, in the face of the box that makes it. Each picture is as
+   wide as in the PDF (its width in points times --wp-pt) and at the same place in the column
+   (margin-left, set on the picture). On hover a dashed line and a tag say what made it. */
+html.word-page.pdf-look .pm-content .pm-code-editor.wp-folded:not(.wp-open) { overflow: visible !important; }
+html.word-page.pdf-look .pm-content .wp-face.wp-pictures {
+  position: relative;
+  margin: calc(4 * var(--wp-pt)) 0;
+  text-indent: 0;
+}
+html.word-page.pdf-look .pm-content .wp-pictures .wp-pic {
+  display: block;
+  max-width: none;
+  height: auto;
+  margin: 0 auto;
+}
+/* on a sheet lying on its side (::: landscape) the picture fits the sheet, as the maps do */
+html.word-page.pdf-look .pm-content .pm-div.landscape .wp-pictures .wp-pic { max-width: 100%; margin-left: auto !important; }
+html.word-page.pdf-look .pm-content .wp-pictures:hover { outline: 1px dashed #b8bec6; outline-offset: 2px; }
+html.word-page.pdf-look .pm-content .wp-pictures .wp-tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translateY(-100%);
+  z-index: 3;
+  padding: 1px 6px;
+  border: 1px solid #d5d8dc;
+  background: #ffffff;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: calc(7.5 * var(--wp-pt));
+  line-height: 1.4;
+  color: #6b7280;
+  white-space: nowrap;
+  visibility: hidden;
+}
+html.word-page.pdf-look .pm-content .wp-pictures:hover .wp-tag { visibility: visible; }
+html.word-page.pdf-look .pm-content .wp-pictures .wp-more {
+  margin: calc(2 * var(--wp-pt)) 0;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: calc(7.5 * var(--wp-pt));
+  font-style: italic;
+  color: #9aa0a6;
+  text-align: center;
+}
+/* LaTeX's wrapfigure: the figure beside the text, which runs around it */
+html.word-page.pdf-look .pm-content .wp-pictures.wp-beside-right { float: right; margin: 0 calc(-3 * var(--wp-pt)) calc(4 * var(--wp-pt)) calc(8 * var(--wp-pt)); }
+html.word-page.pdf-look .pm-content .wp-pictures.wp-beside-left { float: left; margin: 0 calc(8 * var(--wp-pt)) calc(4 * var(--wp-pt)) calc(-3 * var(--wp-pt)); }
+html.word-page.pdf-look .pm-content .wp-pictures.wp-beside-right .wp-pic,
+html.word-page.pdf-look .pm-content .wp-pictures.wp-beside-left .wp-pic { margin: 0 !important; }
+
 /* The title block, as on page 1 of the PDF (Quarto's article: \maketitle and the
    abstract). Measured in the term paper's PDF, in points from the top of the column of
    text to the foot of the letters: title 54.7 and 76.6 (17.22 pt, the 17 pt cut),

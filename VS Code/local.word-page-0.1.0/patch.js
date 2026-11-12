@@ -68,7 +68,8 @@ function buildBlocks(injectDir, options) {
     .replace("/*LIGHT*/", JSON.stringify(theme.colours))
     .replace("/*DROP*/", JSON.stringify(theme.drop))
     .replace("/*OPTIONS*/", JSON.stringify({
-      pageWidth: options.pageWidth, look: look, fold: options.fold !== false, pageEnds: options.pageEnds !== false
+      pageWidth: options.pageWidth, look: look, fold: options.fold !== false, pageEnds: options.pageEnds !== false,
+      fromPdf: options.fromPdf !== false
     }))
     .replace(/\r\n/g, "\n").trim() + "\n";
   let css = fs.readFileSync(path.join(injectDir, "word-page.css"), "utf8").replace(/\r\n/g, "\n").trim() + "\n";
@@ -143,9 +144,15 @@ function apply(quartoDir, injectDir, options) {
 // index.js; the page reads it as a style sheet (Quarto's page may load style sheets from
 // its own folder, but no other files). The data is JSON, as base64 in a CSS variable.
 const PDF_DATA = "word-page-pdf.css";
+// the pictures of tables, figures and the reference list, cut out of the PDF (pdfpages.py)
+const PICTURE_DIR = "word-page-pdf";
 
 function pdfDataFile(quartoDir) {
   return path.join(quartoDir, "assets", "www", "editor", PDF_DATA);
+}
+
+function pdfPictureDir(quartoDir) {
+  return path.join(quartoDir, "assets", "www", "editor", PICTURE_DIR);
 }
 
 // docs: [{ name: "draft.pdf", built: "15:30", pages: [{ n, sideways, lines }] }]
@@ -173,6 +180,10 @@ function remove(quartoDir) {
     fs.unlinkSync(pdfDataFile(quartoDir));
     changed = true;
   }
+  if (fs.existsSync(pdfPictureDir(quartoDir))) {
+    fs.rmSync(pdfPictureDir(quartoDir), { recursive: true, force: true });
+    changed = true;
+  }
   for (const file of [files.js, files.css]) {
     const text = fs.readFileSync(file, "utf8");
     const stripped = strip(text);
@@ -197,5 +208,5 @@ function state(quartoDir, injectDir, options) {
 
 module.exports = {
   findQuarto, editorFiles, buildBlocks, strip, apply, remove, state, START, END,
-  pdfDataFile, pdfDataCss, readPdfDataCss, writePdfData
+  pdfDataFile, pdfDataCss, readPdfDataCss, writePdfData, pdfPictureDir, PICTURE_DIR
 };

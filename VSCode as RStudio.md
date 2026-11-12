@@ -528,22 +528,53 @@ page header). The page reads that file every 3 seconds, looks for the first
 lines of each page in its own text (letters and digits only, so quotes,
 dashes and hyphenated words still match; code boxes and figure captions left
 out), and draws the lines as a picture behind the text. The log
-`%TEMP%\word-page.log` has a line per read (`pdf: read draft.pdf, 28 pages
-(1630 ms)`) or why it failed.
+`%TEMP%\word-page.log` has a line per read (`pdf: read draft.pdf, 35 pages,
+26 citation keys, 26 tables and figures, 3 pages of references (9194 ms)`) or
+why it failed.
+
+**From the PDF itself (12 Nov 2026 evening, asked: "I am still not seeing the
+file exactly as the pdf would look like ... try and make it more look like
+draft.pdf").** Setting `wordPage.fromPdf` (on). The same read of the PDF also
+gives:
+
+- **Citations as the PDF prints them**: `[@Hoydahl_2023, p. 4]` is shown as
+  "(Høydahl, 2023, p. 4)", `@Key` in the text as "Høydahl (2023)", with the
+  author and year exactly as the PDF has them (also "Lånekassen, n.d.-b",
+  "Søholt & Holm"). `pdfpages.py` reads them from the links of the
+  citations (`link-citations: true`; pandoc writes `&` in a link name as
+  `ux26`). The text in the file stays `[@key]`: style rules in a style
+  block of the script make `[`, the key and `]` invisible and show `(`,
+  "Høydahl, 2023" and `)` in their place, found by their place on the page
+  (`:nth-child`), so nothing in the editor is changed. **Put the cursor in a
+  citation and it shows its `@key` again**, to change it. After every change
+  on the page the places are checked at once, before the screen is drawn,
+  so a rule never lands on another citation. A key that is not in the PDF
+  yet (cited after the last build) stays `@key`.
+- **Pictures of what R and LaTeX make**, cut out of the PDF at the size of
+  the PDF and in the place of the box that makes them: the tables (Table 1
+  to 4, A1 to A8), the figure made in R (Figure 7), Figure 1 beside the
+  text (LaTeX `wrapfigure`; the text runs around it as in the PDF) and the
+  reference list (in the place of the `nocite` header under "References").
+  Which box makes what is read from its code: `caption = "**Table 3.**..."`
+  in a chunk, `#| fig-cap: !expr name` (the caption kept in a variable by
+  another chunk), `\caption{\textbf{Figure 1.} ...}` in raw LaTeX. A table
+  that runs over many pages shows its first page and "goes on for 2 more
+  pages". On hover a dashed line and a tag say what made it; a click opens
+  the code. The pictures are PNG files (150 dpi) in `word-page-pdf\` next to
+  Quarto's `index.js`, named after the PDF and its build time; those of an
+  older build are taken away.
+- Everything here is **as of the last build** (Ctrl+Shift+K): a table
+  changed in R shows the old picture until the PDF is built again.
 
 What it still cannot copy, so the real PDF still differs:
 
 - **Words are not broken at the end of a line** (VS Code has no
   word-breaking lists; checked in the bench). A line in front of a long word
-  that cannot be broken, such as a file path, gets wide gaps. A long `@key`
-  may be broken anywhere for that reason. So a paragraph can be a line
-  longer than in the PDF (the abstract: 10 lines, the PDF 9).
-- **Citations stay `@keys`**, and there is no reference list. Showing
-  "(Høydahl, 2023)" would need the page to change text inside the editor,
-  which breaks typing.
-- Tables and figures that R makes are a grey line, not the table. The grey
-  lines take a little room the PDF does not have; the page ends are tied to
-  the text, so they stay right.
+  that cannot be broken, such as a file path, gets wide gaps. So a paragraph
+  can be a line longer than in the PDF (the abstract: 10 lines, the PDF 9).
+- Boxes that make nothing in the PDF (the setup chunk, `\afterpage{`) are
+  still a grey line, which takes a little room the PDF does not have; the
+  page ends are tied to the text, so they stay right.
 - No space at the bottom of a page: a page end is a line, not a gap.
 - No ligatures (fi, fl drawn as one letter): the editor switches them off.
 
@@ -567,6 +598,17 @@ page (the rules and fonts are then not even written into Quarto's file).
   does it for the first `.qmd` of a session. A `.md` never opens as a page by
   itself: right-click it, `Word Page: Open as Page`.
 - **Ctrl+Shift+F4** switches between the page and the plain markdown text.
+  **The plain text of a page** (12 Nov 2026, asked: "the text editor
+  function doesn't work anymore for the quarto file"): Quarto opens a `.qmd`
+  whose header says `editor: visual` as a page every time, also after
+  "Reopen Editor With > Text Editor" or "Open With > Text Editor" (it closes
+  the text tab and opens the page again; that is Quarto, not this add-on).
+  Only Quarto's own switch is let through. So: Ctrl+Shift+F4 on the page,
+  or **right-click the file or its tab > `Word Page: Open as Plain Text`**
+  (also Ctrl+Shift+P). That command uses Quarto's switch; it asks once and
+  waits 3 seconds before it asks again, because asking while Quarto is
+  still busy closes the new text again (found in the bench). The log has a
+  line per try (`text: try 1 for draft.qmd ...`).
 - Citing: type `@` and the first letters of an author (a list comes up), or
   Insert > Citation (Ctrl+Shift+F8). The dialog shows the document's `.bib`
   file, **your Zotero library** (read straight from `C:\Users\<you>\Zotero`,
@@ -580,6 +622,7 @@ page (the rules and fonts are then not even written into Quarto's file).
   Word-like page of before), `wordPage.pageWidth` (820; in the PDF look this
   is the zoom), `wordPage.foldCode` (on: header as title block, code as a
   grey line), `wordPage.pageEnds` (on: the PDF's page ends),
+  `wordPage.fromPdf` (on: citations and pictures from the PDF),
   `wordPage.python` (`"python"`: the Python with PyMuPDF that reads the PDF).
   After a change: close the document tab and open it again.
   In the Word look, font and size of the text are Quarto's:
@@ -678,10 +721,11 @@ first-`.qmd` rule, when to patch, watching the PDF), `patch.js` (finds Quarto,
 puts the blocks in or takes them out, writes `word-page-pdf.css`; no VS Code in
 it), `inject\` (the script block with the title block, folding and page ends,
 the style block `word-page.css`, the PDF look `pdf-look.css` with its
-`fonts\`, the 889 colours), `pdfpages.py` (the first lines of every page of a
-PDF), `mention.js` (finds the lines of a highlighted text
+`fonts\`, the 889 colours), `pdfpages.py` (from a PDF: the first lines of
+every page, the citations as printed, pictures of the tables, figures and
+reference list), `mention.js` (finds the lines of a highlighted text
 in the `.qmd` file and builds the reference for Claude; no VS Code in it),
-`test.js` (81 offline checks of `patch.js` and `mention.js`),
+`test.js` (84 offline checks of `patch.js` and `mention.js`),
 `build.ps1` (runs the checks, packs, installs; VS Code switches a newly
 installed add-on on in the open windows by itself; a changed add-on needs
 Reload Window).

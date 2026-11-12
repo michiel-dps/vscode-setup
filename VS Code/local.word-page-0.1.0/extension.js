@@ -37,6 +37,7 @@ function activate(context) {
   context.subscriptions.push(
     vscode.commands.registerCommand("wordPage.newDocument", newDocument),
     vscode.commands.registerCommand("wordPage.openAsPage", openAsPage),
+    vscode.commands.registerCommand("wordPage.openAsText", openAsText),
     vscode.commands.registerCommand("wordPage.putBack", () => refresh(true)),
     vscode.commands.registerCommand("wordPage.selectionToClaude", selectionToClaude),
     // Quarto was updated or installed: its new files do not have the page yet
@@ -121,7 +122,7 @@ function refresh(tell) {
   const enabled = config.get("enabled", true);
   const options = {
     pageWidth: config.get("pageWidth", 820), look: config.get("look", "pdf"),
-    fold: config.get("foldCode", true), pageEnds: config.get("pageEnds", true)
+    fold: config.get("foldCode", true), pageEnds: config.get("pageEnds", true), fromPdf: config.get("fromPdf", true)
   };
   const folders = quartoFolders();
   if (folders.length === 0) {
@@ -209,6 +210,58 @@ async function openAsPage(clicked) {
     return;
   }
   await vscode.commands.executeCommand("vscode.openWith", uri, VISUAL_EDITOR);
+}
+
+// The plain markdown text of a page (12 Nov 2026, asked: "the text editor function doesn't
+// work anymore for the quarto file"). Quarto opens a .qmd whose header says "editor: visual"
+// as a page every time, also after "Reopen Editor With > Text Editor" or "Open With > Text
+// Editor": it closes the text tab and opens the page again (checked in Quarto's main.js).
+// Only Quarto's own command "Edit in Source Mode" (Ctrl+Shift+F4 on the page) is let
+// through. This command uses it for any .qmd: it opens the file as a page first when it is
+// not one yet, and switches it to the text as soon as the page has started.
+function textTabOf(uri) {
+  for (const group of vscode.window.tabGroups.all) {
+    for (const tab of group.tabs) {
+      if (tab.input instanceof vscode.TabInputText && tab.input.uri.toString() === uri.toString()) { return tab; }
+    }
+  }
+  return undefined;
+}
+
+async function openAsText(clicked) {
+  const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+  const uri = clicked && clicked.fsPath ? clicked : (tab && tab.input && tab.input.uri);
+  if (!uri || !/\.(qmd|md)$/i.test(uri.fsPath)) {
+    vscode.window.showWarningMessage("Word Page: open or right-click a .qmd or .md file first.");
+    return;
+  }
+  const open = textTabOf(uri);
+  if (open) {
+    await vscode.window.showTextDocument(uri, { viewColumn: open.group.viewColumn, preview: false });
+    return;
+  }
+  const pageWasOpen = vscode.window.tabGroups.all.some((group) => group.tabs.some((t) =>
+    t.input instanceof vscode.TabInputCustom && t.input.viewType === VISUAL_EDITOR && t.input.uri.toString() === uri.toString()));
+  await vscode.commands.executeCommand("vscode.openWith", uri, VISUAL_EDITOR, { preview: false });
+  // A page that has just been opened needs a moment to start before Quarto can switch it.
+  await pause(pageWasOpen ? 200 : 1500);
+  // Quarto's switch saves the file, closes the page and opens the text. Ask it once, and wait:
+  // asking again while it is busy closes the new text again (tested 12 Nov 2026).
+  for (let tries = 0; tries < 4; tries++) {
+    const active = vscode.window.tabGroups.activeTabGroup.activeTab;
+    log("text: try " + (tries + 1) + " for " + path.basename(uri.fsPath) + " (page was open: " + pageWasOpen +
+      ", active tab: " + (active ? active.label + " " + (active.input && active.input.viewType ? active.input.viewType : "text") : "none") + ")");
+    await vscode.commands.executeCommand("quarto.editInSourceMode");
+    for (let wait = 0; wait < 12; wait++) {
+      await pause(250);
+      if (textTabOf(uri)) {
+        log("text: " + path.basename(uri.fsPath) + " is open as text");
+        return;
+      }
+    }
+  }
+  log("text: " + path.basename(uri.fsPath) + " did not switch to the text");
+  vscode.window.showWarningMessage("Word Page: the page did not switch to the text. Press Ctrl+Shift+F4 on the page.");
 }
 
 // ---- 4. highlighted text for Claude --------------------------------------------
@@ -336,11 +389,34 @@ async function selectionToClaude() {
 // there every 3 seconds (inject/word-page.template.js) and draws the page ends.
 const pdfRead = new Map();      // PDF file -> { mtime, doc }; doc is what the page gets
 const pdfTimers = new Map();    // PDF file -> timer (wait until Quarto has written the whole PDF)
+const pdfReading = new Map();   // PDF file -> true while pdfpages.py reads it, "again" when it changed meanwhile
 const PDF_WAIT = 1500;          // ms
 
+// The PDF is read when the page shows anything of it: the page ends (wordPage.pageEnds) or
+// the citations and pictures of tables, figures and the reference list (wordPage.fromPdf).
 function pageEndsOn() {
   const config = vscode.workspace.getConfiguration("wordPage");
-  return config.get("enabled", true) && config.get("look", "pdf") === "pdf" && config.get("pageEnds", true);
+  return config.get("enabled", true) && config.get("look", "pdf") === "pdf" &&
+    (config.get("pageEnds", true) || config.get("fromPdf", true));
+}
+
+// a short name for a PDF file, for the names of its pictures
+function shortName(key) {
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) { hash = (hash * 31 + key.charCodeAt(i)) >>> 0; }
+  return "p" + hash.toString(36);
+}
+
+// take away the pictures of a PDF, except those of the build that is shown now (keep)
+function removePictures(folder, name, keep) {
+  const dir = patch.pdfPictureDir(folder);
+  let files = [];
+  try { files = fs.readdirSync(dir); } catch (err) { return; }
+  for (const file of files) {
+    if (file.startsWith(name + "-") && !(keep && file.startsWith(keep))) {
+      try { fs.unlinkSync(path.join(dir, file)); } catch (err) { /* in use: next time */ }
+    }
+  }
 }
 
 function keyOf(file) {
@@ -393,26 +469,68 @@ function readPdf(pdf) {
     writePdfData();                      // the same PDF: only make sure the page can find it
     return;
   }
-  const python = vscode.workspace.getConfiguration("wordPage").get("python", "python");
+  // pdfpages.py is reading this PDF already: read it once more when that is done
+  if (pdfReading.has(key)) {
+    pdfReading.set(key, "again");
+    return;
+  }
+  pdfReading.set(key, true);
+  const done = () => {
+    const again = pdfReading.get(key) === "again";
+    pdfReading.delete(key);
+    if (again) { readPdf(pdf); }
+  };
+  const config = vscode.workspace.getConfiguration("wordPage");
+  const python = config.get("python", "python");
   const started = Date.now();
   const script = path.join(__dirname, "pdfpages.py");
-  childProcess.execFile(python, ["-I", script, pdf], { timeout: 60000, maxBuffer: 20 * 1024 * 1024, windowsHide: true },
+  // The pictures go into Quarto's folder (the page may only load files from there), named
+  // after the PDF and the time of its build, so the page never shows an old picture.
+  const folders = quartoFolders();
+  if (folders.length === 0) { done(); return; }
+  const name = shortName(key);
+  const prefix = name + "-" + Math.round(stat.mtimeMs).toString(36);
+  const args = ["-I", script, pdf];
+  if (config.get("fromPdf", true)) { args.push(patch.pdfPictureDir(folders[0]), prefix); }
+  childProcess.execFile(python, args, { timeout: 120000, maxBuffer: 20 * 1024 * 1024, windowsHide: true },
     (err, stdout, stderr) => {
       if (err) {
         const why = String(stderr || err.message).trim().split("\n").pop();
         log("pdf: could not read " + path.basename(pdf) + " with " + python + " pdfpages.py: " + why);
+        done();
         return;
       }
-      let pages;
+      let read;
       try {
-        pages = JSON.parse(stdout).pages;
+        read = JSON.parse(stdout);
       } catch (parseErr) {
         log("pdf: pdfpages.py gave no list of pages for " + path.basename(pdf));
+        done();
         return;
       }
-      pdfRead.set(key, { mtime: stat.mtimeMs, doc: { name: path.basename(pdf), built: builtAt(stat.mtime), pages: pages } });
-      log("pdf: read " + path.basename(pdf) + ", " + pages.length + " pages (" + (Date.now() - started) + " ms)");
+      // a newer Quarto next to the running one (used after the next restart) gets the pictures too
+      for (const other of folders.slice(1)) {
+        try {
+          fs.mkdirSync(patch.pdfPictureDir(other), { recursive: true });
+          for (const file of fs.readdirSync(patch.pdfPictureDir(folders[0])).filter((f) => f.startsWith(prefix))) {
+            fs.copyFileSync(path.join(patch.pdfPictureDir(folders[0]), file), path.join(patch.pdfPictureDir(other), file));
+          }
+        } catch (copyErr) { /* that Quarto shows no pictures until the PDF changes again */ }
+      }
+      pdfRead.set(key, {
+        mtime: stat.mtimeMs,
+        doc: {
+          name: path.basename(pdf), built: builtAt(stat.mtime), pages: read.pages || [],
+          cites: read.cites || {}, items: read.items || {}, refs: read.refs || [], pictures: patch.PICTURE_DIR + "/"
+        }
+      });
+      log("pdf: read " + path.basename(pdf) + ", " + (read.pages || []).length + " pages, " +
+        Object.keys(read.cites || {}).length + " citation keys, " + Object.keys(read.items || {}).length +
+        " tables and figures, " + (read.refs || []).length + " pages of references (" + (Date.now() - started) + " ms)");
       writePdfData();
+      // the pictures of earlier builds of this PDF are not needed any more
+      for (const folder of folders) { removePictures(folder, name, prefix); }
+      done();
     });
 }
 

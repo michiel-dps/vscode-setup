@@ -121,9 +121,13 @@
   //    "page n" there: a picture behind the text, so the document itself is not touched.
   //    The page may only load files as style sheets (Quarto's page header), hence the
   //    .css file with the data in a CSS variable.
+  // 3. From the same PDF (setting wordPage.fromPdf): pictures of the tables, figures and
+  //    reference list that R and LaTeX make, in the faces of the boxes that make them, and
+  //    the citations as the PDF prints them. Both are further down.
   var PDF_LOOK = OPTIONS.look === "pdf";
   var FOLD = PDF_LOOK && OPTIONS.fold !== false;
   var PAGE_ENDS = PDF_LOOK && OPTIONS.pageEnds !== false;
+  var FROM_PDF = PDF_LOOK && OPTIONS.fromPdf !== false;
   var thisScript = (document.currentScript && document.currentScript.src) || "";
   var DATA_URL = thisScript.replace(/index\.js(\?.*)?$/, "word-page-pdf.css");
 
@@ -263,8 +267,8 @@
     if (box.classList.contains("pm-chunk-background-color")) {
       var language = (/^\{(\w+)/.exec(first) || [])[1] || "code";
       var name = (/^\{\w+[ ,]+([\w.-]+)\s*[,}]/.exec(first) || [])[1];
-      var made = /\*\*((?:Table|Figure) [A-Z]?\d+)\.?\*\*/.exec(text) || /#\|\s*label:\s*([\w-]+)/.exec(text);
-      var what = made ? made[1] + " is made here" : (name || "");
+      var made = allMatches(CHUNK_CAPTION, text, 1);
+      var what = made.length ? made.join(", ") + (made.length > 1 ? " are" : " is") + " made here" : (name || "");
       return (language === "r" ? "R" : language) + " code" + (what ? ": " + what : "") + "   (click to see the code)";
     }
     if (box.classList.contains("pm-yaml-metadata-block")) {
@@ -289,16 +293,92 @@
     return "";
   }
 
+  // ---- pictures from the PDF (12 Nov 2026, asked: "try and make it more look like draft.pdf") ----
+  // What R or LaTeX makes (tables, the figure made in R, Figure 1 beside the text, the
+  // reference list) is not on the page. The add-on cuts it out of the last build of the PDF
+  // (pdfpages.py) and the face of the box that makes it shows that picture, at the size of
+  // the PDF. Which box makes what: the caption in its code, e.g. caption = "**Table 3.** ..."
+  // in an R chunk, #| fig-cap: !expr name (the caption kept in a variable by another chunk),
+  // or \caption{\textbf{Figure 1.} ...} in raw LaTeX.
+  var LABEL = "((?:Table|Figure) [A-Z]?\\d+)\\.";
+  var CHUNK_CAPTION = new RegExp("(?:caption\\s*=|fig-cap:)\\s*(?:str_c\\(\\s*)?[\"']\\*\\*" + LABEL, "g");
+  var CAPTION_IN_VARIABLE = new RegExp("([\\w.]+)\\s*<-\\s*(?:str_c\\(\\s*)?[\"']\\*\\*" + LABEL, "g");
+  var LATEX_CAPTION = new RegExp("\\\\caption\\{\\\\textbf\\{" + LABEL, "g");
+  var PICTURE_BASE = thisScript.replace(/index\.js(\?.*)?$/, "");
+
+  function allMatches(pattern, text, group) {
+    var found = [];
+    var match;
+    pattern.lastIndex = 0;
+    while ((match = pattern.exec(text))) {
+      if (found.indexOf(match[group]) < 0) { found.push(match[group]); }
+    }
+    return found;
+  }
+
+  // the tables and figures that a box makes ("Table 3", "Figure 7"); variables: name -> label
+  function labelsOf(kind, text, variables) {
+    if (kind === "raw") { return allMatches(LATEX_CAPTION, text, 1); }
+    if (kind !== "chunk") { return []; }
+    var labels = allMatches(CHUNK_CAPTION, text, 1);
+    var expr = /#\|\s*fig-cap:\s*!expr\s+([\w.]+)/.exec(text);
+    if (expr && variables[expr[1]] && labels.indexOf(variables[expr[1]]) < 0) { labels.push(variables[expr[1]]); }
+    return labels;
+  }
+
+  function currentDoc() {
+    return FROM_PDF ? (pdf.current || pdf.docs[0] || null) : null;
+  }
+
+  // a picture at the size and place of the PDF (x: from the left edge of the column of text;
+  // a picture of a page on its side has no x and is put in the middle)
+  function picture(doc, part) {
+    var place = typeof part.x === "number" ? "; margin-left: calc(" + part.x + " * var(--wp-pt))" : "";
+    return '<img class="wp-pic" alt="" draggable="false" src="' + escapeHtml(PICTURE_BASE + (doc.pictures || "") + part.file) +
+      '" style="width: calc(' + Number(part.w) + " * var(--wp-pt))" + place + '">';
+  }
+
+  // the face with pictures: a tag that shows on hover (what the box is), then the pictures
+  function picturesHtml(doc, labels, tag) {
+    var html = ['<div class="wp-tag">' + escapeHtml(tag) + "</div>"];
+    labels.forEach(function (label) {
+      var item = doc.items[label];
+      item.parts.forEach(function (part) { html.push(picture(doc, part)); });
+      if (item.more) {
+        html.push('<div class="wp-more">' + escapeHtml(label) + " goes on for " + item.more + (item.more === 1 ? " more page" : " more pages") +
+          " in " + escapeHtml(doc.name) + "</div>");
+      }
+    });
+    return html.join("");
+  }
+
   function foldBoxes(content) {
     var boxes = content.querySelectorAll(".pm-code-editor");
     var firstHeader = content.querySelector(".pm-yaml-metadata-block");
+    var doc = currentDoc();
+    var docKey = doc ? doc.name + " " + doc.built + " " + doc.pictures : "";
+    // captions that chunks keep in a variable for another chunk (fig-cap: !expr name)
+    var variables = {};
+    for (var v = 0; v < boxes.length; v++) {
+      if (boxes[v].classList.contains("pm-chunk-background-color")) {
+        var defs = boxText(boxes[v]);
+        var match;
+        CAPTION_IN_VARIABLE.lastIndex = 0;
+        while ((match = CAPTION_IN_VARIABLE.exec(defs))) { variables[match[1]] = match[2]; }
+      }
+    }
     for (var i = 0; i < boxes.length; i++) {
       var box = boxes[i];
       var kind = foldKind(box, box === firstHeader);
       if (!kind || !box.querySelector(".cm-editor")) { continue; }
       var text = boxText(box);
+      var labels = doc ? labelsOf(kind, text, variables).filter(function (label) { return doc.items && doc.items[label]; }) : [];
+      var refs = doc && kind === "settings" && /^nocite:/m.test(text) && doc.refs && doc.refs.length ? doc.refs : null;
+      var shows = kind === "header" ? "wp-title-block" : (labels.length || refs ? "wp-pictures" : "wp-line");
+      // LaTeX's wrapfigure: a figure beside the text, on the right or the left
+      var beside = kind === "raw" && labels.length ? /\\begin\{wrapfigure\}\{([rlRL])\}/.exec(text) : null;
+      var faceClass = "wp-face " + shows + (beside ? (/[rR]/.test(beside[1]) ? " wp-beside-right" : " wp-beside-left") : "");
       var face = box.querySelector(":scope > .wp-face");
-      var faceClass = "wp-face " + (kind === "header" ? "wp-title-block" : "wp-line");
       if (!face) {
         face = document.createElement("div");
         face.setAttribute("contenteditable", "false");
@@ -306,16 +386,134 @@
       }
       if (face.className !== faceClass) {
         face.className = faceClass;
-        face.title = kind === "header" ? "Click to change the header (title, names, abstract, settings)" : "Click to open";
+        face.title = kind === "header" ? "Click to change the header (title, names, abstract, settings)" :
+          (shows === "wp-pictures" ? "A picture from the PDF. Click to see the code that makes it." : "Click to open");
         face.removeAttribute("data-wp-text");
       }
-      if (face.getAttribute("data-wp-text") !== text) {
-        face.setAttribute("data-wp-text", text);
-        if (kind === "header") { face.innerHTML = titleBlockHtml(text); } else { face.textContent = lineText(box, text); }
+      var key = text + "\n" + (shows === "wp-pictures" ? docKey : "");
+      if (face.getAttribute("data-wp-text") !== key) {
+        face.setAttribute("data-wp-text", key);
+        if (kind === "header") {
+          face.innerHTML = titleBlockHtml(text);
+        } else if (refs) {
+          face.innerHTML = '<div class="wp-tag">' + escapeHtml(lineText(box, text) + " – the reference list is a picture of " + doc.name) + "</div>" +
+            refs.map(function (part) { return picture(doc, part); }).join("");
+        } else if (labels.length) {
+          face.innerHTML = picturesHtml(doc, labels, lineText(box, text));
+        } else {
+          face.textContent = lineText(box, text);
+        }
       }
       if (!box.classList.contains("wp-folded")) { box.classList.add("wp-folded"); }
     }
   }
+
+  // ---- citations as the PDF prints them ----
+  // "[@Hoydahl_2023, p. 4]" is shown as "(Høydahl, 2023, p. 4)", with the author and year
+  // exactly as in the PDF (pdfpages.py reads them from the links of the citations). The
+  // text in the document stays as it is: style rules (in a style block of our own, in the
+  // page's head) make "[", the @key and "]" invisible and show "(", "Høydahl, 2023" and ")"
+  // in their place. The rules find each part by its place on the page (":nth-child"), so
+  // nothing in the editor is changed. A citation with the cursor in it shows its @key, so
+  // it can be changed. After every change on the page the places are checked at once, before
+  // the screen is drawn again, so a rule never lands on another citation.
+  var citeStyle = null;
+  var citeParts = [];          // [{el, path}] of the parts that have a rule now
+  var citeWithCursor = null;
+  var ROOT = "html.word-page.pdf-look .ProseMirror > .body > .pm-content > ";
+
+  function pathOf(el, root) {
+    var steps = [];
+    while (el && el !== root) {
+      var parent = el.parentElement;
+      if (!parent) { return null; }
+      steps.unshift(":nth-child(" + (Array.prototype.indexOf.call(parent.children, el) + 1) + ")");
+      el = parent;
+    }
+    return el === root ? steps.join(" > ") : null;
+  }
+
+  function cssText(text) {
+    return '"' + String(text).replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, " ") + '"';
+  }
+
+  function cursorCite() {
+    var selection = window.getSelection();
+    var node = selection && selection.rangeCount ? selection.focusNode : null;
+    var el = node && (node.nodeType === 1 ? node : node.parentElement);
+    return el && el.closest ? el.closest(".cite") : null;
+  }
+
+  function drawCites(content) {
+    if (!citeStyle) {
+      citeStyle = document.createElement("style");
+      citeStyle.id = "word-page-cites";
+      document.head.appendChild(citeStyle);
+    }
+    var doc = currentDoc();
+    var labels = doc && doc.cites ? doc.cites : null;
+    var rules = [];
+    var parts = [];
+    citeWithCursor = cursorCite();
+    if (labels && content) {
+      var cites = content.querySelectorAll(".cite");
+      for (var c = 0; c < cites.length; c++) {
+        var cite = cites[c];
+        if (cite === citeWithCursor || cite.closest(".pm-code-editor")) { continue; }
+        var ids = cite.querySelectorAll(".cite-id");
+        var known = ids.length > 0;
+        for (var k = 0; k < ids.length; k++) {
+          if (!labels[ids[k].textContent.replace(/^-?@/, "")]) { known = false; }
+        }
+        if (!known) { continue; }                     // a key the PDF does not have yet: leave it as it is
+        var size = getComputedStyle(cite).fontSize;
+        var inBrackets = cite.textContent.trim().charAt(0) === "[";
+        for (var p = 0; p < cite.children.length; p++) {
+          var child = cite.children[p];
+          var text = child.textContent;
+          var shown = null;
+          if (child.classList.contains("cite-id")) {
+            var label = labels[text.replace(/^-?@/, "")];
+            shown = /^-@/.test(text) ? label.year : (inBrackets ? label.author + ", " + label.year : label.author + " (" + label.year + ")");
+          } else if (text === "[") {
+            shown = "(";
+          } else if (text === "]") {
+            shown = ")";
+          }
+          if (shown === null) { continue; }
+          var path = pathOf(child, content);
+          if (!path) { continue; }
+          // the brackets are black in the PDF (the link is only the author and year);
+          // a long @key may be broken anywhere (pdf-look.css), the author and year may not
+          rules.push(ROOT + path + " { font-size: 0 !important; }");
+          rules.push(ROOT + path + "::before { content: " + cssText(shown) + "; font-size: " + size +
+            "; word-break: normal;" + (shown === "(" || shown === ")" ? " color: #000000;" : "") + " }");
+          parts.push({ el: child, path: path });
+        }
+      }
+    }
+    citeParts = parts;
+    var css = rules.join("\n");
+    if (citeStyle.textContent !== css) { citeStyle.textContent = css; }
+  }
+
+  // after a change on the page: is every rule still on its own part? If not, draw them again now
+  function checkCites() {
+    if (!citeParts.length) { return; }
+    var content = pageContent();
+    for (var i = 0; i < citeParts.length; i++) {
+      var part = citeParts[i];
+      if (!content || !content.contains(part.el) || pathOf(part.el, content) !== part.path) {
+        drawCites(content);
+        return;
+      }
+    }
+  }
+
+  document.addEventListener("selectionchange", function () {
+    if (!FROM_PDF || !citeParts.length && !citeWithCursor) { return; }
+    if (cursorCite() !== citeWithCursor) { drawCites(pageContent()); }
+  });
 
   // A box opens (class wp-open) when the cursor goes into it because of the user: a click
   // on its face, or the arrow keys. When the editor puts the cursor there by itself (it
@@ -373,6 +571,7 @@
       var raw = getComputedStyle(document.documentElement).getPropertyValue("--wp-pdf-pages").trim().replace(/^["']|["']$/g, "");
       if (raw === pdf.raw) { return; }
       pdf.raw = raw;
+      pdf.current = null;
       try {
         var bytes = Uint8Array.from(atob(raw), function (c) { return c.charCodeAt(0); });
         pdf.docs = JSON.parse(new TextDecoder("utf-8").decode(bytes)).docs || [];
@@ -474,6 +673,11 @@
         });
         if (!best || marks.length > best.marks.length) { best = { doc: doc, marks: marks }; }
       });
+      // the PDF of this document (when more documents are open as a page, each has its own)
+      if (best && best.marks.length && pdf.current !== best.doc) {
+        pdf.current = best.doc;
+        schedule();
+      }
       if (best && best.marks.length) {
         var box = content.getBoundingClientRect();
         var width = Math.round(content.offsetWidth);
@@ -532,12 +736,17 @@
     var active = document.activeElement;
     var hidden = active && active.closest ? active.closest(".pm-code-editor.wp-folded:not(.wp-open)") : null;
     if (hidden && active.blur) { active.blur(); }
+    try { if (FROM_PDF) { drawCites(content); } } catch (err) { /* citations stay @keys this time */ }
     try { drawPageEnds(content); } catch (err) { /* no page ends this time */ }
   }
   if (PDF_LOOK && document.body) {
-    new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, characterData: true });
+    // checkCites runs straight away (before the screen is drawn again), the rest a moment later
+    new MutationObserver(function () {
+      try { checkCites(); } catch (err) { /* drawn again with the rest */ }
+      schedule();
+    }).observe(document.body, { childList: true, subtree: true, characterData: true });
     if (document.fonts && document.fonts.ready) { document.fonts.ready.then(schedule); }
-    if (PAGE_ENDS) {
+    if (PAGE_ENDS || FROM_PDF) {
       loadPdfData();
       setInterval(loadPdfData, 3000);
     }

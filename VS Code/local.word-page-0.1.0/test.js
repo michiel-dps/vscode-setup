@@ -121,6 +121,13 @@ patch.writePdfData(old, docs);
 check("page ends: the file is written next to Quarto's index.js",
   path.dirname(patch.pdfDataFile(old)) === path.dirname(files.js) && fs.readFileSync(patch.pdfDataFile(old), "utf8") === dataCss);
 check("page ends: remove takes the file away too", patch.remove(old) === "removed" && !fs.existsSync(patch.pdfDataFile(old)));
+check("from the PDF: on unless switched off",
+  pdfBlocks.js.includes('"fromPdf":true') && patch.buildBlocks(inject, { pageWidth: 820, look: "pdf", fromPdf: false }).js.includes('"fromPdf":false'));
+fs.mkdirSync(patch.pdfPictureDir(old), { recursive: true });
+fs.writeFileSync(path.join(patch.pdfPictureDir(old), "p1-abc-Table_1.png"), "x");
+check("from the PDF: the pictures are in a folder next to Quarto's index.js",
+  path.dirname(patch.pdfPictureDir(old)) === path.dirname(files.js) && path.basename(patch.pdfPictureDir(old)) === patch.PICTURE_DIR);
+check("from the PDF: remove takes the pictures away too", patch.remove(old) === "removed" && !fs.existsSync(patch.pdfPictureDir(old)));
 
 // a style file without a last line break comes back without one
 fs.writeFileSync(files.css, ".a{color:red}");

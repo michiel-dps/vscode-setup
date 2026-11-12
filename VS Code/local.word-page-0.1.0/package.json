@@ -27,6 +27,10 @@
 				"title": "Word Page: Open as Page"
 			},
 			{
+				"command": "wordPage.openAsText",
+				"title": "Word Page: Open as Plain Text"
+			},
+			{
 				"command": "wordPage.putBack",
 				"title": "Word Page: Put the White Page Back"
 			},
@@ -46,6 +50,18 @@
 					"command": "wordPage.openAsPage",
 					"when": "!explorerResourceIsFolder && resourceExtname =~ /^\\.(qmd|md)$/",
 					"group": "navigation@30"
+				},
+				{
+					"command": "wordPage.openAsText",
+					"when": "!explorerResourceIsFolder && resourceExtname =~ /^\\.(qmd|md)$/",
+					"group": "navigation@31"
+				}
+			],
+			"editor/title/context": [
+				{
+					"command": "wordPage.openAsText",
+					"when": "activeCustomEditorId == 'quarto.visualEditor'",
+					"group": "1_open@30"
 				}
 			],
 			"file/newFile": [
@@ -92,6 +108,11 @@
 					"type": "boolean",
 					"default": true,
 					"description": "PDF look: a dashed line with the page number where each page of the PDF next to the document starts (draft.qmd -> draft.pdf), read again each time the PDF changes. Needs Python with PyMuPDF (pip install pymupdf)."
+				},
+				"wordPage.fromPdf": {
+					"type": "boolean",
+					"default": true,
+					"description": "PDF look: take from the PDF next to the document what the page cannot make itself: citations as the PDF prints them, e.g. (Høydahl, 2023), and pictures of the tables, figures and reference list in the places of the R chunks and LaTeX blocks that make them. Read again each time the PDF changes. Needs Python with PyMuPDF."
 				},
 				"wordPage.python": {
 					"type": "string",
