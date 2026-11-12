@@ -566,6 +566,23 @@ gives:
 - Everything here is **as of the last build** (Ctrl+Shift+K): a table
   changed in R shows the old picture until the PDF is built again.
 
+**Changes made to the file outside the page (12 Nov 2026, found when another
+Claude session edited `draft.qmd` while it was open as a page).** How the page
+saves: when something changes on the page, Quarto writes the page's whole
+markdown into the document every 2 seconds, and `files.autoSave` (afterDelay,
+100 ms) saves it. So yes, the page saves by itself. But Quarto's page takes a
+change made to the file by another program only when neither the editor nor
+the page has the focus (`applyExternalEdit` in Quarto's `index.js`), and it
+does not try again: the page kept the old text, and the next keystroke wrote
+that old text over the file. Now the script block takes such a change itself
+when nothing was typed on the page for 2.5 seconds (Quarto has then written
+everything typed into the file): for that one message the editor has no focus,
+and the cursor and scroll place are put back. While you type, the change cannot
+be taken without losing what was typed: a red bar at the top says so (close
+the tab and open it again to see the file as it is). Tested in the bench with
+autosave as on this laptop: an edit on disk while the page had the focus is
+shown on the page and stays in the file.
+
 What it still cannot copy, so the real PDF still differs:
 
 - **Words are not broken at the end of a line** (VS Code has no

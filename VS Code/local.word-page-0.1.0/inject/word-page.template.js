@@ -752,6 +752,57 @@
     }
   }
 
+  // ---- changes made to the file outside the page (12 Nov 2026) ----
+  // Quarto's page drops a change that another program makes to the file (another Claude
+  // session, a script) while the page has the focus: its handler only applies it when
+  // neither the editor nor the page has the focus (applyExternalEdit in Quarto's index.js),
+  // and it does not try again. The page then shows the old text, and 2 seconds after the next
+  // keystroke Quarto writes that old text over the whole file (found 12 Nov 2026: the user did
+  // not see the edits of another session in his page). Here: when such a change comes in and
+  // nothing was typed on the page for 2.5 seconds (so Quarto has written everything typed into
+  // the file), the page takes the change: for this one message the editor has no focus. While
+  // typing it cannot take it without losing what was typed; a bar at the top then says so.
+  var EXTERNAL_EDIT = "vsc_ve_apply_external_edit";
+  var lastTyping = 0;
+  ["keydown", "beforeinput", "paste", "cut", "drop"].forEach(function (name) {
+    document.addEventListener(name, function () { lastTyping = Date.now(); }, true);
+  });
+
+  function outsideWarning() {
+    var bar = document.getElementById("word-page-outside");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "word-page-outside";
+      bar.setAttribute("style", "position: fixed; top: 0; left: 0; right: 0; z-index: 1000; padding: 6px 12px; " +
+        "background: #b42318; color: #ffffff; font: 13px 'Segoe UI', Arial, sans-serif; cursor: pointer;");
+      bar.title = "Click to close";
+      bar.addEventListener("click", function () { bar.remove(); });
+      document.body.appendChild(bar);
+    }
+    bar.textContent = "This file was changed outside the page while you were typing. The page has written its own text " +
+      "over that change. To see the file as it is now: close this tab and open it again (click to close this bar).";
+  }
+
+  window.addEventListener("message", function (event) {
+    var data = event.data;
+    if (!data || typeof data !== "object" || data.method !== EXTERNAL_EDIT) { return; }
+    if (!document.hasFocus()) { return; }                   // Quarto takes the change itself
+    if (Date.now() - lastTyping < 2500) { outsideWarning(); return; }
+    var active = document.activeElement;
+    var scroller = document.querySelector(".ProseMirror") && document.querySelector(".ProseMirror").parentElement;
+    var scrollTop = scroller ? scroller.scrollTop : 0;
+    // Quarto's handler runs right after this one and asks: does the editor, does the page have the focus?
+    document.hasFocus = function () { return false; };
+    if (active && active.blur) { active.blur(); }
+    setTimeout(function () {
+      delete document.hasFocus;                               // the browser's own again
+      if (scroller) { scroller.scrollTop = scrollTop; }
+      if (active && active.focus && document.contains(active)) {
+        try { active.focus({ preventScroll: true }); } catch (err) { /* the user clicks back in */ }
+      }
+    }, 300);
+  }, true);
+
   apply();
   // VS Code sends its theme colours again when the theme or a setting changes: put ours back
   new MutationObserver(apply).observe(document.documentElement, { attributes: true, attributeFilter: ["style"] });
