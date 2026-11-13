@@ -68,5 +68,23 @@
         "key": "ctrl+numpad2",
         "command": "editor.action.dirtydiff.next",
         "when": "editorTextFocus"
+    },
+    {
+        "key": "ctrl+numpad9",
+        "command": "workbench.action.browser.open",
+        "args": {
+            "url": "file:///C:/Users/<you>/<Dropbox>/<name>/H26-Macro%20Economics/Study%20tool/ECON4310%20Tutor.html",
+            "reuseUrlFilter": "file:///C:/Users/<you>/<Dropbox>/<name>/H26-Macro%20Economics/Study%20tool/ECON4310%20Tutor.html",
+            "openToSide": true
+        }
+    },
+    {
+        "key": "ctrl+numpad3",
+        "command": "workbench.action.browser.open",
+        "args": {
+            "url": "https://claude.ai/artifact/HaPMjTNjwQDy4p8XDqQtMe",
+            "reuseUrlFilter": "https://claude.ai/artifact/HaPMjTNjwQDy4p8XDqQtMe",
+            "openToSide": true
+        }
     }
 ]
