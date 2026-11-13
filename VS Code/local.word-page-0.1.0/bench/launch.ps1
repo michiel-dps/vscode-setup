@@ -193,6 +193,21 @@ function Restore-UrlHandler {
     }
 }
 
+# The same for the taskbar list of recent folders of the real VS Code (right-click on its
+# icon). A bench copy that still had the real names wrote itself into that list. When the
+# list names the bench copy it is removed; the real VS Code writes a new one when a folder
+# is opened. (The file name is Windows' code for the real name "Microsoft.VisualStudioCode".)
+function Restore-TaskbarList {
+    $list = "$env:APPDATA\Microsoft\Windows\Recent\CustomDestinations\1ced32d74a95c7bc.customDestinations-ms"
+    if (-not (Test-Path -LiteralPath $list)) { return }
+    $bytes = [IO.File]::ReadAllBytes($list)
+    $text  = [Text.Encoding]::Unicode.GetString($bytes) + [Text.Encoding]::ASCII.GetString($bytes)
+    if ($text -match [regex]::Escape((Split-Path $Work -Leaf))) {
+        Remove-Item -LiteralPath $list -Force
+        "the taskbar list of the real VS Code named the bench copy: removed"
+    }
+}
+
 # open a file of the test folder in the running bench window (as a user would: after start-up)
 function Open-InBench($name) {
     Clear-EditorVariables
@@ -210,7 +225,7 @@ if ($MoveOnly) {
 if ($Open) { Open-InBench $Open; return }
 
 foreach ($id in Get-TestPids) { Stop-Process -Id $id -Force -ErrorAction SilentlyContinue }
-if ($Stop) { Restore-UrlHandler; "stopped"; return }
+if ($Stop) { Restore-UrlHandler; Restore-TaskbarList; "stopped"; return }
 Start-Sleep -Milliseconds 800
 if ($Fresh -and (Test-Path -LiteralPath $Work)) { Remove-Item -LiteralPath $Work -Recurse -Force }
 
@@ -337,6 +352,7 @@ Invoke-OnBench "-MoveOnly -Width $Width -Height $Height" 90000
 Start-Sleep -Seconds 10          # let the add-ons start, then open the file as a user would
 Open-InBench $File
 Restore-UrlHandler
+Restore-TaskbarList
 if ([BenchDesktop]::GetForegroundWindow() -eq $keyboardBefore) {
     "keyboard check: the same window has the keyboard as before the start"
 } else {

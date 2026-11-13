@@ -947,12 +947,16 @@ root: the copy now has its **own names** in its `product.json`
 `WordPageBench.VSCode`, next to its own lock name), set by `launch.ps1` at
 every start, so it can no longer take the link or the list. The wrong list
 (`%APPDATA%\Microsoft\Windows\Recent\CustomDestinations\1ced32d74a95c7bc.customDestinations-ms`)
-was removed; the real VS Code writes a new one when a folder is opened. If a
-window ever behaves strangely again (Claude does not open, empty logs), look
-at which program runs it first:
-`Get-CimInstance Win32_Process -Filter "Name='Code.exe'"` must show only
-`...\Programs\Microsoft VS Code\Code.exe` outside a running test, and the
-registry value above must name that program too. The other
+was removed; the real VS Code writes a new one when a folder is opened.
+`launch.ps1` also removes that list at every start and `-Stop` when it names
+the bench copy (`Restore-TaskbarList`). **If a window ever behaves strangely
+again (Claude does not open, empty logs), run `scripts\check-vscode.ps1`
+first** (`-Fix` repairs). It checks three things: the `vscode://` links
+start the real VS Code, the taskbar list starts the real VS Code, and no
+copy of VS Code runs with your own settings (a copy without its own
+`--user-data-dir`). The rule for every test copy of VS Code, also a future
+one: its own `--user-data-dir` and its own names in `product.json`. This is
+also written in `~/.claude/CLAUDE.md` and in `/personalsettings`. The other
 traps are written at the top of `launch.ps1` (a waiting VS Code update blocks
 a second VS Code, hence the copy; Quarto's one-time question; Quick Open only
 finds files opened before). For the page look there are three more probes in

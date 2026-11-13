@@ -19,6 +19,10 @@ His request: $ARGUMENTS
 
 How does X work, why does Y happen, is Z switched on: read the relevant section of the note and the real file on the laptop, then answer short. For editor trouble, read `%TEMP%\r-pipe-indent.log` first. Change nothing.
 
+**A window where Claude does not open, or that behaves strangely** (12 and 13 Nov 2026, the H26 folder): run `<folder>\scripts\check-vscode.ps1` first, and with `-Fix` when it says WRONG. It checks that the `vscode://` links, the taskbar list of recent folders and every running window belong to the real VS Code (`%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe`) and not to a test copy. Background: note section 5c, "Test bench for Claude".
+
+**A test copy of VS Code** (for testing an add-on) always gets its own `--user-data-dir` and its own names in its `product.json` (`urlProtocol`, `win32AppUserModelId`, `win32MutexName`), as `bench\launch.ps1` of the Word Page add-on does. Without them Windows starts the copy in place of the real VS Code. Run `check-vscode.ps1` after the test.
+
 ## A change
 
 1. Find where the file really lives: `scripts/save.ps1` lists each laptop location and its copy in the folder. Change the real file on the laptop, not the copy (SAVE overwrites the copies). Changed in the folder itself instead: `R\watch.R`, `R\Rprofile.R` and the Enter add-on `VS Code\local.r-pipe-indent-0.1.0`. After an add-on change, run its `test.js` (note, section 5), then copy `extension.js` to `~/.vscode/extensions/local.r-pipe-indent-0.1.0/`.
