@@ -6,8 +6,15 @@
 //   - a script at the top of  assets/www/editor/index.js  (light colours)
 //   - styles at the end of    assets/www/editor/style.css  (the page look)
 // Each block sits between "word-page:start" and "word-page:end" marks, so it can
-// be found again, replaced or removed. Nothing else in Quarto's files is changed;
-// one file is added: word-page-pdf.css, where the pages of a PDF start (see below).
+// be found again, replaced or removed. One file is added: word-page-pdf.css, where
+// the pages of a PDF start (see below).
+//
+// Since 13 Nov 2026 three small hooks also go INTO Quarto's code in index.js (addSyncHooks),
+// so that the script block decides how the page and the file stay in step when a Claude chat
+// changes the file while the user types (see "keeping the page and the file in step" in
+// inject/word-page.template.js). Each hook is only added text between /*wp+*/ and /*wp-*/,
+// so strip() gives the file back byte for byte. When Quarto's code has changed and a hook
+// does not fit exactly once, no hook goes in, and the page works as Quarto made it.
 //
 // No VS Code API in this file: test.js runs it with plain node.
 "use strict";
@@ -59,18 +66,22 @@ function pdfLookCss(injectDir) {
 }
 
 // the two blocks, built from the files in inject/ and the options
-// (options.look: "pdf" = the page as a paper's PDF, anything else = the Word look)
-function buildBlocks(injectDir, options) {
+// (options.look: "pdf" = the page as a paper's PDF, anything else = the Word look;
+// sync: the hooks are in Quarto's code, so the script block keeps page and file in step)
+function buildBlocks(injectDir, options, sync) {
   const look = options.look === "pdf" ? "pdf" : "word";
   const theme = JSON.parse(fs.readFileSync(path.join(injectDir, "light-theme.json"), "utf8"));
   const template = fs.readFileSync(path.join(injectDir, "word-page.template.js"), "utf8");
+  const merge = fs.readFileSync(path.join(injectDir, "..", "merge.js"), "utf8");
   const js = template
-    .replace("/*LIGHT*/", JSON.stringify(theme.colours))
-    .replace("/*DROP*/", JSON.stringify(theme.drop))
-    .replace("/*OPTIONS*/", JSON.stringify({
+    .replace("/*LIGHT*/", () => JSON.stringify(theme.colours))
+    .replace("/*DROP*/", () => JSON.stringify(theme.drop))
+    .replace("/*OPTIONS*/", () => JSON.stringify({
       pageWidth: options.pageWidth, look: look, fold: options.fold !== false, pageEnds: options.pageEnds !== false,
       fromPdf: options.fromPdf !== false
     }))
+    .replace("/*SYNC*/", () => (sync ? "true" : "false"))
+    .replace("/*MERGE*/", () => merge)
     .replace(/\r\n/g, "\n").trim() + "\n";
   let css = fs.readFileSync(path.join(injectDir, "word-page.css"), "utf8").replace(/\r\n/g, "\n").trim() + "\n";
   if (look === "pdf") {
@@ -86,11 +97,40 @@ function buildBlocks(injectDir, options) {
   return { js, css };
 }
 
-// The text without any word-page block. A block is taken out together with the
+// ---- the hooks in Quarto's code (13 Nov 2026) ----
+// In Quarto 1.139 the page's handlers read (variable names differ per version):
+//   async applyExternalEdit(t){!e.hasFocus()&&!window.document.hasFocus()&&c(t)},
+//   async getMarkdownFromState(t){return await e.getMarkdownFromStateJson(t,o())}
+// and its init ends with  ...,i.canonical):null}catch
+// e = the editor, o = its writing options, c = Quarto's own (1 s delayed) way to take a change.
+const ADDED = /\/\*wp\+\*\/[\s\S]*?\/\*wp-\*\//g;
+const HANDLERS = /async applyExternalEdit\(([\w$]+)\)\{!([\w$]+)\.hasFocus\(\)&&!window\.document\.hasFocus\(\)&&([\w$]+)\(\1\)\},async getMarkdownFromState\(([\w$]+)\)\{return await \2\.getMarkdownFromStateJson\(\4,([\w$]+)\(\)\)\}/g;
+const STARTED = /([\w$]+)\.canonical\):null\}catch/g;
+
+function countOf(text, pattern) {
+  return (text.match(pattern) || []).length;
+}
+
+// Quarto's code with the hooks in: { js, ok }. ok = false: Quarto's code is not as expected,
+// and the code comes back unchanged.
+function addSyncHooks(js) {
+  if (countOf(js, HANDLERS) !== 1 || countOf(js, STARTED) !== 1) { return { js: js, ok: false }; }
+  const out = js
+    .replace(HANDLERS, (whole, t, e, c, s, o) =>
+      "async applyExternalEdit(" + t + "){/*wp+*/if(window.wordPageSync)return window.wordPageSync.external(" + t + "," + e + "," + o + "," + c + ");/*wp-*/" +
+      "!" + e + ".hasFocus()&&!window.document.hasFocus()&&" + c + "(" + t + ")}," +
+      "async getMarkdownFromState(" + s + "){/*wp+*/if(window.wordPageSync)return window.wordPageSync.markdown(" + s + "," + e + "," + o + ");/*wp-*/" +
+      "return await " + e + ".getMarkdownFromStateJson(" + s + "," + o + "())}")
+    .replace(STARTED, (whole, i) =>
+      "/*wp+*/window.wordPageSync&&window.wordPageSync.started(" + i + ".canonical),/*wp-*/" + i + ".canonical):null}catch");
+  return { js: out, ok: true };
+}
+
+// The text without any word-page block or hook. A block is taken out together with the
 // line break before it and the one after it: exactly what apply() adds, so a
 // file comes back byte for byte as it was.
 function strip(text) {
-  let out = text;
+  let out = text.replace(ADDED, "");
   for (;;) {
     let start = out.indexOf(START);
     if (start < 0) { return out; }
@@ -111,32 +151,31 @@ function writeFileSafely(file, text) {
   fs.renameSync(temp, file);
 }
 
-// is the wanted block in place? (reads only the start of index.js: it is 10 MB)
-function isApplied(quartoDir, blocks) {
+// What index.js and style.css should hold: the blocks, and the hooks when they fit.
+function wanted(quartoDir, injectDir, options) {
   const files = editorFiles(quartoDir);
-  try {
-    const wanted = Buffer.from(blocks.js, "utf8");
-    const head = Buffer.alloc(wanted.length);
-    const fd = fs.openSync(files.js, "r");
-    fs.readSync(fd, head, 0, wanted.length, 0);
-    fs.closeSync(fd);
-    if (!head.equals(wanted)) { return false; }
-    return fs.readFileSync(files.css, "utf8").endsWith("\n" + blocks.css);
-  } catch (err) {
-    return false;
-  }
+  const jsNow = fs.readFileSync(files.js, "utf8");
+  const cssNow = fs.readFileSync(files.css, "utf8");
+  const synced = addSyncHooks(strip(jsNow));
+  const blocks = buildBlocks(injectDir, options, synced.ok);
+  return {
+    files, jsNow, cssNow, sync: synced.ok,
+    js: blocks.js + synced.js, css: strip(cssNow) + "\n" + blocks.css
+  };
 }
 
-// Put the blocks in. Returns "applied" or "already".
+// Put the blocks (and hooks) in. Returns "applied" or "already".
 function apply(quartoDir, injectDir, options) {
-  const blocks = buildBlocks(injectDir, options);
-  if (isApplied(quartoDir, blocks)) { return "already"; }
-  const files = editorFiles(quartoDir);
-  const js = strip(fs.readFileSync(files.js, "utf8"));
-  const css = strip(fs.readFileSync(files.css, "utf8"));
-  writeFileSafely(files.js, blocks.js + js);
-  writeFileSafely(files.css, css + "\n" + blocks.css);
+  const want = wanted(quartoDir, injectDir, options);
+  if (want.jsNow === want.js && want.cssNow === want.css) { return "already"; }
+  writeFileSafely(want.files.js, want.js);
+  writeFileSafely(want.files.css, want.css);
   return "applied";
+}
+
+// Are the hooks in Quarto's code? (for the log and the checks)
+function synced(quartoDir) {
+  return fs.readFileSync(editorFiles(quartoDir).js, "utf8").includes("/*wp+*/if(window.wordPageSync)");
 }
 
 // ---- the page ends of the PDF ----
@@ -184,6 +223,10 @@ function remove(quartoDir) {
     fs.rmSync(pdfPictureDir(quartoDir), { recursive: true, force: true });
     changed = true;
   }
+  if (fs.existsSync(holdFile(quartoDir))) {
+    fs.unlinkSync(holdFile(quartoDir));
+    changed = true;
+  }
   for (const file of [files.js, files.css]) {
     const text = fs.readFileSync(file, "utf8");
     const stripped = strip(text);
@@ -197,16 +240,23 @@ function remove(quartoDir) {
 
 // "applied" (our blocks are in), "other" (older blocks are in) or "none"
 function state(quartoDir, injectDir, options) {
-  if (isApplied(quartoDir, buildBlocks(injectDir, options))) { return "applied"; }
-  const files = editorFiles(quartoDir);
-  const fd = fs.openSync(files.js, "r");
-  const head = Buffer.alloc(START.length);
-  fs.readSync(fd, head, 0, START.length, 0);
-  fs.closeSync(fd);
-  return head.toString("utf8") === START ? "other" : "none";
+  const want = wanted(quartoDir, injectDir, options);
+  if (want.jsNow === want.js && want.cssNow === want.css) { return "applied"; }
+  return want.jsNow.startsWith(START) ? "other" : "none";
+}
+
+// ---- a Claude chat is about to write a file (13 Nov 2026) ----
+// review.py writes this file next to Quarto's index.js just before a Claude edit of a .qmd,
+// and empties it right after. The page reads it (as a style sheet, the only kind of file it
+// may load) before it hands its text to Quarto: while it holds a time in the future, the page
+// hands nothing over, so the page and the chat never write the file at the same moment.
+const HOLD_FILE = "word-page-hold.css";
+
+function holdFile(quartoDir) {
+  return path.join(quartoDir, "assets", "www", "editor", HOLD_FILE);
 }
 
 module.exports = {
-  findQuarto, editorFiles, buildBlocks, strip, apply, remove, state, START, END,
-  pdfDataFile, pdfDataCss, readPdfDataCss, writePdfData, pdfPictureDir, PICTURE_DIR
+  findQuarto, editorFiles, buildBlocks, strip, apply, remove, state, addSyncHooks, synced, START, END,
+  pdfDataFile, pdfDataCss, readPdfDataCss, writePdfData, pdfPictureDir, PICTURE_DIR, holdFile, HOLD_FILE
 };

@@ -43,7 +43,8 @@ const blocks = patch.buildBlocks(inject, options);
 check("script block starts with the start mark", blocks.js.startsWith(patch.START));
 check("script block ends with the end mark", blocks.js.trimEnd().endsWith(patch.END));
 check("style block starts with the start mark", blocks.css.startsWith(patch.START));
-check("script block has no placeholder left", !/\/\*(LIGHT|DROP|OPTIONS)\*\//.test(blocks.js));
+check("script block has no placeholder left", !/\/\*(LIGHT|DROP|OPTIONS|SYNC|MERGE)\*\//.test(blocks.js));
+check("script block holds the merge, and no hook marks", blocks.js.includes("function merge3(") && !blocks.js.includes("/*wp+*/") && !blocks.js.includes("/*wp-*/"));
 check("script block is valid JavaScript", (() => { try { new Function(blocks.js); return true; } catch (e) { console.log(e.message); return false; } })());
 check("script block holds the light background colour", blocks.js.includes('"--vscode-editor-background":"#ffffff"'));
 check("script block holds no font settings", !blocks.js.includes("--vscode-font-family") && !blocks.js.includes("--vscode-editor-font-size"));
@@ -206,21 +207,111 @@ check("reference with one line",
 check("reference without lines keeps the file and the quote",
   mention.buildMention("paper/draft.qmd", null, "young adults") === '@paper/draft.qmd "young adults" ');
 
+// the hooks in Quarto's code (patch.addSyncHooks), on Quarto 1.139's own lines
+const quartoLines = "kst(n.vscode,{async init(t,r){try{s();let i=await e.setMarkdown(t,o(),!1);return i?(e.focus(r)," +
+  "e.subscribe(xl,()=>n.onEditorUpdated(e.getStateJson())),i.canonical):null}catch(t){return e.onLoadFailed(t),null}}," +
+  "async isFocused(){return e.hasFocus()},async applyExternalEdit(t){!e.hasFocus()&&!window.document.hasFocus()&&c(t)}," +
+  "async getMarkdownFromState(t){return await e.getMarkdownFromStateJson(t,o())},async getSlideIndex(){return 1}})";
+const hooked = patch.addSyncHooks(quartoLines);
+check("hooks: they fit Quarto 1.139's code", hooked.ok);
+check("hooks: only text added, strip gives Quarto's code back byte for byte", patch.strip(hooked.js) === quartoLines);
+check("hooks: the result is valid JavaScript", (() => { try { new Function("var kst=function(){};" + hooked.js); return true; } catch (e) { console.log(e.message); return false; } })());
+check("hooks: external gets the text, the editor, its options and Quarto's own way",
+  hooked.js.includes("window.wordPageSync.external(t,e,o,c)") && hooked.js.includes("window.wordPageSync.markdown(t,e,o)") &&
+  hooked.js.includes("window.wordPageSync.started(i.canonical),/*wp-*/i.canonical):null}catch"));
+check("hooks: not twice", patch.addSyncHooks(quartoLines + quartoLines).ok === false);
+check("hooks: other variable names (another Quarto build) still fit", patch.addSyncHooks(quartoLines.replace(/\bc\(t\)/, "d(t)")).ok);
+check("hooks: Quarto's code changed: nothing goes in", patch.addSyncHooks(quartoLines.replace("!window.document.hasFocus()&&", "")).ok === false);
+check("hooks: patch.apply puts them in a Quarto that has these lines, and remove takes them out", (() => {
+  fs.writeFileSync(files.js, quartoLines);
+  const done = patch.apply(old, inject, options);
+  const ok = done === "applied" && patch.synced(old) && fs.readFileSync(files.js, "utf8").includes("var SYNC = true;") &&
+    patch.apply(old, inject, options) === "already" && patch.state(old, inject, options) === "applied";
+  patch.remove(old);
+  const back = fs.readFileSync(files.js, "utf8") === quartoLines && !patch.synced(old);
+  fs.writeFileSync(files.js, jsBefore);
+  return ok && back;
+})());
+check("hooks: a Quarto without these lines gets the block, with SYNC false", (() => {
+  patch.apply(old, inject, options);
+  const ok = fs.readFileSync(files.js, "utf8").includes("var SYNC = false;") && !patch.synced(old);
+  patch.remove(old);
+  return ok;
+})());
+fs.writeFileSync(patch.holdFile(old), ':root { --wp-hold: "1"; }');
+check("hold file: next to Quarto's index.js, and remove takes it away",
+  path.dirname(patch.holdFile(old)) === path.dirname(files.js) && patch.remove(old) === "removed" && !fs.existsSync(patch.holdFile(old)));
+
+// the merge (merge.js)
+const merge = require("./merge");
+const P = "Paragraph 01 talks about slot01 and anchor01, and then the sentence goes on for a while.";
+check("merge: same paragraph, different places: both changes stay",
+  merge.merge3(P, P.replace("anchor01", "anchor01 tok1"), P.replace("slot01", "ClaudeEdit01")).text ===
+  "Paragraph 01 talks about ClaudeEdit01 and anchor01 tok1, and then the sentence goes on for a while.");
+check("merge: right next to each other: both stay",
+  merge.merge3("about slot01 and anchor01,", "about slot01 and anchor01 tok7,", "about ClaudeEdit01 and anchor01,").text ===
+  "about ClaudeEdit01 and anchor01 tok7,");
+check("merge: other paragraphs: both stay", merge.merge3("a\n\nb\n\nc", "a typed\n\nb\n\nc", "a\n\nb\n\nc changed").text === "a typed\n\nb\n\nc changed");
+check("merge: a paragraph taken out by the chat, typing elsewhere", merge.merge3("a\n\nb\n\nc", "a\n\nb\n\nc typed", "a\n\nc").text === "a\n\nc typed");
+check("merge: both put text in at the same place: both stay", merge.merge3("ab", "aXb", "aYb").text === "aXYb");
+check("merge: both changed the same letters: the page's text wins, counted as a conflict",
+  JSON.stringify(merge.merge3("a b c", "a X c", "a Y c")) === JSON.stringify({ text: "a X c", conflicts: 1 }));
+check("merge: nothing typed: the file's text", merge.merge3("abc", "abc", "abXc").text === "abXc");
+check("merge: nothing changed outside: the page's text", merge.merge3("abc", "abYc", "abc").text === "abYc");
+check("merge: 3000 random cases keep every typed word and the chat's change", (() => {
+  let seed = 7;
+  const rnd = (n) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
+  const words = ["the", "scheme", "loan", "class", "five", "young", "adults", "moved", "to", "rural", "SSB"];
+  for (let r = 0; r < 3000; r++) {
+    const lines = [];
+    for (let i = 0; i < 3 + rnd(12); i++) {
+      const w = [];
+      for (let j = 0; j < 5 + rnd(30); j++) { w.push(words[rnd(words.length)]); }
+      lines.push(w.join(" ") + ".", "");
+    }
+    let base = lines.join("\n");
+    const at = base.indexOf(" ", rnd(base.length));
+    if (at < 0) { continue; }
+    base = base.slice(0, at) + " MARK" + r + base.slice(at);
+    let ours = base;
+    const typed = [];
+    for (let k = 0; k < 1 + rnd(3); k++) {
+      const p = ours.indexOf(" ", rnd(ours.length));
+      if (p < 0 || ours.slice(Math.max(0, p - 12), p + 12).includes("MARK")) { continue; }
+      typed.push("TOK" + r + "x" + k);
+      ours = ours.slice(0, p) + " TOK" + r + "x" + k + ours.slice(p);
+    }
+    const out = merge.merge3(base, ours, base.replace("MARK" + r, "CLAUDE" + r)).text;
+    if (!out.includes("CLAUDE" + r) || out.includes("MARK" + r) || !typed.every((t) => out.split(t).length === 2)) { return false; }
+  }
+  return true;
+})());
+check("merge: 600 paragraphs in well under a second", (() => {
+  const big = Array.from({ length: 600 }, (v, i) => "Paragraph " + i + " with some words in it.").join("\n");
+  const started = Date.now();
+  const out = merge.merge3(big, big.replace("Paragraph 3 ", "Paragraph 3 typed "), big.replace("Paragraph 590 ", "Paragraph 590 changed ")).text;
+  return out.includes("Paragraph 3 typed ") && out.includes("Paragraph 590 changed ") && Date.now() - started < 500;
+})());
+
 // typing marks (typing.js)
 const typing = require("./typing");
-const marks = path.join(temp, "word-page", "typing.json");
+const marks = path.join(temp, "word-page", "typing");
 const draft = "C:\\Users\\Someone\\Paper\\draft.qmd";
 typing.note(marks, draft, 1000000);
-check("a typing mark is written, its folder made", JSON.parse(fs.readFileSync(marks, "utf8"))["c:\\users\\someone\\paper\\draft.qmd"] === 1000000);
+const draftMark = typing.markFile(marks, draft);
+check("a typing mark is written, its folder made", JSON.parse(fs.readFileSync(draftMark, "utf8")).time === 1000000);
 check("the file name is in lower case with backslashes, as Python's normcase writes it",
   typing.keyOf("C:/Users/Someone/Paper/draft.qmd") === "c:\\users\\someone\\paper\\draft.qmd");
+check("the mark file is named after the SHA-1 of that name (as review.py looks for it)",
+  path.basename(draftMark) === require("crypto").createHash("sha1").update("c:\\users\\someone\\paper\\draft.qmd").digest("hex") + ".json");
 typing.note(marks, "C:\\Users\\Someone\\Paper\\notes.md", 1000000 + 1000);
-check("a second file keeps the first one's mark", Object.keys(JSON.parse(fs.readFileSync(marks, "utf8"))).length === 2);
-const later = typing.note(marks, "C:\\Users\\Someone\\Paper\\notes.md", 1000000 + typing.KEEP_MS + 5000);
-check("a mark older than 10 minutes is dropped", !("c:\\users\\someone\\paper\\draft.qmd" in later));
-check("no temporary file is left behind", fs.readdirSync(path.dirname(marks)).length === 1);
-fs.writeFileSync(marks, "{ half a fi");
-check("a broken marks file is started again", Object.keys(typing.note(marks, draft, 2000000)).length === 1);
+check("each file has its own mark file", fs.readdirSync(marks).length === 2);
+typing.note(marks, draft, 1000000 + 2000);
+check("a new mark replaces the old one, no temporary file left", fs.readdirSync(marks).length === 2 &&
+  JSON.parse(fs.readFileSync(draftMark, "utf8")).time === 1002000);
+fs.utimesSync(draftMark, new Date(1000), new Date(1000));
+typing.clean(marks, Date.now());
+check("a mark file older than 10 minutes is removed, a new one stays", !fs.existsSync(draftMark) && fs.readdirSync(marks).length === 1);
 
 fs.rmSync(temp, { recursive: true, force: true });
 console.log(passed + " passed, " + failed + " failed");

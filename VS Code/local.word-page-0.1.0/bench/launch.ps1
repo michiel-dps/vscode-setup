@@ -181,7 +181,8 @@ function Clear-EditorVariables {
 # (HKCU\Software\Classes\vscode). The bench copy did that too, and from then on a vscode://
 # link (Claude Code uses them) started the bench copy with his own settings: on 12 Nov 2026
 # Claude would not open in his H26 window. So the link goes back to the real VS Code after
-# every start and every stop of the bench.
+# every start and every stop of the bench. Since 13 Nov 2026 the copy has its own link name
+# (urlProtocol, below), so it no longer takes the link at all; this stays as a second check.
 function Restore-UrlHandler {
     $command = "HKCU:\Software\Classes\vscode\shell\open\command"
     if (-not (Test-Path $command)) { return }
@@ -223,9 +224,29 @@ if (-not (Test-Path -LiteralPath $code)) {
     Copy-Item "$install\Code.exe" $code
     robocopy "$install\$version" "$Work\vscode\$version" /E /NFL /NDL /NJH /NJS /NP /MT:16 | Out-Null
     robocopy "$install\bin" "$Work\vscode\bin" /E /NFL /NDL /NJH /NJS /NP | Out-Null
-    $product = "$Work\vscode\$version\resources\app\product.json"
-    $text = [regex]::Replace([IO.File]::ReadAllText($product), '"win32MutexName"\s*:\s*"[^"]*"', '"win32MutexName": "vscodewordpagebench"')
-    [IO.File]::WriteAllText($product, $text, $utf8)
+}
+# The copy gets its OWN names in product.json. Checked at every start, so an older copy is
+# repaired too. Without them Windows cannot tell the copy from the real VS Code:
+# - win32MutexName: its own lock (see the top of this file).
+# - urlProtocol: at start-up every VS Code on Windows makes itself the program for its links
+#   (HKCU\Software\Classes\<urlProtocol>). With "vscode" the copy took over the vscode:// links.
+# - win32AppUserModelId: the name under which Windows keeps the taskbar list of recent folders
+#   (right-click on the VS Code icon). With the real name the copy wrote itself into that list,
+#   and a click on "H26-Data Science" there started the COPY with his own settings. That copy
+#   then wrote the list and the links again, so the fix of 12 Nov 2026 (links only) did not
+#   hold: on 13 Nov Claude again would not open in his H26 window.
+$ownNames = [ordered]@{
+    'win32MutexName'      = 'vscodewordpagebench'
+    'urlProtocol'         = 'vscode-wordpagebench'
+    'win32AppUserModelId' = 'WordPageBench.VSCode'
+}
+foreach ($product in @(Get-ChildItem "$Work\vscode\*\resources\app\product.json")) {
+    $text = [IO.File]::ReadAllText($product.FullName)
+    $new  = $text
+    foreach ($name in $ownNames.Keys) {
+        $new = [regex]::Replace($new, "`"$name`"\s*:\s*`"[^`"]*`"", "`"$name`": `"$($ownNames[$name])`"")
+    }
+    if ($new -ne $text) { [IO.File]::WriteAllText($product.FullName, $new, $utf8); "the bench copy has its own names now (product.json)" }
 }
 if (-not (Test-Path -LiteralPath "$Work\ext")) {
     New-Item -ItemType Directory -Force "$Work\ext" | Out-Null

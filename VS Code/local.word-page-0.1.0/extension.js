@@ -18,7 +18,9 @@
 //      changes, pdfpages.py reads where its pages start, and the page draws a
 //      dashed line there;
 //   6. typing marks: when the user last typed in each .qmd, so a Claude chat waits
-//      before it writes into a file he is typing in (typing.js, review.py).
+//      before it writes into a file he is typing in (typing.js, review.py);
+//   7. when a program wrote the file at the moment VS Code had unsaved text ("the
+//      content of the file is newer"): both are merged and VS Code reads it back.
 "use strict";
 const vscode = require("vscode");
 const fs = require("fs");
@@ -37,6 +39,7 @@ function activate(context) {
   refresh(false);
   watchPdfs(context);
   watchTyping(context);
+  watchClashes(context);
 
   context.subscriptions.push(
     vscode.commands.registerCommand("wordPage.newDocument", newDocument),
@@ -569,14 +572,39 @@ function writePdfData() {
 // ---- 6. typing marks for the Claude hooks (13 Nov 2026) ----------------------------
 
 // Each change of a .qmd or .md document made inside VS Code (on the page: Quarto writes the
-// typed text into the document every 2 seconds) is noted in typing.json (typing.js). A change
-// that comes from the disk, such as a Claude edit, is not typing: after it the document is not
-// dirty. At most one write per file every 250 ms.
-const TYPING_FILE = path.join(process.env.LOCALAPPDATA || os.tmpdir(), "word-page", "typing.json");
+// typed text into the document every 2 seconds) is noted in the file's own mark file
+// (typing.js). A change that comes from the disk, such as a Claude edit, is not typing: after
+// it the document is not dirty. At most one write per file every 250 ms.
+const TYPING_DIR = path.join(process.env.LOCALAPPDATA || os.tmpdir(), "word-page", "typing");
 const TYPING_EVERY = 250;       // ms
-const typingNoted = new Map();  // file -> when it was last written into typing.json
+const typingNoted = new Map();  // file -> when its mark was last written
+
+// Where review.py puts the hold file (patch.holdFile) just before a Claude edit: the editor
+// folders of the Quarto add-ons of this VS Code, one file per running VS Code:
+//   %LOCALAPPDATA%\word-page\quarto\<process id>.json   { "dirs": ["...\\assets\\www\\editor"] }
+const QUARTO_LIST = path.join(process.env.LOCALAPPDATA || os.tmpdir(), "word-page", "quarto", process.pid + ".json");
+
+function writeQuartoList() {
+  try {
+    fs.mkdirSync(path.dirname(QUARTO_LIST), { recursive: true });
+    const dirs = quartoFolders().map((folder) => path.dirname(patch.holdFile(folder)));
+    fs.writeFileSync(QUARTO_LIST, JSON.stringify({ dirs: dirs }));
+  } catch (err) { /* the hook then holds no page: it still waits for typing to stop */ }
+}
 
 function watchTyping(context) {
+  typing.clean(TYPING_DIR, Date.now());
+  writeQuartoList();
+  const timer = setInterval(writeQuartoList, 60000);   // a newer Quarto, or the file was cleaned away
+  context.subscriptions.push({ dispose: () => {
+    clearInterval(timer);
+    try { fs.unlinkSync(QUARTO_LIST); } catch (err) { /* gone already */ }
+  } });
+  for (const folder of quartoFolders()) {
+    try {
+      log("sync: hooks in Quarto's code " + (patch.synced(folder) ? "in place" : "NOT in place (Quarto's code changed?)") + ": " + path.basename(folder));
+    } catch (err) { /* no log line */ }
+  }
   context.subscriptions.push(vscode.workspace.onDidChangeTextDocument((change) => {
     const doc = change.document;
     if (change.contentChanges.length === 0 || !doc.isDirty) { return; }
@@ -584,11 +612,147 @@ function watchTyping(context) {
     const key = typing.keyOf(doc.uri.fsPath);
     const now = Date.now();
     if (now - (typingNoted.get(key) || 0) < TYPING_EVERY) { return; }
-    typingNoted.set(key, now);
     try {
-      typing.note(TYPING_FILE, doc.uri.fsPath, now);
-    } catch (err) { /* the hook reads it a moment later: the next change writes it */ }
+      typing.note(TYPING_DIR, doc.uri.fsPath, now);
+      typingNoted.set(key, now);          // only when written: else the next change tries again
+    } catch (err) { /* the hook was reading the mark: the next change writes it */ }
   }));
+}
+
+// ---- 7. the file changed on disk while VS Code had text not saved yet (13 Nov 2026) ----
+
+// A program that writes a .qmd without the Claude hooks (a script, Dropbox) can hit the
+// moment between the page writing into the document and the save (autosave, 100 ms). VS Code
+// then says "Failed to save: the content of the file is newer" and saves nothing any more:
+// the typing stays in VS Code, the other change on disk (bench, 13 Nov 2026). Here: the pages
+// are held for a moment (no new writes), the three texts are merged (merge.js: what VS Code
+// last saved or read, what it has now, what is on disk now), the result goes to disk, and
+// VS Code reads it back ("Revert File", which works on the active editor: the page he types
+// in). Not active: tried again when it becomes the active tab.
+const merge = require("./merge");
+const HOLDS = path.join(process.env.LOCALAPPDATA || os.tmpdir(), "word-page", "holds");
+const lastSaved = new Map();    // file -> the text VS Code last read from disk or saved
+const healing = new Set();
+
+function watchedFile(doc) {
+  return doc && doc.uri.scheme === "file" && /\.(qmd|md)$/i.test(doc.uri.fsPath);
+}
+
+function noteSaved(doc) {
+  if (watchedFile(doc) && !doc.isDirty) { lastSaved.set(typing.keyOf(doc.uri.fsPath), doc.getText()); }
+}
+
+// the same hold as review.py's: the pages hand nothing to Quarto while it lasts
+function writeHold(name, seconds) {
+  try {
+    fs.mkdirSync(HOLDS, { recursive: true });
+    const own = path.join(HOLDS, name + ".hold");
+    if (seconds > 0) { fs.writeFileSync(own, String(Date.now() / 1000 + seconds)); }
+    else { try { fs.unlinkSync(own); } catch (err) { /* gone */ } }
+    let until = 0;
+    for (const file of fs.readdirSync(HOLDS)) {
+      const end = parseFloat(fs.readFileSync(path.join(HOLDS, file), "utf8"));
+      if (end * 1000 > Date.now()) { until = Math.max(until, end); }
+    }
+    const css = '/* word-page: a Claude chat is about to write a file (review.py) */\n:root { --wp-hold: "' + Math.round(until * 1000) + '"; }\n';
+    for (const folder of quartoFolders()) { fs.writeFileSync(patch.holdFile(folder), css); }
+  } catch (err) {
+    log("heal: could not write the hold: " + (err && err.message ? err.message : err));
+  }
+}
+
+function activeUri() {
+  const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+  return tab && tab.input && tab.input.uri ? tab.input.uri.toString() : "";
+}
+
+async function checkClash(uri) {
+  const doc = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
+  if (!watchedFile(doc) || !doc.isDirty) { return; }
+  const key = typing.keyOf(doc.uri.fsPath);
+  let disk;
+  try { disk = fs.readFileSync(doc.uri.fsPath, "utf8").replace(/\r\n/g, "\n"); } catch (err) { return; }
+  const base = lastSaved.has(key) ? lastSaved.get(key).replace(/\r\n/g, "\n") : null;
+  if (base === null || disk === base) { return; }     // the disk did not change: a save is on its way
+  if (merge.merge3(base, doc.getText().replace(/\r\n/g, "\n"), disk).text === doc.getText().replace(/\r\n/g, "\n")) {
+    lastSaved.set(key, disk);                         // what is on disk is in VS Code's text already (its own save)
+    return;
+  }
+  if (healing.has(key) || activeUri() !== doc.uri.toString()) { return; }
+  healing.add(key);
+  const hold = "heal-" + process.pid;
+  try {
+    writeHold(hold, 10);
+    await pause(500);                                   // a write that was on its way is in the document by now
+    const ours = doc.getText().replace(/\r\n/g, "\n");
+    const merged = merge.merge3(base, ours, disk);
+    fs.writeFileSync(doc.uri.fsPath, merged.text);
+    if (activeUri() === doc.uri.toString()) {
+      await vscode.commands.executeCommand("workbench.action.files.revert");
+    }
+    log("heal: " + path.basename(doc.uri.fsPath) + " changed on disk while VS Code had unsaved text: merged" +
+      (merged.conflicts ? " (" + merged.conflicts + " places changed on both sides: VS Code's text kept there)" : "") +
+      (doc.isDirty ? ", but VS Code did not read it back yet" : " and read back"));
+  } catch (err) {
+    log("heal: " + path.basename(doc.uri.fsPath) + " failed: " + (err && err.message ? err.message : err));
+  } finally {
+    writeHold(hold, 0);
+    healing.delete(key);
+  }
+}
+
+// A change read from disk that the page may not have seen. Quarto skips the first change of
+// the document after each of its own writes, thinking it is that write; when a change from
+// disk comes in at that moment, the page never hears of it, and its next write (all of its
+// text) leaves the change out (bench, 13 Nov 2026: 3 of 11 quick outside writes lost). So
+// after a change from disk, the next write from the page is checked: when it lacks that
+// change, the change is merged back in, and the page hears of the result.
+const fromDisk = new Map();     // file -> { base, disk }
+
+function documentChanged(change) {
+  const doc = change.document;
+  if (!watchedFile(doc) || change.contentChanges.length === 0) { return; }
+  const key = typing.keyOf(doc.uri.fsPath);
+  const text = doc.getText().replace(/\r\n/g, "\n");
+  if (!doc.isDirty) {                                   // read from disk
+    const before = lastSaved.get(key);
+    const known = fromDisk.get(key);
+    if (known) { known.disk = text; }
+    else if (before !== undefined && before.replace(/\r\n/g, "\n") !== text) {
+      fromDisk.set(key, { base: before.replace(/\r\n/g, "\n"), disk: text });
+    }
+    noteSaved(doc);
+    return;
+  }
+  const known = fromDisk.get(key);
+  if (!known) { return; }
+  fromDisk.delete(key);
+  const merged = merge.merge3(known.base, text, known.disk).text;
+  if (merged === text) { return; }                      // the page had it: all well
+  const edit = new vscode.WorkspaceEdit();
+  edit.replace(doc.uri, new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length)), merged);
+  vscode.workspace.applyEdit(edit).then((done) => {
+    log("keep: " + path.basename(doc.uri.fsPath) + ": the page wrote without a change just read from disk; " +
+      (done ? "merged it back in" : "COULD NOT merge it back in"));
+  });
+}
+
+function watchClashes(context) {
+  vscode.workspace.textDocuments.forEach(noteSaved);
+  const watcher = vscode.workspace.createFileSystemWatcher("**/*.{qmd,md}");
+  const later = (uri) => setTimeout(() => { checkClash(uri); }, 300);
+  const timer = setInterval(() => {                     // a save that failed: the document stays dirty
+    for (const doc of vscode.workspace.textDocuments) {
+      if (watchedFile(doc) && doc.isDirty) { checkClash(doc.uri); }
+    }
+  }, 1500);
+  context.subscriptions.push(
+    watcher, watcher.onDidChange(later), { dispose: () => clearInterval(timer) },
+    vscode.workspace.onDidOpenTextDocument(noteSaved),
+    vscode.workspace.onDidSaveTextDocument(noteSaved),
+    vscode.workspace.onDidChangeTextDocument(documentChanged),
+    vscode.window.tabGroups.onDidChangeTabs(() => { const uri = activeUri(); if (uri) { later(vscode.Uri.parse(uri)); } })
+  );
 }
 
 function deactivate() {}

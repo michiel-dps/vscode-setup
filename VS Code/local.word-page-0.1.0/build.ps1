@@ -12,7 +12,7 @@ $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $pkg = Get-Content -LiteralPath "$root\package.json" -Raw | ConvertFrom-Json
 $vsix = Join-Path $env:TEMP 'word-page.vsix'   # not in this folder: the folder is copied to GitHub
-$files = @('package.json', 'extension.js', 'patch.js', 'mention.js', 'typing.js', 'test.js', 'pdfpages.py',
+$files = @('package.json', 'extension.js', 'patch.js', 'mention.js', 'typing.js', 'merge.js', 'test.js', 'pdfpages.py',
            'inject/word-page.template.js', 'inject/word-page.css', 'inject/light-theme.json',
            'inject/pdf-look.css', 'inject/fonts/README.txt')
 # the fonts of the PDF look

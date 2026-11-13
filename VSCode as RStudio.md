@@ -934,9 +934,25 @@ that too, so from then on a `vscode://` link, which Claude Code uses, started
 the bench copy with his own settings, and Claude would not open in his H26
 window. Fixed by pointing the link back at
 `%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe`. `launch.ps1` now does
-that itself after every start and every `-Stop` (`Restore-UrlHandler`). If
-Claude or a `vscode://` link ever opens a strange VS Code again: check that
-registry value first. The other
+that itself after every start and every `-Stop` (`Restore-UrlHandler`).
+**13 Nov 2026: that fix did not hold, Claude again would not open in the H26
+window.** The bench copy had also written itself into the **taskbar list of
+recent folders** (right-click on the VS Code icon; Windows keeps that list
+per program name, `win32AppUserModelId`, and the copy had the same name as
+the real VS Code). A click on "H26-Data Science" in that list started the
+copy (1.145.2) with your own settings next to the real VS Code (1.146.0),
+and that copy wrote the list and the `vscode://` link again. Fixed at the
+root: the copy now has its **own names** in its `product.json`
+(`urlProtocol` = `vscode-wordpagebench`, `win32AppUserModelId` =
+`WordPageBench.VSCode`, next to its own lock name), set by `launch.ps1` at
+every start, so it can no longer take the link or the list. The wrong list
+(`%APPDATA%\Microsoft\Windows\Recent\CustomDestinations\1ced32d74a95c7bc.customDestinations-ms`)
+was removed; the real VS Code writes a new one when a folder is opened. If a
+window ever behaves strangely again (Claude does not open, empty logs), look
+at which program runs it first:
+`Get-CimInstance Win32_Process -Filter "Name='Code.exe'"` must show only
+`...\Programs\Microsoft VS Code\Code.exe` outside a running test, and the
+registry value above must name that program too. The other
 traps are written at the top of `launch.ps1` (a waiting VS Code update blocks
 a second VS Code, hence the copy; Quarto's one-time question; Quick Open only
 finds files opened before). For the page look there are three more probes in

@@ -974,16 +974,274 @@
     }
   }
 
-  // ---- changes made to the file outside the page (12 Nov 2026) ----
-  // Quarto's page drops a change that another program makes to the file (another Claude
-  // session, a script) while the page has the focus: its handler only applies it when
-  // neither the editor nor the page has the focus (applyExternalEdit in Quarto's index.js),
-  // and it does not try again. The page then shows the old text, and 2 seconds after the next
-  // keystroke Quarto writes that old text over the whole file (found 12 Nov 2026: the user did
-  // not see the edits of another session in his page). Here: when such a change comes in and
-  // nothing was typed on the page for 2.5 seconds (so Quarto has written everything typed into
-  // the file), the page takes the change: for this one message the editor has no focus. While
-  // typing it cannot take it without losing what was typed; a bar at the top then says so.
+  // ---- keeping the page and the file in step (13 Nov 2026) ----
+  // A Claude chat writes its edits straight into the file, also while the user types on the
+  // page. Quarto's own page handles that badly (tested 13 Nov 2026 in the bench, with typing
+  // and two chats at once): it keeps its own text and writes it over the chat's change; every
+  // save comes back to it as a "change made outside"; it takes a change 1 second late, so keys
+  // pressed in that second are lost; and once VS Code said "Failed to save: the content of the
+  // file is newer" and stopped saving. patch.js puts three hooks into Quarto's code (SYNC), and
+  // this part decides instead:
+  //   1. Quarto asks for the page's text to write it into the file (every 2 seconds while he
+  //      types): markdown() gives the page's text MERGED with what was changed outside
+  //      (merge.js), so what he typed and what the chat changed both stay. Not while a chat is
+  //      about to write (word-page-hold.css, written by review.py): then the page waits.
+  //   2. VS Code passes a change of the file on: external() ignores Quarto's own write coming
+  //      back, and remembers a real change. applyOutside() puts it on the page once he has not
+  //      typed for 1.5 seconds; keys pressed in the moment that takes are kept and typed again.
+  //   No red bar any more (the user, 13 Nov 2026: "turn off that warning bar").
+  // Without the hooks (Quarto's code changed), the 12 Nov way below still works (no bar).
+  var SYNC = /*SYNC*/;
+  var MERGE = (function () {
+    var module = { exports: {} };
+    /*MERGE*/
+    return module.exports;
+  })();
+  var QUIET_APPLY = 1500;     // ms without typing before a change made outside is put on the page
+  var HOLD_URL = thisScript ? thisScript.replace(/index\.js(\?.*)?$/, "word-page-hold.css") : "";
+  var sync = {
+    editor: null, prefs: null,
+    file: null,          // the file's text as the page knows it (line ends as \n); null = not started
+    base: null,          // the file's text that the text on the page stands on
+    answering: false,    // Quarto is getting the page's text now
+    applying: false,     // the page is taking in a change made outside now
+    nothingNew: null,    // the page's state when it last had nothing new to write
+    timer: null
+  };
+  var kept = null;       // keys pressed while the page takes in a change (null: not keeping)
+
+  function lf(text) {
+    return typeof text === "string" ? text.replace(/\r\n/g, "\n") : text;
+  }
+
+  function pageText() {
+    return Promise.resolve(sync.editor.getMarkdownFromStateJson(sync.editor.getStateJson(), sync.prefs())).then(lf);
+  }
+
+  // Is a Claude chat about to write? (review.py puts a time in the future into the hold file)
+  function chatWriting() {
+    return new Promise(function (resolve) {
+      if (!HOLD_URL) { resolve(false); return; }
+      var link = document.createElement("link");
+      var done = false;
+      function finish(held) {
+        if (done) { return; }
+        done = true;
+        link.remove();
+        resolve(held);
+      }
+      link.rel = "stylesheet";
+      link.href = HOLD_URL + "?v=" + Date.now() + "-" + Math.random();
+      link.onload = function () {
+        var raw = getComputedStyle(document.documentElement).getPropertyValue("--wp-hold").trim().replace(/^["']|["']$/g, "");
+        finish(Number(raw) > Date.now());
+      };
+      link.onerror = function () { finish(false); };     // no hold file: nobody is writing
+      setTimeout(function () { finish(true); }, 1000);   // no answer: wait, Quarto asks again
+      document.head.appendChild(link);
+    });
+  }
+
+  // 1. Quarto wants the page's text, to write it into the file. A thrown error makes Quarto
+  // keep its question and ask again 2 seconds later (and it writes nothing).
+  async function syncMarkdown(state, editor, prefs) {
+    sync.editor = editor;
+    sync.prefs = prefs;
+    if (sync.file === null) { return editor.getMarkdownFromStateJson(state, prefs()); }
+    if (sync.answering || sync.applying) { throw new Error("word-page: busy, ask again"); }
+    var stateNow = JSON.stringify(editor.getStateJson());
+    if (sync.nothingNew === stateNow + "\u0000" + sync.file) { throw new Error("word-page: nothing new"); }
+    sync.answering = true;
+    try {
+      if (await chatWriting()) { throw new Error("word-page: a Claude chat is writing the file"); }
+      var mine = await pageText();
+      var out = sync.base === sync.file ? mine : MERGE.merge3(sync.base, mine, sync.file).text;
+      sync.base = mine;
+      if (sync.base !== sync.file) { scheduleApply(); }
+      if (out === sync.file) {
+        // the file has all of it already: writing it again would change nothing
+        sync.nothingNew = stateNow + "\u0000" + sync.file;
+        throw new Error("word-page: nothing new");
+      }
+      sync.nothingNew = null;
+      sync.file = out;
+      return out;
+    } finally {
+      sync.answering = false;
+    }
+  }
+
+  // 2. VS Code passes on the file's text after a change: Quarto's own write coming back
+  // (nothing to do), or a change made outside (put on the page when he pauses).
+  function syncExternal(text, editor, prefs, quartoTakes) {
+    sync.editor = editor;
+    sync.prefs = prefs;
+    text = lf(text);
+    if (sync.file === null) {      // not started: Quarto's own way
+      if (!editor.hasFocus() && !window.document.hasFocus()) { quartoTakes(text); }
+      return;
+    }
+    if (text === sync.file) { return; }
+    sync.file = text;
+    scheduleApply();
+  }
+
+  function scheduleApply() {
+    if (sync.timer) { return; }
+    sync.timer = setTimeout(function () {
+      sync.timer = null;
+      applyOutside();
+    }, 300);
+  }
+
+  // the words around the cursor, to put it back after the page took in a change
+  function caretPlace() {
+    var sel = window.getSelection();
+    var pm = document.querySelector(".ProseMirror");
+    if (!sel || !sel.rangeCount || !pm || !pm.contains(sel.anchorNode)) { return null; }
+    var node = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+    var block = node.closest("p, li, h1, h2, h3, h4, h5, h6, td, th, pre") || pm;
+    var range = document.createRange();
+    range.selectNodeContents(block);
+    range.setEnd(sel.anchorNode, sel.anchorOffset);
+    var before = range.toString();
+    return { before: before.slice(-40), after: block.textContent.slice(before.length, before.length + 40) };
+  }
+
+  function putCaret(place) {
+    var pm = document.querySelector(".ProseMirror");
+    if (!place || !pm) { return; }
+    var walker = document.createTreeWalker(pm, NodeFilter.SHOW_TEXT);
+    var text = "";
+    var nodes = [];
+    var starts = [];
+    var n;
+    while ((n = walker.nextNode())) { nodes.push(n); starts.push(text.length); text += n.data; }
+    var at = -1;
+    var i = text.indexOf(place.before + place.after);
+    if (i >= 0 && (place.before + place.after).length > 0) { at = i + place.before.length; }
+    else if (place.before && (i = text.indexOf(place.before)) >= 0) { at = i + place.before.length; }
+    else if (place.after && (i = text.indexOf(place.after)) >= 0) { at = i; }
+    if (at < 0) { return; }
+    for (var k = nodes.length - 1; k >= 0; k--) {
+      if (starts[k] <= at) {
+        var range = document.createRange();
+        range.setStart(nodes[k], Math.min(at - starts[k], nodes[k].data.length));
+        range.collapse(true);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return;
+      }
+    }
+  }
+
+  // Put the change made outside on the page. Quarto's setMarkdown swaps the page's text after
+  // a short wait (it asks Quarto's side to read the markdown): keys pressed in that moment are
+  // kept (below) and typed again afterwards.
+  async function applyOutside() {
+    if (sync.file === null || sync.file === sync.base || !sync.editor) { return; }
+    if (sync.answering || sync.applying || Date.now() - lastTyping < QUIET_APPLY) { scheduleApply(); return; }
+    sync.applying = true;
+    kept = [];
+    var target = sync.file;
+    var pm = document.querySelector(".ProseMirror");
+    var hadKeyboard = document.hasFocus() && !!pm && pm.contains(document.activeElement);
+    var place = hadKeyboard ? caretPlace() : null;
+    var scroller = pm && pm.parentElement;
+    var scrollTop = scroller ? scroller.scrollTop : 0;
+    try {
+      var page = await pageText();
+      // something on the page not in the file yet (it would be written at Quarto's next turn): keep it
+      var content = page === sync.base ? target : MERGE.merge3(sync.base, page, target).text;
+      var result = await sync.editor.setMarkdown(content, sync.prefs(), content !== target);
+      if (result) { sync.base = target; }
+    } catch (err) {
+      // stays to do: tried again below
+    } finally {
+      if (scroller) { scroller.scrollTop = scrollTop; }
+      if (hadKeyboard) {
+        var pmNow = document.querySelector(".ProseMirror");
+        if (pmNow && !pmNow.contains(document.activeElement)) {
+          try { pmNow.focus({ preventScroll: true }); } catch (err) { /* he clicks back in */ }
+        }
+        putCaret(place);
+      }
+      sync.applying = false;
+      var keys = kept;
+      kept = null;
+      if (keys.length) { typeAgain(keys); }
+      if (sync.file !== sync.base) { scheduleApply(); }
+    }
+  }
+
+  // keys kept while the page took in a change, typed again where the cursor is now
+  function typeAgain(keys) {
+    var pm = document.querySelector(".ProseMirror");
+    if (!pm) { return; }
+    var text = "";
+    function flush() {
+      if (text) { document.execCommand("insertText", false, text); text = ""; }
+    }
+    keys.forEach(function (key) {
+      if (typeof key === "object") { flush(); document.execCommand("insertText", false, key.paste); return; }
+      if (key.length === 1) { text += key; return; }
+      flush();
+      if (key === "Backspace") { document.execCommand("delete"); }
+      else if (key === "Delete") { document.execCommand("forwardDelete"); }
+      else {
+        (document.activeElement || pm).dispatchEvent(new KeyboardEvent("keydown",
+          { key: key, code: key, keyCode: key === "Enter" ? 13 : 9, bubbles: true, cancelable: true }));
+      }
+    });
+    flush();
+  }
+
+  // while the page takes in a change: keys that type are kept, moving keys wait
+  document.addEventListener("keydown", function (event) {
+    if (kept === null) { return; }
+    var key = event.key || "";
+    var plain = !event.ctrlKey && !event.metaKey && !event.altKey;
+    if (plain && (key.length === 1 || /^(Enter|Backspace|Delete|Tab)$/.test(key))) {
+      kept.push(key);
+      lastTyping = Date.now();                  // the typing listener below does not see it
+    } else if ((event.ctrlKey || event.metaKey) && /^v$/i.test(key)) {
+      return;                                   // the paste comes as its own event (below)
+    } else if (!/^(Arrow|Home$|End$|Page)/.test(key) && !((event.ctrlKey || event.metaKey) && /^[zyx]$/i.test(key))) {
+      return;                                   // Shift, Escape, F-keys and such: as always
+    }
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
+  document.addEventListener("paste", function (event) {
+    if (kept === null) { return; }
+    var text = event.clipboardData && event.clipboardData.getData("text/plain");
+    if (text) { kept.push({ paste: text }); }
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
+  ["cut", "drop", "beforeinput"].forEach(function (name) {
+    document.addEventListener(name, function (event) {
+      if (kept === null) { return; }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, true);
+  });
+
+  if (SYNC) {
+    window.wordPageSync = {
+      started: function (canonical) {
+        if (typeof canonical === "string") { sync.file = sync.base = lf(canonical); }
+      },
+      external: syncExternal,
+      markdown: syncMarkdown
+    };
+  }
+
+  // ---- the 12 Nov 2026 way, used only when the hooks are not in Quarto's code ----
+  // Quarto's page drops a change that another program makes to the file while the page has
+  // the focus. Here: when such a change comes in and nothing was typed on the page for 2.5
+  // seconds, the page takes the change: for this one message the editor has no focus.
   var EXTERNAL_EDIT = "vsc_ve_apply_external_edit";
   // what counts as typing: keys that change the text (a letter, Enter, Backspace, Delete, Tab,
   // Ctrl+Z/Y/V/X), and pasting, cutting, dropping. Not a shortcut such as Ctrl+Numpad5, not the
@@ -1001,37 +1259,20 @@
     document.addEventListener(name, function () { lastTyping = Date.now(); }, true);
   });
 
-  function outsideWarning() {
-    var bar = document.getElementById("word-page-outside");
-    if (!bar) {
-      bar = document.createElement("div");
-      bar.id = "word-page-outside";
-      bar.setAttribute("style", "position: fixed; top: 0; left: 0; right: 0; z-index: 1000; padding: 6px 12px; " +
-        "background: #b42318; color: #ffffff; font: 13px 'Segoe UI', Arial, sans-serif; cursor: pointer;");
-      bar.title = "Click to close";
-      bar.addEventListener("click", function () { bar.remove(); });
-      document.body.appendChild(bar);
-    }
-    // a Claude chat waits until the typing has stopped, and checks afterwards that its edit is
-    // still in the file; when not, it makes the edit again (review.py, 13 Nov 2026)
-    bar.textContent = "This file was changed outside the page while you were typing. Your text stays, the outside " +
-      "change was undone. If a Claude chat made it, the chat sees this and makes it again in a moment " +
-      "(click to close this bar).";
-  }
-
   // Quarto asks two things: does the page have the keyboard (document.hasFocus), and does the
   // editor (ProseMirror asks: is it document.activeElement)? The second stays "yes" while the
   // keyboard is elsewhere, for example in the Claude chat box after Ctrl+Numpad5: the first
   // version of this fix let Quarto decide then, and Quarto dropped the change (found 12 Nov 2026,
   // 17:29 UTC, by the session that edits draft.qmd). So both answers are made "no" here.
   window.addEventListener("message", function (event) {
+    if (SYNC) { return; }                                   // the hooks above decide
     var data = event.data;
     if (!data || typeof data !== "object" || data.method !== EXTERNAL_EDIT) { return; }
     var pageHasKeyboard = document.hasFocus();
     var active = document.activeElement;
     var editorHasFocus = !!(active && active.closest && active.closest(".ProseMirror"));
     if (!pageHasKeyboard && !editorHasFocus) { return; }    // Quarto takes the change itself
-    if (Date.now() - lastTyping < 2500) { outsideWarning(); return; }
+    if (Date.now() - lastTyping < 2500) { return; }         // no bar any more (13 Nov 2026)
     var scroller = document.querySelector(".ProseMirror") && document.querySelector(".ProseMirror").parentElement;
     var scrollTop = scroller ? scroller.scrollTop : 0;
     // Quarto's handler runs right after this one

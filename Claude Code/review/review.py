@@ -26,12 +26,12 @@ Two things happen around every Edit/Write of an R script (.R, .Rmd, .qmd):
    (the red bar on the page). So before the edit this script waits until he
    has not typed in that file for 5 seconds (at most 90 s; after that the
    edit is refused and Claude is told to try again later). It knows when he
-   last typed from %LOCALAPPDATA%\\word-page\\typing.json, written by the
-   Word Page add-on (typing.js). When he typed in the last 2 minutes, the
-   hook after the edit waits 3 seconds and checks that the page kept the
+   last typed from %LOCALAPPDATA%\\word-page\\typing\\<sha1>.json, written by
+   the Word Page add-on (typing.js). When he typed in the last 2 minutes, the
+   hook after the edit waits 4 seconds and checks that the page kept the
    edit; when the old text is back, Claude is told to read the file again
-   and make the same edit again. This comes before 1, so VS Code's snapshot
-   already has what he typed while Claude waited.
+   and make the edit again if it is not there. This comes before 1, so VS
+   Code's snapshot already has what he typed while Claude waited.
 
 Claude Code runs this from hooks in ~/.claude/settings.json:
   pre    (PreToolUse, Edit|Write|MultiEdit)          : wait for typing + stage + "about to edit"
@@ -41,6 +41,7 @@ Claude Code runs this from hooks in ~/.claude/settings.json:
 By hand:
   stage <file>  : the same staging as pre, for one file
 """
+import hashlib
 import json
 import os
 import re
@@ -167,13 +168,14 @@ def stop_in_vscode(data):
 # --- the user typing in the same file on the Word Page (13 Nov 2026) --------------
 
 WORD_PAGE = Path(os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()) / "word-page"
-TYPING_MARKS = WORD_PAGE / "typing.json"   # written by the Word Page add-on (typing.js)
+TYPING_DIR = WORD_PAGE / "typing"   # one mark file per file, written by the Word Page add-on (typing.js)
 TYPING_EXTS = {".qmd", ".md"}
 QUIET_SECONDS = 5      # he must have stopped typing this long before Claude writes
 LONGEST_WAIT = 90      # still typing after this: the edit is refused, Claude tries later
 ACTIVE_SECONDS = 120   # typed this recently: after the edit, check that the page kept it
-CHECK_SECONDS = 3      # the page writes its own text back within this time, if at all
-AROUND = 40            # letters before and after Claude's change that must match
+CHECK_SECONDS = 4      # the page writes its own text back within this time, if at all
+AROUNDS = (40, 20, 8)  # letters before and after Claude's change that must match
+LONG_ENOUGH = 8        # an old or new text this long also counts on its own
 LOG = Path(tempfile.gettempdir()) / "word-page.log"   # the Word Page add-on's log
 
 
@@ -193,21 +195,26 @@ def log(text):
         pass
 
 
+def mark_file(file):
+    """The add-on's mark file for `file` (the SHA-1 of its name, as typing.js makes it)."""
+    key = os.path.normcase(os.path.abspath(file))
+    return TYPING_DIR / (hashlib.sha1(key.encode("utf8")).hexdigest() + ".json")
+
+
 def last_typed(file):
     """When the user last typed in `file` in VS Code (seconds since 1970), or 0.
 
-    The add-on puts a new typing.json in place several times a second while he
+    The add-on puts a new mark file in place up to four times a second while he
     types; a read at that very moment can fail, so it is tried again (a failed
     read must not look like "he stopped typing"). A file that stays unreadable
     for half a second is broken, not being replaced: then it holds nothing up.
     """
-    key = os.path.normcase(os.path.abspath(file))
+    mark = mark_file(file)
     for attempt in range(10):
-        if not TYPING_MARKS.exists():
+        if not mark.exists():
             return 0
         try:
-            marks = json.loads(TYPING_MARKS.read_text(encoding="utf8"))
-            return marks.get(key, 0) / 1000
+            return json.loads(mark.read_text(encoding="utf8"))["time"] / 1000
         except Exception:
             time.sleep(0.05)
     return 0
@@ -247,6 +254,83 @@ def wait_until_quiet(data, file):
                 "out of date and would wipe out what he typed. Read the file again and make "
                 "your change on the new text (an Edit is safer than a Write here)." % name), waited
     return None, waited
+
+
+# Just before the edit, the open pages are asked to hand nothing to Quarto for a moment (the
+# Word Page add-on reads word-page-hold.css next to Quarto's index.js), so the page and the
+# chat never write the file at the same moment. Without this, VS Code once said "Failed to
+# save: the content of the file is newer" and stopped saving (bench, 13 Nov 2026).
+QUARTO_LISTS = WORD_PAGE / "quarto"   # the add-on: Quarto's editor folders, one file per VS Code
+HOLDS = WORD_PAGE / "holds"           # one file per Claude edit that is about to write
+HOLD_CSS = "word-page-hold.css"
+HOLD_SECONDS = 20       # a hold ends by itself after this (when no hook says "done")
+SETTLE_SECONDS = 0.35   # a page that handed its text over just before the hold: saved by then
+HOLD_IF_TYPED = 600     # only when he typed in the file in the last 10 minutes
+
+
+def quarto_dirs():
+    dirs = set()
+    for listing in QUARTO_LISTS.glob("*.json"):
+        try:
+            for folder in json.loads(listing.read_text(encoding="utf8")).get("dirs", []):
+                if os.path.isdir(folder):
+                    dirs.add(folder)
+        except Exception:
+            continue
+    return sorted(dirs)
+
+
+def write_hold_css():
+    now = time.time()
+    until = 0
+    for hold in HOLDS.glob("*.hold"):
+        try:
+            end = float(hold.read_text(encoding="utf8"))
+        except (OSError, ValueError):
+            continue
+        if end > now:
+            until = max(until, end)
+        else:
+            try:
+                hold.unlink()
+            except OSError:
+                pass
+    css = ('/* word-page: a Claude chat is about to write a file (review.py) */\n'
+           ':root { --wp-hold: "%d"; }\n' % int(until * 1000))
+    for folder in quarto_dirs():
+        target = Path(folder) / HOLD_CSS
+        temp = Path(folder) / (HOLD_CSS + ".%d.tmp" % os.getpid())
+        try:
+            temp.write_text(css, encoding="utf8")
+            os.replace(temp, target)
+        except OSError:
+            pass
+
+
+def hold_pages(data, file):
+    """Ask the open pages to hand nothing to Quarto, then wait until a write that was on its
+    way has been saved. Only when he typed in the file lately (else nothing is on its way)."""
+    if not job_id(data) or time.time() - last_typed(file) > HOLD_IF_TYPED:
+        return
+    HOLDS.mkdir(parents=True, exist_ok=True)
+    (HOLDS / (job_id(data) + ".hold")).write_text(str(time.time() + HOLD_SECONDS), encoding="utf8")
+    write_hold_css()
+    time.sleep(SETTLE_SECONDS)
+    began = time.time()
+    while time.time() - last_typed(file) < 0.25 and time.time() - began < 2:
+        time.sleep(0.05)
+
+
+def release_pages(data):
+    if not job_id(data):
+        return
+    hold = HOLDS / (job_id(data) + ".hold")
+    if hold.exists():
+        try:
+            hold.unlink()
+        except OSError:
+            pass
+        write_hold_css()
 
 
 def before_copy(data):
@@ -314,12 +398,19 @@ def edit_lost(before, now, tool, tool_input):
     if now == after:
         return False
     for edit in edits:
-        old = plain(edit.get("old_string"))
+        old, new = plain(edit.get("old_string")), plain(edit.get("new_string"))
         place = before.find(old)
-        old_around = before[max(0, place - AROUND):place + len(old) + AROUND]
-        if old_around in after:
-            continue   # that text is still there after a good edit too: no proof
-        if old_around in now:
+        # the old text with letters around it is back more often than after a good edit;
+        # less letters around it when he typed right next to it
+        for around in AROUNDS:
+            old_around = before[max(0, place - around):place + len(old) + around]
+            if now.count(old_around) > after.count(old_around):
+                return True
+        if len(old) >= LONG_ENOUGH and now.count(old) > after.count(old):
+            return True
+        # an addition (the old text is part of the new one): the old text does not come
+        # back, the new one goes away
+        if old in new and len(new) >= LONG_ENOUGH and now.count(new) < after.count(new):
             return True
     return False
 
@@ -343,10 +434,10 @@ def check_page_kept_it(data, file):
         return None
     name = Path(file).name
     log("claude: the page wrote its own text over Claude's edit of %s (the user was typing); "
-        "Claude was told to make it again" % name)
-    return ("Your edit of %s was lost: the user was typing on the Word Page at that moment, and "
-            "the page wrote its own text back over the file (what he typed is safe). Read the "
-            "file again and make the same edit again." % name)
+        "Claude was told to check and make it again" % name)
+    return ("Your edit of %s was probably lost: the user was typing on the Word Page at that "
+            "moment, and the page wrote its own text back over the file (what he typed is "
+            "safe). Read the file again. If your change is not there, make it again." % name)
 
 
 if __name__ == "__main__":
@@ -362,6 +453,8 @@ if __name__ == "__main__":
                     if waited and not refuse:
                         print(json.dumps({"systemMessage": "Claude waited %.0f s: you were typing in %s."
                                           % (waited, Path(f).name)}))
+                if not refuse and typing_watched(f):
+                    hold_pages(data, f)   # before the snapshot: the page writes nothing now
                 if not refuse and wanted(f):
                     stage(f)
                     show_in_vscode(data, f)
@@ -371,11 +464,13 @@ if __name__ == "__main__":
                 if wanted(f):
                     done_in_vscode(data)
                 if typing_watched(f):
+                    release_pages(data)
                     refuse = check_page_kept_it(data, f)
             elif what == "failed":
                 if wanted(f):
                     done_in_vscode(data)
                 if typing_watched(f):
+                    release_pages(data)
                     drop_before(data)
             elif what == "stop" and SIGNALS.exists():
                 stop_in_vscode(data)
