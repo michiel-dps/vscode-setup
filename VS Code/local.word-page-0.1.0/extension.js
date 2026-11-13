@@ -576,7 +576,7 @@ function writePdfData() {
 // (typing.js). A change that comes from the disk, such as a Claude edit, is not typing: after
 // it the document is not dirty. At most one write per file every 250 ms.
 const TYPING_DIR = path.join(process.env.LOCALAPPDATA || os.tmpdir(), "word-page", "typing");
-const TYPING_EVERY = 250;       // ms
+const TYPING_EVERY = 100;       // ms (250 hid a write that came right after another one; bench, 13 Nov 2026)
 const typingNoted = new Map();  // file -> when its mark was last written
 
 // Where review.py puts the hold file (patch.holdFile) just before a Claude edit: the editor
@@ -638,8 +638,17 @@ function watchedFile(doc) {
   return doc && doc.uri.scheme === "file" && /\.(qmd|md)$/i.test(doc.uri.fsPath);
 }
 
+const lastText = new Map();     // file -> the document's text after its last change
+
 function noteSaved(doc) {
-  if (watchedFile(doc) && !doc.isDirty) { lastSaved.set(typing.keyOf(doc.uri.fsPath), doc.getText()); }
+  if (!watchedFile(doc)) { return; }
+  const key = typing.keyOf(doc.uri.fsPath);
+  if (!doc.isDirty) {
+    lastSaved.set(key, doc.getText());
+  } else {
+    // typed on already: what was saved is what is on disk now (VS Code has just written it)
+    try { lastSaved.set(key, fs.readFileSync(doc.uri.fsPath, "utf8")); } catch (err) { /* next save */ }
+  }
 }
 
 // the same hold as review.py's: the pages hand nothing to Quarto while it lasts
@@ -666,27 +675,71 @@ function activeUri() {
   return tab && tab.input && tab.input.uri ? tab.input.uri.toString() : "";
 }
 
+// The file's text, read twice 0.2 s apart; null while it is being written (VS Code and most
+// programs write a file in pieces: a single read can catch half a file; bench, 13 Nov 2026).
+async function readSettled(file) {
+  try {
+    const first = fs.readFileSync(file, "utf8");
+    const firstStat = fs.statSync(file);
+    await pause(200);
+    const second = fs.readFileSync(file, "utf8");
+    const secondStat = fs.statSync(file);
+    if (first !== second || firstStat.mtimeMs !== secondStat.mtimeMs || firstStat.size !== secondStat.size) { return null; }
+    return second.replace(/\r\n/g, "\n");
+  } catch (err) {
+    return null;
+  }
+}
+
+// a merge that would take out much more than a typical edit does: something is wrong (half a file read)
+function tooShort(merged, a, b) {
+  return merged.length < 0.9 * Math.max(a.length, b.length);
+}
+
+// for the bench only (environment variable WORD_PAGE_DEBUG=1): the texts of each repair
+function debugNote(kind, texts) {
+  if (!process.env.WORD_PAGE_DEBUG) { return; }
+  try {
+    fs.appendFileSync(path.join(os.tmpdir(), "word-page-debug.jsonl"), JSON.stringify({ t: Date.now(), kind: kind, texts: texts }) + "\n");
+  } catch (err) { /* no note */ }
+}
+
+// half a file: shorter, and its end is neither the old end nor the other side's end
+function looksCut(text, base, other) {
+  const end = (t) => t.slice(-80);
+  return text.length < base.length && end(text) !== end(base) && end(text) !== end(other);
+}
+
+const STUCK_MS = 1500;          // unsaved this long with autosave at 100 ms: VS Code could not save
+const dirtySince = new Map();   // file -> when the document became unsaved
+
 async function checkClash(uri) {
   const doc = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
   if (!watchedFile(doc) || !doc.isDirty) { return; }
   const key = typing.keyOf(doc.uri.fsPath);
-  let disk;
-  try { disk = fs.readFileSync(doc.uri.fsPath, "utf8").replace(/\r\n/g, "\n"); } catch (err) { return; }
-  const base = lastSaved.has(key) ? lastSaved.get(key).replace(/\r\n/g, "\n") : null;
-  if (base === null || disk === base) { return; }     // the disk did not change: a save is on its way
-  if (merge.merge3(base, doc.getText().replace(/\r\n/g, "\n"), disk).text === doc.getText().replace(/\r\n/g, "\n")) {
-    lastSaved.set(key, disk);                         // what is on disk is in VS Code's text already (its own save)
-    return;
-  }
+  if (!dirtySince.has(key) || Date.now() - dirtySince.get(key) < STUCK_MS) { return; }   // a save is on its way
   if (healing.has(key) || activeUri() !== doc.uri.toString()) { return; }
+  const base = lastSaved.has(key) ? lastSaved.get(key).replace(/\r\n/g, "\n") : null;
+  if (base === null) { return; }
   healing.add(key);
   const hold = "heal-" + process.pid;
   try {
+    const disk = await readSettled(doc.uri.fsPath);
+    if (disk === null || disk === base) { return; }   // still being written, or not changed: not now
     writeHold(hold, 10);
     await pause(500);                                   // a write that was on its way is in the document by now
     const ours = doc.getText().replace(/\r\n/g, "\n");
-    const merged = merge.merge3(base, ours, disk);
-    fs.writeFileSync(doc.uri.fsPath, merged.text);
+    const merged = merge.merge3(base, ours, disk);      // (when it equals ours, it still has to get onto disk)
+    debugNote("heal", { base: base, ours: ours, disk: disk, merged: merged.text });
+    if (looksCut(disk, base, ours) || tooShort(merged.text, ours, disk)) {
+      log("heal: " + path.basename(doc.uri.fsPath) + ": the merge would take out too much text; left to the user (VS Code's own question)");
+      return;
+    }
+    const again = await readSettled(doc.uri.fsPath);
+    if (again !== disk) { return; }                     // changed meanwhile: next time
+    const temp = doc.uri.fsPath + ".word-page-tmp";
+    fs.writeFileSync(temp, merged.text);
+    fs.renameSync(temp, doc.uri.fsPath);                // in one step: no reader sees half of it
     if (activeUri() === doc.uri.toString()) {
       await vscode.commands.executeCommand("workbench.action.files.revert");
     }
@@ -708,20 +761,32 @@ async function checkClash(uri) {
 // after a change from disk, the next write from the page is checked: when it lacks that
 // change, the change is merged back in, and the page hears of the result.
 const fromDisk = new Map();     // file -> { base, disk }
+const savingSince = new Map();  // file -> when VS Code began saving it (until the save is done)
 
 function documentChanged(change) {
   const doc = change.document;
-  if (!watchedFile(doc) || change.contentChanges.length === 0) { return; }
+  if (!watchedFile(doc)) { return; }
   const key = typing.keyOf(doc.uri.fsPath);
+  if (!doc.isDirty) { dirtySince.delete(key); } else if (!dirtySince.has(key)) { dirtySince.set(key, Date.now()); }
+  if (change.contentChanges.length === 0) { return; }
   const text = doc.getText().replace(/\r\n/g, "\n");
-  if (!doc.isDirty) {                                   // read from disk
-    const before = lastSaved.get(key);
-    const known = fromDisk.get(key);
-    if (known) { known.disk = text; }
-    else if (before !== undefined && before.replace(/\r\n/g, "\n") !== text) {
-      fromDisk.set(key, { base: before.replace(/\r\n/g, "\n"), disk: text });
+  const before = lastText.get(key);                     // the text just before this change
+  lastText.set(key, text);
+  if (!doc.isDirty) {
+    // Read from disk? Not when VS Code is saving: Quarto puts its newest text in at the last
+    // moment of a save (a "save participant"), and that change also comes without unsaved
+    // text. Taking that for a change from disk doubled typed words (bench, 13 Nov 2026).
+    // A real read from disk has the file's text.
+    let read = !(savingSince.has(key) && Date.now() - savingSince.get(key) < 3000);
+    if (read) {
+      try { read = fs.readFileSync(doc.uri.fsPath, "utf8").replace(/\r\n/g, "\n") === text; } catch (err) { read = false; }
     }
-    noteSaved(doc);
+    if (read) {
+      const known = fromDisk.get(key);
+      if (known) { known.disk = text; }
+      else if (before !== undefined && before !== text) { fromDisk.set(key, { base: before, disk: text }); }
+      noteSaved(doc);     // only a real read from disk: Quarto's last-moment text may never reach the disk (a failed save)
+    }
     return;
   }
   const known = fromDisk.get(key);
@@ -729,6 +794,11 @@ function documentChanged(change) {
   fromDisk.delete(key);
   const merged = merge.merge3(known.base, text, known.disk).text;
   if (merged === text) { return; }                      // the page had it: all well
+  debugNote("keep", { base: known.base, page: text, disk: known.disk, merged: merged });
+  if (looksCut(known.disk, known.base, text) || tooShort(merged, text, known.disk)) {
+    log("keep: " + path.basename(doc.uri.fsPath) + ": merging back would take out too much text; not done");
+    return;
+  }
   const edit = new vscode.WorkspaceEdit();
   edit.replace(doc.uri, new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length)), merged);
   vscode.workspace.applyEdit(edit).then((done) => {
@@ -739,17 +809,31 @@ function documentChanged(change) {
 
 function watchClashes(context) {
   vscode.workspace.textDocuments.forEach(noteSaved);
-  const watcher = vscode.workspace.createFileSystemWatcher("**/*.{qmd,md}");
+  vscode.workspace.textDocuments.forEach((doc) => {
+    if (watchedFile(doc)) { lastText.set(typing.keyOf(doc.uri.fsPath), doc.getText().replace(/\r\n/g, "\n")); }
+  });
   const later = (uri) => setTimeout(() => { checkClash(uri); }, 300);
   const timer = setInterval(() => {                     // a save that failed: the document stays dirty
     for (const doc of vscode.workspace.textDocuments) {
       if (watchedFile(doc) && doc.isDirty) { checkClash(doc.uri); }
     }
-  }, 1500);
+  }, 1000);
   context.subscriptions.push(
-    watcher, watcher.onDidChange(later), { dispose: () => clearInterval(timer) },
-    vscode.workspace.onDidOpenTextDocument(noteSaved),
-    vscode.workspace.onDidSaveTextDocument(noteSaved),
+    { dispose: () => clearInterval(timer) },
+    vscode.workspace.onDidOpenTextDocument((doc) => {
+      noteSaved(doc);
+      if (watchedFile(doc)) { lastText.set(typing.keyOf(doc.uri.fsPath), doc.getText().replace(/\r\n/g, "\n")); }
+    }),
+    vscode.workspace.onWillSaveTextDocument((event) => {
+      if (watchedFile(event.document)) { savingSince.set(typing.keyOf(event.document.uri.fsPath), Date.now()); }
+    }),
+    vscode.workspace.onDidSaveTextDocument((doc) => {
+      if (watchedFile(doc)) {
+        savingSince.delete(typing.keyOf(doc.uri.fsPath));
+        if (!doc.isDirty) { dirtySince.delete(typing.keyOf(doc.uri.fsPath)); }
+      }
+      noteSaved(doc);
+    }),
     vscode.workspace.onDidChangeTextDocument(documentChanged),
     vscode.window.tabGroups.onDidChangeTabs(() => { const uri = activeUri(); if (uri) { later(vscode.Uri.parse(uri)); } })
   );

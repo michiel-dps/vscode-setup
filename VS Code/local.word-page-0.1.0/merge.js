@@ -24,7 +24,29 @@ function changes(a, b) {
   var endA = a.length;
   var endB = b.length;
   while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) { endA--; endB--; }
-  return shortestEdit(a, start, endA, b, start, endB);
+  return slideLeft(a, b, shortestEdit(a, start, endA, b, start, endB));
+}
+
+// Text put in (or taken out) where the letters repeat can be placed in more than one spot:
+// " tok146 tok147" put in after "anchor55" is the same as "146 tok147 tok" put in after
+// "anchor55 tok". Both sides of a merge must use the same spot, or the same words come in
+// twice (bench, 13 Nov 2026). So every such change is moved as far to the left as it goes.
+function slideLeft(a, b, list) {
+  for (var i = 0; i < list.length; i++) {
+    var c = list[i];
+    var floorA = i > 0 ? list[i - 1].aEnd : 0;
+    var floorB = i > 0 ? list[i - 1].bEnd : 0;
+    if (c.aStart === c.aEnd) {            // only put in
+      while (c.aStart > floorA && c.bStart > floorB && a[c.aStart - 1] === b[c.bEnd - 1]) {
+        c.aStart--; c.aEnd--; c.bStart--; c.bEnd--;
+      }
+    } else if (c.bStart === c.bEnd) {     // only taken out
+      while (c.aStart > floorA && c.bStart > floorB && a[c.aStart - 1] === a[c.aEnd - 1]) {
+        c.aStart--; c.aEnd--; c.bStart--; c.bEnd--;
+      }
+    }
+  }
+  return list;
 }
 
 // Myers' method: the fewest single steps (take out one of a, put in one of b) from
@@ -155,10 +177,23 @@ function mergeSequences(base, ours, theirs, resolve) {
   return { parts: parts, conflicts: conflicts };
 }
 
-// Where both sides changed the same letters: both put something in at the same place (and
-// took nothing out) -> both stay, ours first; else ours wins.
+// Both sides put something in at the same place (and took nothing out). Often it is the same
+// text, one side with a little more (the page typed on after a save that the other side had
+// read): then the longer one. Else both, ours first. (Keeping both always doubled typed words
+// in the bench, 13 Nov 2026.)
+function sameInsert(o, t) {
+  if (o.indexOf(t) >= 0) { return o; }
+  if (t.indexOf(o) >= 0) { return t; }
+  return o + t;
+}
+
+// Where both sides changed the same letters: see sameInsert when nothing was taken out; else
+// ours wins.
 function letterConflict(b, o, t) {
-  if (b.length === 0) { return { parts: o.split("").concat(t.split("")), conflicts: 0 }; }
+  if (b.length === 0) {
+    var both = sameInsert(o, t);
+    return { parts: both.split(""), conflicts: both === o + t ? 1 : 0 };
+  }
   return { parts: o.split(""), conflicts: 1 };
 }
 
@@ -172,8 +207,14 @@ function merge3(base, ours, theirs) {
   if (ours === theirs || theirs === base) { return { text: ours, conflicts: 0 }; }
   if (ours === base) { return { text: theirs, conflicts: 0 }; }
   var merged = mergeSequences(base.split("\n"), ours.split("\n"), theirs.split("\n"), function (b, o, t) {
-    // both put new lines in at the same place: both stay, ours first
-    if (b.length === 0) { return { parts: o.concat(t), conflicts: 0 }; }
+    // both put new lines in at the same place: the longer when one holds the other, else both
+    if (b.length === 0) {
+      var oText = o.join("\n");
+      var tText = t.join("\n");
+      if (oText.indexOf(tText) >= 0) { return { parts: o, conflicts: 0 }; }
+      if (tText.indexOf(oText) >= 0) { return { parts: t, conflicts: 0 }; }
+      return { parts: o.concat(t), conflicts: 0 };
+    }
     // the same lines changed on both sides: letter by letter inside them
     var text = mergeSequences(b.join("\n"), o.join("\n"), t.join("\n"), letterConflict);
     return { parts: text.parts.join("").split("\n"), conflicts: text.conflicts };

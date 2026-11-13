@@ -106,6 +106,14 @@ function buildBlocks(injectDir, options, sync) {
 const ADDED = /\/\*wp\+\*\/[\s\S]*?\/\*wp-\*\//g;
 const HANDLERS = /async applyExternalEdit\(([\w$]+)\)\{!([\w$]+)\.hasFocus\(\)&&!window\.document\.hasFocus\(\)&&([\w$]+)\(\1\)\},async getMarkdownFromState\(([\w$]+)\)\{return await \2\.getMarkdownFromStateJson\(\4,([\w$]+)\(\)\)\}/g;
 const STARTED = /([\w$]+)\.canonical\):null\}catch/g;
+// The editor's own setMarkdown: it reads the markdown (a short wait for Quarto's side), then
+// swaps the page's text in one step. The hook asks the page, right before the swap, whether
+// anything on the page changed since it started (typing, a click on the toolbar); then the
+// swap is called off with nothing changed, and the page tries again at the next pause. The
+// question and the swap run without a break, so no keystroke can come in between (13 Nov
+// 2026; keys kept and typed again afterwards lost words in the bench).
+//   async setMarkdown(e,t,n){t=TA(t);let{doc:r,...}=await this.pandocConverter.toProsemirror(e,this.pandocFormat);
+const SWAP = /async setMarkdown\(([\w$]+),([\w$]+),([\w$]+)\)\{\2=([\w$]+)\(\2\);let\{doc:([\w$]+),([\w$:,]+)\}=await this\.pandocConverter\.toProsemirror\(\1,this\.pandocFormat\);/g;
 
 function countOf(text, pattern) {
   return (text.match(pattern) || []).length;
@@ -114,7 +122,7 @@ function countOf(text, pattern) {
 // Quarto's code with the hooks in: { js, ok }. ok = false: Quarto's code is not as expected,
 // and the code comes back unchanged.
 function addSyncHooks(js) {
-  if (countOf(js, HANDLERS) !== 1 || countOf(js, STARTED) !== 1) { return { js: js, ok: false }; }
+  if (countOf(js, HANDLERS) !== 1 || countOf(js, STARTED) !== 1 || countOf(js, SWAP) !== 1) { return { js: js, ok: false }; }
   const out = js
     .replace(HANDLERS, (whole, t, e, c, s, o) =>
       "async applyExternalEdit(" + t + "){/*wp+*/if(window.wordPageSync)return window.wordPageSync.external(" + t + "," + e + "," + o + "," + c + ");/*wp-*/" +
@@ -122,7 +130,12 @@ function addSyncHooks(js) {
       "async getMarkdownFromState(" + s + "){/*wp+*/if(window.wordPageSync)return window.wordPageSync.markdown(" + s + "," + e + "," + o + ");/*wp-*/" +
       "return await " + e + ".getMarkdownFromStateJson(" + s + "," + o + "())}")
     .replace(STARTED, (whole, i) =>
-      "/*wp+*/window.wordPageSync&&window.wordPageSync.started(" + i + ".canonical),/*wp-*/" + i + ".canonical):null}catch");
+      "/*wp+*/window.wordPageSync&&window.wordPageSync.started(" + i + ".canonical),/*wp-*/" + i + ".canonical):null}catch")
+    .replace(SWAP, (whole, md, opts, emit, fix, doc, rest) =>
+      "async setMarkdown(" + md + "," + opts + "," + emit + "){" + opts + "=" + fix + "(" + opts + ");" +
+      "let{doc:" + doc + "," + rest + "}=await this.pandocConverter.toProsemirror(" + md + ",this.pandocFormat);" +
+      "/*wp+*/if(window.wordPageSync&&window.wordPageSync.changedSince&&window.wordPageSync.changedSince(this.state))" +
+      "throw new Error(\"word-page: the page changed while it swapped its text\");/*wp-*/");
   return { js: out, ok: true };
 }
 

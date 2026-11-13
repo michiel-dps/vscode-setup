@@ -27,15 +27,19 @@ Two things happen around every Edit/Write of an R script (.R, .Rmd, .qmd):
    has not typed in that file for 5 seconds (at most 90 s; after that the
    edit is refused and Claude is told to try again later). It knows when he
    last typed from %LOCALAPPDATA%\\word-page\\typing\\<sha1>.json, written by
-   the Word Page add-on (typing.js). When he typed in the last 2 minutes, the
-   hook after the edit waits 4 seconds and checks that the page kept the
-   edit; when the old text is back, Claude is told to read the file again
-   and make the edit again if it is not there. This comes before 1, so VS
-   Code's snapshot already has what he typed while Claude waited.
+   the Word Page add-on (typing.js). Then the open pages are held for the
+   moment of the write (word-page-hold.css next to Quarto's index.js), so the
+   page and Claude never write the file at the same moment; "post" releases
+   them. When he typed in the last 2 minutes, the hook after the edit waits
+   4 seconds and checks that the edit stayed; when the old text is back,
+   Claude is told to read the file again and make the edit again if it is
+   not there. The page itself merges his typing with Claude's change (the
+   add-on's merge.js). This comes before 1, so VS Code's snapshot already
+   has what he typed while Claude waited.
 
 Claude Code runs this from hooks in ~/.claude/settings.json:
-  pre    (PreToolUse, Edit|Write|MultiEdit)          : wait for typing + stage + "about to edit"
-  post   (PostToolUse, Edit|Write|MultiEdit)         : "done" + did the page keep it
+  pre    (PreToolUse, Edit|Write|MultiEdit)          : wait for typing + hold pages + stage + "about to edit"
+  post   (PostToolUse, Edit|Write|MultiEdit)         : "done" + release pages + did the edit stay
   failed (PostToolUseFailure, Edit|Write|MultiEdit)  : "done" (nothing changed)
   stop   (Stop)                                      : "done" for anything still open
 By hand:
@@ -264,7 +268,7 @@ QUARTO_LISTS = WORD_PAGE / "quarto"   # the add-on: Quarto's editor folders, one
 HOLDS = WORD_PAGE / "holds"           # one file per Claude edit that is about to write
 HOLD_CSS = "word-page-hold.css"
 HOLD_SECONDS = 20       # a hold ends by itself after this (when no hook says "done")
-SETTLE_SECONDS = 0.35   # a page that handed its text over just before the hold: saved by then
+SETTLE_SECONDS = 0.6    # a page that handed its text over just before the hold: saved by then
 HOLD_IF_TYPED = 600     # only when he typed in the file in the last 10 minutes
 
 
@@ -317,7 +321,7 @@ def hold_pages(data, file):
     write_hold_css()
     time.sleep(SETTLE_SECONDS)
     began = time.time()
-    while time.time() - last_typed(file) < 0.25 and time.time() - began < 2:
+    while time.time() - last_typed(file) < 0.35 and time.time() - began < 2:
         time.sleep(0.05)
 
 

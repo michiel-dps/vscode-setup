@@ -988,7 +988,8 @@
   //      about to write (word-page-hold.css, written by review.py): then the page waits.
   //   2. VS Code passes a change of the file on: external() ignores Quarto's own write coming
   //      back, and remembers a real change. applyOutside() puts it on the page once he has not
-  //      typed for 1.5 seconds; keys pressed in the moment that takes are kept and typed again.
+  //      typed for 1.5 seconds; when he types during that moment, it is called off and tried
+  //      again later (a fourth hook in Quarto's setMarkdown, see changedSince).
   //   No red bar any more (the user, 13 Nov 2026: "turn off that warning bar").
   // Without the hooks (Quarto's code changed), the 12 Nov way below still works (no bar).
   var SYNC = /*SYNC*/;
@@ -1008,10 +1009,19 @@
     nothingNew: null,    // the page's state when it last had nothing new to write
     timer: null
   };
-  var kept = null;       // keys pressed while the page takes in a change (null: not keeping)
 
   function lf(text) {
     return typeof text === "string" ? text.replace(/\r\n/g, "\n") : text;
+  }
+
+  // for the bench only: with window.wordPageDebug = true the page keeps its last 150 steps
+  // that merged or took in something (plain writes of its own text are left out)
+  function note(kind, texts) {
+    if (!window.wordPageDebug) { return; }
+    if (kind === "write" && texts.base === texts.file && texts.out === texts.mine) { return; }
+    var list = window.wordPageDebugLog = window.wordPageDebugLog || [];
+    list.push({ t: Date.now(), kind: kind, texts: texts });
+    if (list.length > 150) { list.shift(); }
   }
 
   function pageText() {
@@ -1054,17 +1064,27 @@
     sync.answering = true;
     try {
       if (await chatWriting()) { throw new Error("word-page: a Claude chat is writing the file"); }
+      var fileBefore = sync.file;
       var mine = await pageText();
       var out = sync.base === sync.file ? mine : MERGE.merge3(sync.base, mine, sync.file).text;
-      sync.base = mine;
-      if (sync.base !== sync.file) { scheduleApply(); }
+      note("write", { base: sync.base, mine: mine, file: sync.file, out: out });
       if (out === sync.file) {
         // the file has all of it already: writing it again would change nothing
+        sync.base = mine;
+        if (sync.base !== sync.file) { scheduleApply(); }
         sync.nothingNew = stateNow + "\u0000" + sync.file;
         throw new Error("word-page: nothing new");
       }
-      sync.nothingNew = null;
+      // getting the text took a moment: a chat may have started meanwhile (bench, 13 Nov 2026).
+      // Then nothing is written, and nothing may change here either: base and file must keep
+      // saying what the file really holds (changing base first lost letters; bench, 13 Nov).
+      if (await chatWriting()) { throw new Error("word-page: a Claude chat is writing the file"); }
+      // the file changed while the page made its text: that text would leave the change out
+      if (sync.file !== fileBefore) { throw new Error("word-page: the file changed meanwhile, ask again"); }
+      sync.base = mine;
       sync.file = out;
+      sync.nothingNew = null;
+      if (sync.base !== sync.file) { scheduleApply(); }
       return out;
     } finally {
       sync.answering = false;
@@ -1082,6 +1102,10 @@
       return;
     }
     if (text === sync.file) { return; }
+    // half a file (VS Code read it while another program was still writing it): shorter, and
+    // its end is neither the end the page knows nor the page's own; the full file follows
+    if (text.length < sync.file.length && text.slice(-80) !== sync.file.slice(-80) && text.slice(-80) !== sync.base.slice(-80)) { return; }
+    note("outside", { file: text });
     sync.file = text;
     scheduleApply();
   }
@@ -1136,97 +1160,63 @@
     }
   }
 
-  // Put the change made outside on the page. Quarto's setMarkdown swaps the page's text after
-  // a short wait (it asks Quarto's side to read the markdown): keys pressed in that moment are
-  // kept (below) and typed again afterwards.
+  // Put the change made outside on the page, when he has not typed for a moment. Quarto's
+  // setMarkdown reads the new markdown (a short wait) and then swaps the page's text in one
+  // step. Right before that step, the hook in Quarto's code asks changedSince(): has anything
+  // on the page changed since this started (a key, a click on the toolbar)? Then the swap is
+  // called off, nothing on the page changed, and it is tried again at the next pause. The
+  // question and the swap run without a break, so no keystroke can get lost in between.
+  // (13 Nov 2026. Before: keys pressed during the swap were held and typed again afterwards;
+  // in the bench that lost 5 of 264 typed words.)
+  var swapFrom = null;     // the page's text (as JSON) when the swap started; null: no swap now
+  var swapPlace = null;    // the words around the cursor right before the swap
+
+  function changedSince(state) {
+    if (swapFrom === null) { return false; }
+    if (JSON.stringify(state.doc.toJSON()) !== swapFrom) { return true; }
+    var pm = document.querySelector(".ProseMirror");
+    swapPlace = document.hasFocus() && pm && pm.contains(document.activeElement) ? caretPlace() : null;
+    return false;
+  }
+
   async function applyOutside() {
     if (sync.file === null || sync.file === sync.base || !sync.editor) { return; }
     if (sync.answering || sync.applying || Date.now() - lastTyping < QUIET_APPLY) { scheduleApply(); return; }
     sync.applying = true;
-    kept = [];
     var target = sync.file;
     var pm = document.querySelector(".ProseMirror");
-    var hadKeyboard = document.hasFocus() && !!pm && pm.contains(document.activeElement);
-    var place = hadKeyboard ? caretPlace() : null;
     var scroller = pm && pm.parentElement;
     var scrollTop = scroller ? scroller.scrollTop : 0;
+    var swapped = false;
+    swapPlace = null;
     try {
-      var page = await pageText();
+      var state = sync.editor.getStateJson();
+      swapFrom = JSON.stringify(state.doc);
+      var page = lf(await sync.editor.getMarkdownFromStateJson(state, sync.prefs()));
       // something on the page not in the file yet (it would be written at Quarto's next turn): keep it
       var content = page === sync.base ? target : MERGE.merge3(sync.base, page, target).text;
+      note("apply", { base: sync.base, page: page, target: target, content: content });
       var result = await sync.editor.setMarkdown(content, sync.prefs(), content !== target);
-      if (result) { sync.base = target; }
+      if (result) { sync.base = target; swapped = true; }
     } catch (err) {
-      // stays to do: tried again below
+      // the page changed meanwhile (or another problem): nothing was swapped; tried again below
+      note("apply called off", { why: String(err && err.message || err) });
     } finally {
-      if (scroller) { scroller.scrollTop = scrollTop; }
-      if (hadKeyboard) {
-        var pmNow = document.querySelector(".ProseMirror");
-        if (pmNow && !pmNow.contains(document.activeElement)) {
-          try { pmNow.focus({ preventScroll: true }); } catch (err) { /* he clicks back in */ }
+      swapFrom = null;
+      if (swapped) {
+        if (scroller) { scroller.scrollTop = scrollTop; }
+        if (swapPlace) {
+          var pmNow = document.querySelector(".ProseMirror");
+          if (pmNow && !pmNow.contains(document.activeElement)) {
+            try { pmNow.focus({ preventScroll: true }); } catch (err) { /* he clicks back in */ }
+          }
+          putCaret(swapPlace);
         }
-        putCaret(place);
       }
       sync.applying = false;
-      var keys = kept;
-      kept = null;
-      if (keys.length) { typeAgain(keys); }
       if (sync.file !== sync.base) { scheduleApply(); }
     }
   }
-
-  // keys kept while the page took in a change, typed again where the cursor is now
-  function typeAgain(keys) {
-    var pm = document.querySelector(".ProseMirror");
-    if (!pm) { return; }
-    var text = "";
-    function flush() {
-      if (text) { document.execCommand("insertText", false, text); text = ""; }
-    }
-    keys.forEach(function (key) {
-      if (typeof key === "object") { flush(); document.execCommand("insertText", false, key.paste); return; }
-      if (key.length === 1) { text += key; return; }
-      flush();
-      if (key === "Backspace") { document.execCommand("delete"); }
-      else if (key === "Delete") { document.execCommand("forwardDelete"); }
-      else {
-        (document.activeElement || pm).dispatchEvent(new KeyboardEvent("keydown",
-          { key: key, code: key, keyCode: key === "Enter" ? 13 : 9, bubbles: true, cancelable: true }));
-      }
-    });
-    flush();
-  }
-
-  // while the page takes in a change: keys that type are kept, moving keys wait
-  document.addEventListener("keydown", function (event) {
-    if (kept === null) { return; }
-    var key = event.key || "";
-    var plain = !event.ctrlKey && !event.metaKey && !event.altKey;
-    if (plain && (key.length === 1 || /^(Enter|Backspace|Delete|Tab)$/.test(key))) {
-      kept.push(key);
-      lastTyping = Date.now();                  // the typing listener below does not see it
-    } else if ((event.ctrlKey || event.metaKey) && /^v$/i.test(key)) {
-      return;                                   // the paste comes as its own event (below)
-    } else if (!/^(Arrow|Home$|End$|Page)/.test(key) && !((event.ctrlKey || event.metaKey) && /^[zyx]$/i.test(key))) {
-      return;                                   // Shift, Escape, F-keys and such: as always
-    }
-    event.preventDefault();
-    event.stopImmediatePropagation();
-  }, true);
-  document.addEventListener("paste", function (event) {
-    if (kept === null) { return; }
-    var text = event.clipboardData && event.clipboardData.getData("text/plain");
-    if (text) { kept.push({ paste: text }); }
-    event.preventDefault();
-    event.stopImmediatePropagation();
-  }, true);
-  ["cut", "drop", "beforeinput"].forEach(function (name) {
-    document.addEventListener(name, function (event) {
-      if (kept === null) { return; }
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    }, true);
-  });
 
   if (SYNC) {
     window.wordPageSync = {
@@ -1234,7 +1224,10 @@
         if (typeof canonical === "string") { sync.file = sync.base = lf(canonical); }
       },
       external: syncExternal,
-      markdown: syncMarkdown
+      markdown: syncMarkdown,
+      changedSince: changedSince,
+      // for checks from outside (the bench): is the page swapping its text right now?
+      busy: function () { return sync.applying; }
     };
   }
 

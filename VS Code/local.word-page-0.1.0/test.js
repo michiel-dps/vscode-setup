@@ -211,7 +211,9 @@ check("reference without lines keeps the file and the quote",
 const quartoLines = "kst(n.vscode,{async init(t,r){try{s();let i=await e.setMarkdown(t,o(),!1);return i?(e.focus(r)," +
   "e.subscribe(xl,()=>n.onEditorUpdated(e.getStateJson())),i.canonical):null}catch(t){return e.onLoadFailed(t),null}}," +
   "async isFocused(){return e.hasFocus()},async applyExternalEdit(t){!e.hasFocus()&&!window.document.hasFocus()&&c(t)}," +
-  "async getMarkdownFromState(t){return await e.getMarkdownFromStateJson(t,o())},async getSlideIndex(){return 1}})";
+  "async getMarkdownFromState(t){return await e.getMarkdownFromStateJson(t,o())},async getSlideIndex(){return 1}});" +
+  "class Ed{async setMarkdown(e,t,n){t=TA(t);let{doc:r,line_wrapping:i,unrecognized:a,example_lists:o,unparsed_meta:s}=" +
+  "await this.pandocConverter.toProsemirror(e,this.pandocFormat);if(this.isInitialDoc())this.state=r}}";
 const hooked = patch.addSyncHooks(quartoLines);
 check("hooks: they fit Quarto 1.139's code", hooked.ok);
 check("hooks: only text added, strip gives Quarto's code back byte for byte", patch.strip(hooked.js) === quartoLines);
@@ -219,7 +221,10 @@ check("hooks: the result is valid JavaScript", (() => { try { new Function("var 
 check("hooks: external gets the text, the editor, its options and Quarto's own way",
   hooked.js.includes("window.wordPageSync.external(t,e,o,c)") && hooked.js.includes("window.wordPageSync.markdown(t,e,o)") &&
   hooked.js.includes("window.wordPageSync.started(i.canonical),/*wp-*/i.canonical):null}catch"));
+check("hooks: the swap asks changedSince right after reading the markdown, before swapping",
+  hooked.js.includes("toProsemirror(e,this.pandocFormat);/*wp+*/if(window.wordPageSync&&window.wordPageSync.changedSince&&window.wordPageSync.changedSince(this.state))throw"));
 check("hooks: not twice", patch.addSyncHooks(quartoLines + quartoLines).ok === false);
+check("hooks: without the swap lines nothing goes in", patch.addSyncHooks(quartoLines.replace("this.pandocConverter.toProsemirror", "this.converter.toProsemirror")).ok === false);
 check("hooks: other variable names (another Quarto build) still fit", patch.addSyncHooks(quartoLines.replace(/\bc\(t\)/, "d(t)")).ok);
 check("hooks: Quarto's code changed: nothing goes in", patch.addSyncHooks(quartoLines.replace("!window.document.hasFocus()&&", "")).ok === false);
 check("hooks: patch.apply puts them in a Quarto that has these lines, and remove takes them out", (() => {
@@ -254,6 +259,34 @@ check("merge: right next to each other: both stay",
 check("merge: other paragraphs: both stay", merge.merge3("a\n\nb\n\nc", "a typed\n\nb\n\nc", "a\n\nb\n\nc changed").text === "a typed\n\nb\n\nc changed");
 check("merge: a paragraph taken out by the chat, typing elsewhere", merge.merge3("a\n\nb\n\nc", "a\n\nb\n\nc typed", "a\n\nc").text === "a\n\nc typed");
 check("merge: both put text in at the same place: both stay", merge.merge3("ab", "aXb", "aYb").text === "aXYb");
+check("merge: both put in the same words, one side a few more: no word twice",
+  merge.merge3("anchor05, then", "anchor05 tok1 tok2 tok3, then", "anchor05 tok1 tok2, then").text === "anchor05 tok1 tok2 tok3, then" &&
+  merge.merge3("anchor05, then", "anchor05 tok1, then", "anchor05 tok1 tok2, then").text === "anchor05 tok1 tok2, then");
+check("merge: the same typed words placed differently by the diff (repeating letters): once",
+  merge.merge3("anchor55 tok021 tok022,", "anchor55 tok146 tok147 tok148 tok021 tok022,", "anchor55 tok146 tok147 tok14 tok021 tok022,").text ===
+  "anchor55 tok146 tok147 tok148 tok021 tok022," &&
+  merge.merge3("anchor73 tok054,", "anchor73 tok054 tok055 tok056,", "anchor73 tok054 tok055,").text === "anchor73 tok054 tok055 tok056,");
+check("merge: 2000 random typing bursts written at two moments: never a word twice", (() => {
+  let seed = 11;
+  const rnd = (n) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
+  for (let r = 0; r < 2000; r++) {
+    const old = [];
+    for (let k = 0; k < rnd(4); k++) { old.push("tok" + (100 + rnd(900))); }
+    const base = "Paragraph talks about slot and anchor" + (old.length ? " " + old.join(" ") : "") + ", and then more.";
+    const at = base.indexOf("anchor") + 6;
+    const burst = [];
+    for (let k = 0; k < 1 + rnd(5); k++) { burst.push("tok" + (1000 + r * 10 + k)); }
+    const full = " " + burst.join(" ");
+    const part = full.slice(0, 1 + rnd(full.length));      // what the file got at an earlier write
+    const ours = base.slice(0, at) + full + base.slice(at);
+    const theirs = (base.slice(0, at) + part + base.slice(at)).replace("slot", "ClaudeEdit");
+    const out = merge.merge3(base, ours, theirs).text;
+    if (!out.includes("ClaudeEdit") || !burst.every((t) => out.split(t).length === 2)) { console.log("dup:", JSON.stringify({ base, ours, theirs, out })); return false; }
+  }
+  return true;
+})());
+check("merge: both put in the same new paragraph, one longer: once", merge.merge3("a\nc", "a\nb1\nb2\nc", "a\nb1\nc").text === "a\nb1\nb2\nc");
+check("merge: different new paragraphs at the same place: both", merge.merge3("a\nc", "a\nX\nc", "a\nY\nc").text === "a\nX\nY\nc");
 check("merge: both changed the same letters: the page's text wins, counted as a conflict",
   JSON.stringify(merge.merge3("a b c", "a X c", "a Y c")) === JSON.stringify({ text: "a X c", conflicts: 1 }));
 check("merge: nothing typed: the file's text", merge.merge3("abc", "abc", "abXc").text === "abXc");

@@ -621,48 +621,118 @@ writes it so). A `.lintr` exclusion cannot reach that file; the fix is
 `"quarto.cells.diagnostics.enabled": false` in the project's
 `.vscode/settings.json`.
 
-While you type, an outside change cannot be taken without losing what was
-typed: the page keeps your text and writes it back over the file, and a red
-bar at the top says so. Tested in the bench with autosave as on this laptop:
-an edit on disk while the page had the focus (but no typing) is shown on the
-page and stays in the file.
+The 12 Nov way above is now only the fallback, for when Quarto's code has
+changed and the hooks below do not fit (log line `sync: hooks ... NOT in
+place`). Without the hooks there is no red bar any more either.
 
 **A Claude chat and you in the same file at the same time (13 Nov 2026,
-asked: "the chat realises this and retries later").** Three parts:
+asked: "make sure that I don't get situations where changes disappear, also
+turn off that warning bar").** Built and stress-tested the same day. The red
+bar is gone: it came mostly from Quarto's own saves (every save comes back to
+the page as "the file changed"), and what it warned about can no longer
+happen. Six parts:
 
-1. The add-on notes when you last typed in each `.qmd`/`.md` file
-   (`typing.js`, section 6 of `extension.js`): every change of the document
-   made inside VS Code (on the page, Quarto writes what you type into the
-   document every 2 seconds) goes into `%LOCALAPPDATA%\word-page\typing.json`
-   (file name in lower case → time in ms, at most one write per 250 ms, marks
-   older than 10 minutes dropped). A change that comes from the disk (a Claude
-   edit) leaves the document not dirty, so it does not count.
-2. Before every Claude Edit/Write of a `.qmd`/`.md` file, `review.py pre`
-   waits until you have not typed in that file for 5 seconds (checked twice a
-   second, at most 90 s; the hook's `timeout` is 150 s). The chat box then
-   says "Claude waited N s: you were typing in draft.qmd". Still typing after
-   90 s: the edit is refused and the chat is told to try again in a minute. A
-   Write is also refused when you typed into the file while it waited (its
-   text would wipe out yours). This wait comes before VS Code's snapshot for
-   the red/green view (section 9), so the snapshot has your typing.
-3. When you typed in the file in the last 2 minutes, `review.py pre` keeps a
-   copy of the file (`%LOCALAPPDATA%\word-page\before-<id>.txt`), and
-   `review.py post` waits 3 seconds and checks whether the old text is back
-   where Claude changed it, with the 40 letters around it (the page writes
-   Claude's new text in its own markdown, so a missing new text proves
-   nothing). Old text back = the page wrote over the edit: the chat is told
-   to read the file again and make the same edit again.
+1. **Hooks in Quarto's code** (`patch.js`, `addSyncHooks`): four short pieces
+   of added text in Quarto's `index.js`, each between `/*wp+*/` and `/*wp-*/`
+   so `strip()` gives the file back byte for byte. They hand three moments to
+   the script block: the page has started (`started`), VS Code passes on a
+   change of the file (`external`), Quarto asks for the page's text to write
+   it into the file (`markdown`); and the fourth asks `changedSince` right
+   before the page swaps its text. When Quarto's code changed and one piece
+   does not fit exactly once, none goes in (`SYNC = false`), the 12 Nov way
+   works, and the log says so. After a Quarto update the page tab must be
+   closed and opened once (the add-on says so).
+2. **The page merges instead of choosing** (`merge.js`, a three-way merge:
+   paragraph by paragraph, letter by letter inside a paragraph both changed).
+   The script block keeps `file` (what the file holds) and `base` (the file
+   text the page's text stands on). When Quarto asks for the text, the page
+   gives its own text merged with what changed in the file, so your typing
+   and the chat's change both stay. Only where both changed the very same
+   letters does your text win (the chat is then told, part 6). Quarto's own
+   write coming back is recognised and ignored. A write is only noted as done
+   at the very end, after a last check that no chat is writing and that the
+   file did not change meanwhile (noting it earlier lost letters in the bench).
+3. **The page shows a chat's change when you pause** (1.5 s without typing):
+   Quarto's `setMarkdown` reads the new text and swaps it in. Right before
+   the swap the hook asks `changedSince`: did anything on the page change
+   since the swap began? Then it is called off, nothing changes, and it is
+   tried again at the next pause. Question and swap run without a break, so
+   no keystroke can get lost. (First tried: holding keys pressed during the
+   swap and typing them again afterwards; that lost 5 of 264 words.) The
+   cursor goes back to the same words.
+4. **The hold** (`word-page-hold.css` next to Quarto's `index.js`): just
+   before a chat writes a `.qmd`, `review.py` writes a time a few seconds
+   ahead into that file in each Quarto folder the add-on registered
+   (`%LOCALAPPDATA%\word-page\quarto\<pid>.json`), one `holds\<id>.hold` per
+   edit. The page reads it (a style sheet: the only kind of file it may load)
+   before it hands its text over, and again right before; while it holds a
+   future time, the page hands nothing over. The hook waits 0.6 s and until
+   no write came for 0.35 s, so a write already on its way is saved first.
+   Without this, the chat's write and VS Code's save could cross ("Failed to
+   save: the content of the file is newer", and VS Code saved nothing more).
+5. **The wait** (`typing.js`, section 6 of `extension.js`, `review.py pre`):
+   the add-on notes when the document of each `.qmd`/`.md` last changed in
+   VS Code (`%LOCALAPPDATA%\word-page\typing\<sha1>.json`, one small file per
+   document so two VS Code windows never overwrite each other's marks, at
+   most every 100 ms). The hook waits until you have not typed in that file
+   for 5 seconds (at most 90 s, then the edit is refused and the chat tries
+   again later; the hook `timeout` is 150 s). The chat box says "Claude
+   waited N s: you were typing in draft.qmd". A Write is refused when you
+   typed into the file while it waited.
+6. **Safety nets.** (a) `review.py post` (when you typed in the last 2
+   minutes) waits 4 s and checks whether the old text is back where the chat
+   changed it (with 40, 20 or 8 letters around it); then the chat is told
+   "probably lost ... Read the file again. If your change is not there, make
+   it again". (b) The add-on (section 7 of `extension.js`) catches two rare
+   cases of a program that writes the file without hooks (a script, Dropbox):
+   a change read from disk that the page's next write leaves out is merged
+   back in ("keep:"); and when VS Code could not save ("the content of the
+   file is newer", unsaved for more than 1.5 s), it merges what VS Code has,
+   what is on disk and what was last saved, writes it in one step and lets
+   VS Code read it back ("heal:"). Both read the file twice 0.2 s apart (a
+   program can be halfway through writing it), refuse a result more than 10%
+   shorter or a text cut off at the end, and count only a real read from
+   disk or a real save (Quarto slips its newest text in at the last moment
+   of a save; taking that for a change from disk doubled words).
 
-The 5 seconds are needed because the add-on only sees typing when Quarto
-writes it (up to 2 s late) and the page refuses outside changes for 2.5 s
-after a keystroke. Part 3 catches the rest (you start typing again in the
-second the edit lands). Log lines in `%TEMP%\word-page.log` start with
-`claude:` ("waited 7 s until the user stopped typing in draft.qmd", "the page
-wrote its own text over Claude's edit ..."). Offline checks: 6 in `test.js`
-(typing marks); 41 for the hook were run on 13 Nov 2026 with a made-up file
-outside the project (wait, refuse after the longest wait, Write refused,
-lost or kept for change / insertion / removal / MultiEdit / Write, the whole
-hook as Claude Code runs it, R scripts not held up).
+**Stress test, 13 Nov 2026** (bench, a second VS Code on its own invisible
+desktop, the real Quarto page, the real hooks; scripts in that session's
+scratchpad): a typist typing numbered words into the page with typos and
+corrections, in bursts with pauses of 0.3 to 8 s, often right next to the
+chat's edits, sometimes clicking away from the page; two fake Claude chats
+editing the same file through the real hooks, as Claude Code's Edit tool does
+(re-read, retry, redo when told); a monitor reading the file 20 times a
+second. Six rounds: no typing; bursts; pauses of 4.3-6.5 s (right around the
+5 s wait); clicking away; 100 s of non-stop typing (the chat refused once
+after 90 s, then done); and another program writing the file without hooks.
+Ten full runs, each finding a fault that was fixed (doubled words from a
+diff placing the same typed words at a different spot, which `slideLeft` in
+`merge.js` now moves to one place; Quarto's last-moment save text taken for
+a change from disk; a hold that came a moment too late; keys typed during a
+swap; a write noted before its last check). Run 9: 313 typed words and 76
+chat edits, every word in the file exactly once, every chat edit in, nothing
+missing even for a moment, the file whole, page and file the same (one
+round's page lagged only because the bench's Quarto copy lost a file, see
+below). Run 10, all six rounds clean: 312 typed words and 76 edits (68 by the
+two chats, 8 by the program without hooks), none missing, none twice, no typo
+left, nothing gone even for a moment, no "content is newer", no repair
+needed, the file whole and the page the same as the file. Debugging: with `window.wordPageDebug = true` on the page (bench)
+the page keeps its last 150 merge steps; with the environment variable
+`WORD_PAGE_DEBUG=1` the add-on writes its repairs to
+`%TEMP%\word-page-debug.jsonl`. Log lines in `%TEMP%\word-page.log`:
+`claude:` (waits, refusals, "probably lost"), `keep:`, `heal:`, `sync:`.
+
+Bench lessons: the bench restores the tabs of its last session at start-up,
+before the add-on has put its new code into Quarto, so the page then runs the
+previous version: clear `data\User\workspaceStorage` (and `data\Backups`)
+before starting it after a change. Windows emptied `out\lsp\resources\
+abbreviations` (an empty file) in the bench's Quarto copy in %TEMP% during a
+run; then the page could not read new text (`pandoc_markdown_to_ast failed`)
+and stayed behind until the file was put back.
+
+Claude's side: `~/.claude/CLAUDE.md` says to change a `.qmd` only with the
+Edit/Write tools, never with a script: a script write has no wait and no
+hold (only the safety nets of part 6b).
 
 What it still cannot copy, so the real PDF still differs:
 
@@ -838,7 +908,9 @@ every page, the citations as printed, pictures of the tables, figures and
 reference list), `mention.js` (finds the lines of a highlighted text
 in the `.qmd` file and builds the reference for Claude; no VS Code in it),
 `typing.js` (writes the typing marks the Claude hooks read, 13 Nov 2026),
-`test.js` (90 offline checks of `patch.js`, `mention.js` and `typing.js`),
+`merge.js` (the three-way merge; patch.js copies it into the script block),
+`test.js` (118 offline checks of `patch.js`, `mention.js`, `typing.js` and
+`merge.js`, among them 3000 random merges and 2000 random typing bursts),
 `build.ps1` (runs the checks, packs, installs; VS Code switches a newly
 installed add-on on in the open windows by itself; a changed add-on needs
 Reload Window).
@@ -1359,9 +1431,10 @@ What you see: section 5. How it works, around every Edit/Write of an R
 script (hooks in `~/.claude/settings.json`, script `~/.claude/review/review.py`):
 
 0. For a `.qmd` or `.md` file, `review.py pre` first waits until the user has
-   not typed in it for 5 seconds, and `post` checks afterwards that the Word
-   Page did not write over the edit (section 5c, "A Claude chat and you in
-   the same file", 13 Nov 2026).
+   not typed in it for 5 seconds, then holds the open Word Pages for the
+   moment of the write (`word-page-hold.css`), and `post` releases them and
+   checks afterwards that the edit stayed (section 5c, "A Claude chat and you
+   in the same file", 13 Nov 2026).
 1. **PreToolUse** (`review.py pre`): stage the file in git (below), then, if
    a VS Code window with the extension has the file's folder open (its
    `window-<pid>.json` in `%LOCALAPPDATA%\claude-edits\` is fresh and not
