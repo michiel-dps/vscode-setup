@@ -146,5 +146,9 @@
     "explorer.confirmDelete": false,
     // Spell check on the page of a .qmd file: British English ("neighbours", "colour")
     "quarto.visualEditor.spellingDictionary": "en_GB",
-    "editor.largeFileOptimizations": false
+    "editor.largeFileOptimizations": false,
+    // Reopen every window of the last session, also when VS Code is started from a folder in the taskbar list
+    "window.restoreWindows": "preserve",
+    // The built-in browser (Ctrl+Numpad3, the Tutor) keeps its login and stored progress across restarts and folders
+    "workbench.browser.dataStorage": "global"
 }

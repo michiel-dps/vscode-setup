@@ -95,6 +95,22 @@ viewer ("invalid multibyte string"). Convert once with
 | `acceptSuggestionOnEnter` left at `on` | Enter on a completion popup accepts it and stays on the line, as in RStudio. `smart` was tried on 1 Nov 2026 and reverted on 2 Nov: with `smart`, a popup that only repeats the word already typed makes Enter insert a new line, which felt like the editor jumping away |
 | `enablePersistentSessions: false` | restart gives a fresh R terminal that attaches to the Workspace panel (a restored old terminal never does) |
 
+**Everything comes back after a restart** (13 Nov 2026, his wish: "all the
+conversations and windows that I had open are open still"). Read in VS Code's
+own code (1.146) and the Claude Code add-on's (2.1.323):
+
+| What | Comes back? | Why |
+|---|---|---|
+| Every VS Code window | yes | `"window.restoreWindows": "preserve"` (default `all`). With `all`, starting VS Code from a folder in the taskbar list opened only that folder; `preserve` reopens the rest too |
+| Editor tabs in each window | yes | VS Code default |
+| Claude Code chats opened **as tabs** (Ctrl+Numpad7) | yes, with the conversation | the add-on restores its tabs (`registerWebviewPanelSerializer("claudeVSCodePanel")`); `claudeCode.continueAfterReload` (default on) even finishes a step that was cut off |
+| The Claude Code chat **in the side bar** | no, it opens empty | the add-on starts the side bar without a session. The old chat is in its list of past conversations (or `/chats`). A chat you want back after a restart: open it as a tab |
+| The Tutor tab (built-in browser, Ctrl+Numpad3) | yes, same web address | the browser tab is saved like any editor tab (its URL) |
+| The Tutor's login and progress | yes | `"workbench.browser.dataStorage": "global"`: one store for the built-in browser, kept across restarts and folders (the default `default` means the same on this laptop, but VS Code turns it into a throw-away store in a folder it does not trust; set explicitly so it stays). Progress is also saved to his claude.ai account by the page itself |
+
+Closing tip: close VS Code with **File → Exit**. A window closed on its own
+with its X before the last one is not part of the session that gets restored.
+
 Colours: all of them are in this settings.json, so SAVE and INSTALL carry
 them to every laptop. The theme itself is the add-on `gerane.theme-idlefingers`
 (in `extensions.txt`). Every rule sits under `[idleFingers]`, so it only works
