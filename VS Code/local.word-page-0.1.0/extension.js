@@ -16,7 +16,9 @@
 //      Claude chat box (mention.js finds its lines in the .qmd file);
 //   5. the page ends of the PDF on the page: each time the PDF next to an open page
 //      changes, pdfpages.py reads where its pages start, and the page draws a
-//      dashed line there.
+//      dashed line there;
+//   6. typing marks: when the user last typed in each .qmd, so a Claude chat waits
+//      before it writes into a file he is typing in (typing.js, review.py).
 "use strict";
 const vscode = require("vscode");
 const fs = require("fs");
@@ -25,6 +27,7 @@ const path = require("path");
 const childProcess = require("child_process");
 const patch = require("./patch");
 const mention = require("./mention");
+const typing = require("./typing");
 
 const VISUAL_EDITOR = "quarto.visualEditor";   // Quarto's name for its visual editor
 const INJECT = path.join(__dirname, "inject");
@@ -33,6 +36,7 @@ const LOG = path.join(os.tmpdir(), "word-page.log");   // one line per Ctrl+Nump
 function activate(context) {
   refresh(false);
   watchPdfs(context);
+  watchTyping(context);
 
   context.subscriptions.push(
     vscode.commands.registerCommand("wordPage.newDocument", newDocument),
@@ -560,6 +564,31 @@ function writePdfData() {
       log("pdf: could not write the page ends into " + folder + ": " + (err && err.message ? err.message : err));
     }
   }
+}
+
+// ---- 6. typing marks for the Claude hooks (13 Nov 2026) ----------------------------
+
+// Each change of a .qmd or .md document made inside VS Code (on the page: Quarto writes the
+// typed text into the document every 2 seconds) is noted in typing.json (typing.js). A change
+// that comes from the disk, such as a Claude edit, is not typing: after it the document is not
+// dirty. At most one write per file every 250 ms.
+const TYPING_FILE = path.join(process.env.LOCALAPPDATA || os.tmpdir(), "word-page", "typing.json");
+const TYPING_EVERY = 250;       // ms
+const typingNoted = new Map();  // file -> when it was last written into typing.json
+
+function watchTyping(context) {
+  context.subscriptions.push(vscode.workspace.onDidChangeTextDocument((change) => {
+    const doc = change.document;
+    if (change.contentChanges.length === 0 || !doc.isDirty) { return; }
+    if (doc.uri.scheme !== "file" || !/\.(qmd|md)$/i.test(doc.uri.fsPath)) { return; }
+    const key = typing.keyOf(doc.uri.fsPath);
+    const now = Date.now();
+    if (now - (typingNoted.get(key) || 0) < TYPING_EVERY) { return; }
+    typingNoted.set(key, now);
+    try {
+      typing.note(TYPING_FILE, doc.uri.fsPath, now);
+    } catch (err) { /* the hook reads it a moment later: the next change writes it */ }
+  }));
 }
 
 function deactivate() {}

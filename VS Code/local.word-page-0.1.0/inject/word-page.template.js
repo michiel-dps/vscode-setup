@@ -1012,8 +1012,11 @@
       bar.addEventListener("click", function () { bar.remove(); });
       document.body.appendChild(bar);
     }
-    bar.textContent = "This file was changed outside the page while you were typing. The page has written its own text " +
-      "over that change. To see the file as it is now: close this tab and open it again (click to close this bar).";
+    // a Claude chat waits until the typing has stopped, and checks afterwards that its edit is
+    // still in the file; when not, it makes the edit again (review.py, 13 Nov 2026)
+    bar.textContent = "This file was changed outside the page while you were typing. Your text stays, the outside " +
+      "change was undone. If a Claude chat made it, the chat sees this and makes it again in a moment " +
+      "(click to close this bar).";
   }
 
   // Quarto asks two things: does the page have the keyboard (document.hasFocus), and does the

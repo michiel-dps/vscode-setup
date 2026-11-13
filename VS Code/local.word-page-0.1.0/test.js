@@ -1,4 +1,4 @@
-// Offline checks for patch.js and mention.js (no VS Code needed). Run with VS Code's own node:
+// Offline checks for patch.js, mention.js and typing.js (no VS Code needed). Run with VS Code's own node:
 //   $env:ELECTRON_RUN_AS_NODE = "1"; & "<VS Code>\Code.exe" test.js
 // It works on a made-up Quarto folder in the temp folder; nothing real is touched.
 "use strict";
@@ -205,6 +205,22 @@ check("reference with one line",
   mention.buildMention("paper/draft.qmd", { first: 9, last: 9 }, "young adults") === '@paper/draft.qmd#9 "young adults" ');
 check("reference without lines keeps the file and the quote",
   mention.buildMention("paper/draft.qmd", null, "young adults") === '@paper/draft.qmd "young adults" ');
+
+// typing marks (typing.js)
+const typing = require("./typing");
+const marks = path.join(temp, "word-page", "typing.json");
+const draft = "C:\\Users\\Someone\\Paper\\draft.qmd";
+typing.note(marks, draft, 1000000);
+check("a typing mark is written, its folder made", JSON.parse(fs.readFileSync(marks, "utf8"))["c:\\users\\someone\\paper\\draft.qmd"] === 1000000);
+check("the file name is in lower case with backslashes, as Python's normcase writes it",
+  typing.keyOf("C:/Users/Someone/Paper/draft.qmd") === "c:\\users\\someone\\paper\\draft.qmd");
+typing.note(marks, "C:\\Users\\Someone\\Paper\\notes.md", 1000000 + 1000);
+check("a second file keeps the first one's mark", Object.keys(JSON.parse(fs.readFileSync(marks, "utf8"))).length === 2);
+const later = typing.note(marks, "C:\\Users\\Someone\\Paper\\notes.md", 1000000 + typing.KEEP_MS + 5000);
+check("a mark older than 10 minutes is dropped", !("c:\\users\\someone\\paper\\draft.qmd" in later));
+check("no temporary file is left behind", fs.readdirSync(path.dirname(marks)).length === 1);
+fs.writeFileSync(marks, "{ half a fi");
+check("a broken marks file is started again", Object.keys(typing.note(marks, draft, 2000000)).length === 1);
 
 fs.rmSync(temp, { recursive: true, force: true });
 console.log(passed + " passed, " + failed + " failed");

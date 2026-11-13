@@ -619,11 +619,50 @@ add-on but Quarto's cell diagnostics. Quarto copies the R chunks into a hidden
 closing fence along when `:::` follows without a blank line (the page always
 writes it so). A `.lintr` exclusion cannot reach that file; the fix is
 `"quarto.cells.diagnostics.enabled": false` in the project's
-`.vscode/settings.json`. While you type, the change cannot
-be taken without losing what was typed: a red bar at the top says so (close
-the tab and open it again to see the file as it is). Tested in the bench with
-autosave as on this laptop: an edit on disk while the page had the focus is
-shown on the page and stays in the file.
+`.vscode/settings.json`.
+
+While you type, an outside change cannot be taken without losing what was
+typed: the page keeps your text and writes it back over the file, and a red
+bar at the top says so. Tested in the bench with autosave as on this laptop:
+an edit on disk while the page had the focus (but no typing) is shown on the
+page and stays in the file.
+
+**A Claude chat and you in the same file at the same time (13 Nov 2026,
+asked: "the chat realises this and retries later").** Three parts:
+
+1. The add-on notes when you last typed in each `.qmd`/`.md` file
+   (`typing.js`, section 6 of `extension.js`): every change of the document
+   made inside VS Code (on the page, Quarto writes what you type into the
+   document every 2 seconds) goes into `%LOCALAPPDATA%\word-page\typing.json`
+   (file name in lower case → time in ms, at most one write per 250 ms, marks
+   older than 10 minutes dropped). A change that comes from the disk (a Claude
+   edit) leaves the document not dirty, so it does not count.
+2. Before every Claude Edit/Write of a `.qmd`/`.md` file, `review.py pre`
+   waits until you have not typed in that file for 5 seconds (checked twice a
+   second, at most 90 s; the hook's `timeout` is 150 s). The chat box then
+   says "Claude waited N s: you were typing in draft.qmd". Still typing after
+   90 s: the edit is refused and the chat is told to try again in a minute. A
+   Write is also refused when you typed into the file while it waited (its
+   text would wipe out yours). This wait comes before VS Code's snapshot for
+   the red/green view (section 9), so the snapshot has your typing.
+3. When you typed in the file in the last 2 minutes, `review.py pre` keeps a
+   copy of the file (`%LOCALAPPDATA%\word-page\before-<id>.txt`), and
+   `review.py post` waits 3 seconds and checks whether the old text is back
+   where Claude changed it, with the 40 letters around it (the page writes
+   Claude's new text in its own markdown, so a missing new text proves
+   nothing). Old text back = the page wrote over the edit: the chat is told
+   to read the file again and make the same edit again.
+
+The 5 seconds are needed because the add-on only sees typing when Quarto
+writes it (up to 2 s late) and the page refuses outside changes for 2.5 s
+after a keystroke. Part 3 catches the rest (you start typing again in the
+second the edit lands). Log lines in `%TEMP%\word-page.log` start with
+`claude:` ("waited 7 s until the user stopped typing in draft.qmd", "the page
+wrote its own text over Claude's edit ..."). Offline checks: 6 in `test.js`
+(typing marks); 41 for the hook were run on 13 Nov 2026 with a made-up file
+outside the project (wait, refuse after the longest wait, Write refused,
+lost or kept for change / insertion / removal / MultiEdit / Write, the whole
+hook as Claude Code runs it, R scripts not held up).
 
 What it still cannot copy, so the real PDF still differs:
 
@@ -798,7 +837,8 @@ the style block `word-page.css`, the PDF look `pdf-look.css` with its
 every page, the citations as printed, pictures of the tables, figures and
 reference list), `mention.js` (finds the lines of a highlighted text
 in the `.qmd` file and builds the reference for Claude; no VS Code in it),
-`test.js` (84 offline checks of `patch.js` and `mention.js`),
+`typing.js` (writes the typing marks the Claude hooks read, 13 Nov 2026),
+`test.js` (90 offline checks of `patch.js`, `mention.js` and `typing.js`),
 `build.ps1` (runs the checks, packs, installs; VS Code switches a newly
 installed add-on on in the open windows by itself; a changed add-on needs
 Reload Window).
@@ -1298,6 +1338,10 @@ let Claude Code update) and take `wrapCodeBlocks()` out of the opener.
 What you see: section 5. How it works, around every Edit/Write of an R
 script (hooks in `~/.claude/settings.json`, script `~/.claude/review/review.py`):
 
+0. For a `.qmd` or `.md` file, `review.py pre` first waits until the user has
+   not typed in it for 5 seconds, and `post` checks afterwards that the Word
+   Page did not write over the edit (section 5c, "A Claude chat and you in
+   the same file", 13 Nov 2026).
 1. **PreToolUse** (`review.py pre`): stage the file in git (below), then, if
    a VS Code window with the extension has the file's folder open (its
    `window-<pid>.json` in `%LOCALAPPDATA%\claude-edits\` is fresh and not

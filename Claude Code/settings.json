@@ -8,7 +8,7 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "fable",
+  "model": "opus",
   "skillOverrides": {
     "docs": "off",
     "docx": "off",
@@ -51,7 +51,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"C:/Users/<you>/AppData/Local/Programs/Python/Python312/python.exe\" -I \"C:/Users/<you>/.claude/review/review.py\" pre"
+            "command": "\"C:/Users/<you>/AppData/Local/Programs/Python/Python312/python.exe\" -I \"C:/Users/<you>/.claude/review/review.py\" pre",
+            "timeout": 150
           }
         ]
       }
