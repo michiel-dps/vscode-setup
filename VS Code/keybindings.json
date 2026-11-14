@@ -38,6 +38,11 @@
         "when": "activeCustomEditorId == 'quarto.visualEditor' && !sideBarFocus && !auxiliaryBarFocus && !panelFocus"
     },
     {
+        "key": "ctrl+numpad5",
+        "command": "wordPage.browserToClaude",
+        "when": "activeEditor == 'workbench.editor.browser' && !sideBarFocus && !auxiliaryBarFocus && !panelFocus"
+    },
+    {
         "key": "ctrl+numpad6",
         "command": "workbench.action.toggleAuxiliaryBar"
     },

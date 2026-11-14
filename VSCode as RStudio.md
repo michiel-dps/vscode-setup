@@ -178,6 +178,8 @@ line between editor groups, not the edge of the side windows or the bottom panel
       "when": "editorTextFocus && editorHasSelection" },
     { "key": "ctrl+numpad5", "command": "wordPage.selectionToClaude",
       "when": "activeCustomEditorId == 'quarto.visualEditor' && !sideBarFocus && !auxiliaryBarFocus && !panelFocus" },
+    { "key": "ctrl+numpad5", "command": "wordPage.browserToClaude",
+      "when": "activeEditor == 'workbench.editor.browser' && !sideBarFocus && !auxiliaryBarFocus && !panelFocus" },
     { "key": "ctrl+numpad7", "command": "runCommands",
       "args": { "commands": [
         "workbench.action.focusSecondEditorGroup",
@@ -195,7 +197,7 @@ line between editor groups, not the edge of the side windows or the bottom panel
 | Ctrl+Shift+M | types ` %>%` (RStudio's pipe shortcut); right after a space just `%>%`, so no double spaces |
 | Ctrl+M | disabled (it toggled "Tab moves focus" by accident) |
 | Ctrl+Enter | run the statement at the cursor, or the selection widened to whole statements; refuses an unfinished statement with a yellow warning (section 5) |
-| Ctrl+Numpad5 | jump to the **Claude Code** chat box in the side panel (opens it if closed). With lines highlighted in a file, it also types a reference to them into the message, e.g. `@code/04_maps.R#12-20` (file from the project folder, first-last line), so Claude reads exactly those lines; without a highlight it only jumps. Two entries for the same key: the plain one first, then one with `"when": "editorTextFocus && editorHasSelection"` that runs `claude-vscode.sidebar.open` and then `claude-vscode.insertAtMention` (the Claude add-on's own Alt+K command); the later entry wins when its `when` is true. The order inside matters: side panel first, because the add-on types the reference into every Claude chat that is visible at that moment (read in its code, version 2.1.322), so a Claude tab that is open next to the code gets the reference too; delete it there. A highlight on a Word Page is not an editor selection, so there a third entry (`"when": "activeCustomEditorId == 'quarto.visualEditor' ..."`, keyboard on the page) runs the Word Page add-on's own command, which does the same job in another way: section 5c, "Highlighted text to Claude". NumLock must be on (added 11 Nov 2026) |
+| Ctrl+Numpad5 | jump to the **Claude Code** chat box in the side panel (opens it if closed). With lines highlighted in a file, it also types a reference to them into the message, e.g. `@code/04_maps.R#12-20` (file from the project folder, first-last line), so Claude reads exactly those lines; without a highlight it only jumps. Two entries for the same key: the plain one first, then one with `"when": "editorTextFocus && editorHasSelection"` that runs `claude-vscode.sidebar.open` and then `claude-vscode.insertAtMention` (the Claude add-on's own Alt+K command); the later entry wins when its `when` is true. The order inside matters: side panel first, because the add-on types the reference into every Claude chat that is visible at that moment (read in its code, version 2.1.322), so a Claude tab that is open next to the code gets the reference too; delete it there. A highlight on a Word Page is not an editor selection, so there a third entry (`"when": "activeCustomEditorId == 'quarto.visualEditor' ..."`, keyboard on the page) runs the Word Page add-on's own command, which does the same job in another way: section 5c, "Highlighted text to Claude". A highlight in the macro Tutor (VS Code's built-in browser, Ctrl+Numpad3) is not an editor selection either: a fourth entry (`"when": "activeEditor == 'workbench.editor.browser' ..."`) runs `wordPage.browserToClaude`, which pastes the highlighted piece, where it sits and its card into the chat box, ending "My question: " (section 5c, "Highlighted text in the built-in browser", 14 Nov 2026). NumLock must be on (added 11 Nov 2026) |
 | Ctrl+Numpad7 | new **Claude Code** chat as a tab in its own column on the right (runs on the Claude subscription): it first focuses the second editor group (VS Code makes one on the right if there is only one), then runs `claude-vscode.primaryEditor.open`, which opens in that active group (or in a column that already holds only Claude tabs) and, unlike `claude-vscode.editor.open`, does not switch `claudeCode.preferredLocation` from sidebar to panel. Changed 4 Nov 2026: it first opened VS Code's own Claude harness ("Claude copilot"), but that chat cannot send anything here: Copilot Free (`copilot token sku: free_limited_copilot`) offers it no Claude models, and Anthropic does not allow claude.ai subscription logins in Agent SDK products (Agent SDK overview page), so it would need an Anthropic API key or a paid Copilot plan. Old notes on that harness, kept for later: it first focuses the second editor group (VS Code makes one on the right if there is only one), then opens the chat there; if that column already shows a Claude chat, the new one replaces it in place (the old one stays in the sessions list). Layout: Claude Code in the left side bar, code + Claude chat in the middle, Copilot chat ("Chat"; VS Code cannot rename a view) in the right side bar. VS Code has only one chat view, which is why the Claude chat is an editor tab and not a second side bar. Session type `agent-host-claude` (VS Code's Agent Host; the same command as picking "Claude" in the chat's session-type menu). Needed `"chat.agentHost.claudeAgent.enabled": true` in settings.json; **removed again 5 Nov 2026**: with it on, the Copilot chat panel opened this Claude chat type (which cannot send) and the old Copilot chats dropped out of the sessions list. Do not turn it back on (the old name `github.copilot.chat.claudeAgent.enabled` no longer exists in VS Code 1.144). Who pays depends on the model picked in that chat: models from your own Anthropic login (VS Code tags them `anthropic`, "native") bill your Claude account; the others go through Copilot. While signed in to GitHub, Copilot is the default. Native models only appear after VS Code has downloaded the Claude Agent SDK (agenthost.log said "SDK not downloaded yet" on 4 Nov). Added 4 Nov 2026 |
 | Ctrl+Numpad8 | jump to the Copilot chat box in the side window (opens it if closed); NumLock must be on (added 4 Nov 2026) |
 | Ctrl+Numpad3 | open the macro Tutor (the study page for the macro exam, online on claude.ai) as a tab inside VS Code, in a column to the side, so it sits next to the Claude chat. Progress is saved to his account; Claude grading and "Ask Claude about this" work. It runs VS Code's own built-in browser (`workbench.action.browser.open`, in VS Code since 1.109; no add-on). `reuseUrlFilter` makes a second press jump to the tab that is already open instead of opening another one; `openToSide` puts it in the side column and locks that column (VS Code's own behaviour: files you open go to the other column). After Claude republishes the page: Ctrl+R in that tab. He asked for this on 13 Nov 2026 ("get it to my editor window") because switching between VS Code and claude.ai was a hassle; the default key Ctrl+Alt+/ did not open anything for him. The command id and its arguments were read from VS Code's own code (1.146), they are not in the documentation. Works, also the claude.ai login inside it (he confirmed 13 Nov 2026). NumLock must be on. A second key, Ctrl+Numpad9, opened the local copy `Study tool/ECON4310 Tutor.html` (no Claude, progress only in that browser); removed the same day at his request, Numpad3 is better (added 13 Nov 2026) |
@@ -989,6 +991,38 @@ Things to know.
 - One line per key press in `%TEMP%\word-page.log` (what was found, what was
   pasted, how long the copy and the panel took). Read that first when it
   "does nothing".
+
+**Highlighted text in the built-in browser: Ctrl+Numpad5 in the macro Tutor**
+(14 Nov 2026, his wish: "highlight something in the exam tutor, press Ctrl 5,
+go to the side panel"; it replaces the Tutor's button "Send to Claude chat
+(VS Code)", which copied and left the pasting to him). Highlight text in the
+Tutor tab (Ctrl+Numpad3), press Ctrl+Numpad5: the Claude side panel takes the
+keyboard and its chat box gets "I selected this in my ECON4310 Exam Tutor
+(where) ... the piece ... its card ... My question: ", so he types his question
+straight after it.
+
+How it works. VS Code cannot copy out of its built-in browser (its copy
+command only works on VS Code's own window), so the page does the copy:
+
+1. The browser tab passes Ctrl+key presses on to VS Code (its
+   `preload-browserView.js`, in every frame, also inside claude.ai's frame),
+   but the page sees the key first. The Tutor's keydown handler
+   (`Study tool/build/tutor/engine_ask.js`, H26 project) puts the text on the
+   clipboard at once, after a first line `[to Claude chat]`.
+2. `wordPage.browserToClaude` (Word Page add-on, `extension.js`, part 4b)
+   waits up to 0.4 s for a clipboard that starts with that line, writes it
+   back without the line, and pastes it into the chat box the same way as the
+   Word Page does (`pasteInChatBox`: the 3-second wait the first time, 0.15 s
+   before the paste).
+3. Nothing highlighted, or another web page: nothing comes, and the key only
+   goes to the chat box (after 0.4 s).
+
+Unlike on the Word Page, the clipboard is not put back: it keeps the pasted
+text (the page cannot read the old clipboard). One line per press in
+`%TEMP%\word-page.log` (`browser: pasted ... characters` or `browser: nothing
+came from the page`). A Tutor tab opened before 14 Nov 2026: Ctrl+R in it
+first. Another web page can take part by putting text after the same first
+line on the clipboard when Ctrl+Numpad5 is pressed.
 
 **Test bench for Claude** (`bench\`). Claude cannot see the screen, so it
 tests in a second VS Code that nobody sees: `bench\launch.ps1` copies VS

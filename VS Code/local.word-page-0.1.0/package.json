@@ -37,6 +37,10 @@
 			{
 				"command": "wordPage.selectionToClaude",
 				"title": "Word Page: Highlighted Text to the Claude Chat Box"
+			},
+			{
+				"command": "wordPage.browserToClaude",
+				"title": "Word Page: Highlighted Text in the Built-in Browser to the Claude Chat Box"
 			}
 		],
 		"menus": {

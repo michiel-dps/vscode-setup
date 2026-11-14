@@ -47,6 +47,7 @@ function activate(context) {
     vscode.commands.registerCommand("wordPage.openAsText", openAsText),
     vscode.commands.registerCommand("wordPage.putBack", () => refresh(true)),
     vscode.commands.registerCommand("wordPage.selectionToClaude", selectionToClaude),
+    vscode.commands.registerCommand("wordPage.browserToClaude", browserToClaude),
     // Quarto was updated or installed: its new files do not have the page yet
     vscode.extensions.onDidChange(() => refresh(false)),
     vscode.workspace.onDidChangeConfiguration((change) => {
@@ -310,6 +311,61 @@ async function answerOfPage(ms) {
   }
 }
 
+// Go to the Claude chat box and paste what is on the clipboard there.
+// Returns a few words for the log: how long the panel took.
+async function pasteInChatBox() {
+  const opening = Date.now();
+  await vscode.commands.executeCommand(CLAUDE_PANEL);
+  const panelTime = Date.now() - opening;
+  const loaded = panelTime < PANEL_WAS_OPEN || (panelFirstOpened > 0 && opening - panelFirstOpened > PANEL_START);
+  if (panelFirstOpened === 0) { panelFirstOpened = opening; }
+  if (!loaded) {
+    // The panel was closed, and maybe never open in this window. Then the chat box
+    // has to start first, and does not take the keyboard by itself: wait, ask again.
+    await pause(PANEL_START);
+    await vscode.commands.executeCommand(CLAUDE_PANEL);
+  }
+  await pause(150);                      // the chat box takes the keyboard a moment after its panel
+  await vscode.commands.executeCommand("editor.action.clipboardPasteAction");
+  await pause(300);                      // the paste reads the clipboard a moment later
+  return "panel " + panelTime + " ms" + (loaded ? "" : ", waited for the chat box to start");
+}
+
+// ---- 4b. highlighted text on a web page in VS Code's built-in browser (14 Nov 2026) ----
+// VS Code cannot copy from its built-in browser. So the page itself does it: a page
+// that knows this (the macro Exam Tutor) puts the text on the clipboard when
+// Ctrl+Numpad5 is pressed with something highlighted, after a first line BROWSER_MARK.
+// This command (the same key, in the browser tab) waits a moment for that text, goes to
+// the Claude chat box and pastes it there without the mark. The text stays on the
+// clipboard. Nothing comes (nothing highlighted, or another page): it only goes to the chat box.
+const BROWSER_MARK = "[to Claude chat]\n";
+const BROWSER_WAIT = 400;      // ms: the page copies before VS Code gets the key, so it is usually there at once
+
+async function browserToClaude() {
+  const clipboard = vscode.env.clipboard;
+  const started = Date.now();
+  let text = null;
+  for (;;) {
+    const now = (await clipboard.readText()).replace(/\r\n/g, "\n");
+    if (now.startsWith(BROWSER_MARK)) { text = now.slice(BROWSER_MARK.length); break; }
+    if (Date.now() - started >= BROWSER_WAIT) { break; }
+    await pause(15);
+  }
+  try {
+    if (text === null) {
+      await vscode.commands.executeCommand(CLAUDE_PANEL);
+      log("browser: nothing came from the page, only went to the chat box");
+      return;
+    }
+    await clipboard.writeText(text);       // without the mark, so a later press does not paste it again
+    const how = await pasteInChatBox();
+    log("browser: pasted " + text.length + " characters (wait " + (Date.now() - started) + " ms in all, " + how + ")");
+  } catch (err) {
+    log("browser: error " + (err && err.message ? err.message : err));
+    vscode.window.showWarningMessage("Word Page: could not send the highlighted text to Claude. " + (err && err.message ? err.message : err));
+  }
+}
+
 async function selectionToClaude() {
   const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
   const onPage = tab && tab.input instanceof vscode.TabInputCustom && tab.input.viewType === VISUAL_EDITOR;
@@ -361,23 +417,9 @@ async function selectionToClaude() {
     // 3. paste it into the chat box
     try {
       await clipboard.writeText(reference);
-      const opening = Date.now();
-      await vscode.commands.executeCommand(CLAUDE_PANEL);
-      const panelTime = Date.now() - opening;
-      const loaded = panelTime < PANEL_WAS_OPEN || (panelFirstOpened > 0 && opening - panelFirstOpened > PANEL_START);
-      if (panelFirstOpened === 0) { panelFirstOpened = opening; }
-      if (!loaded) {
-        // The panel was closed, and maybe never open in this window. Then the chat box
-        // has to start first, and does not take the keyboard by itself: wait, ask again.
-        await pause(PANEL_START);
-        await vscode.commands.executeCommand(CLAUDE_PANEL);
-      }
-      await pause(150);                      // the chat box takes the keyboard a moment after its panel
-      await vscode.commands.executeCommand("editor.action.clipboardPasteAction");
-      await pause(300);                      // the paste reads the clipboard a moment later
+      const how = await pasteInChatBox();
       log("claude: " + (lines ? "lines " + lines.first + "-" + lines.last : "no lines found") +
-        ", pasted " + JSON.stringify(reference) + " (copy " + copyTime + " ms, panel " + panelTime + " ms" +
-        (loaded ? "" : ", waited for the chat box to start") + ")");
+        ", pasted " + JSON.stringify(reference) + " (copy " + copyTime + " ms, " + how + ")");
     } finally {
       await clipboard.writeText(old);        // 4.
     }
