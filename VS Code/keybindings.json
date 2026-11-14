@@ -43,6 +43,11 @@
         "when": "activeEditor == 'workbench.editor.browser' && !sideBarFocus && !auxiliaryBarFocus && !panelFocus"
     },
     {
+        "key": "ctrl+numpad5",
+        "command": "wordPage.chatSelectionToClaude",
+        "when": "focusedView == 'claudeVSCodeSidebar' || focusedView == 'claudeVSCodeSidebarSecondary'"
+    },
+    {
         "key": "ctrl+numpad6",
         "command": "workbench.action.toggleAuxiliaryBar"
     },

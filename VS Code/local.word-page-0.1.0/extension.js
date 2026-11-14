@@ -48,6 +48,7 @@ function activate(context) {
     vscode.commands.registerCommand("wordPage.putBack", () => refresh(true)),
     vscode.commands.registerCommand("wordPage.selectionToClaude", selectionToClaude),
     vscode.commands.registerCommand("wordPage.browserToClaude", browserToClaude),
+    vscode.commands.registerCommand("wordPage.chatSelectionToClaude", chatSelectionToClaude),
     // Quarto was updated or installed: its new files do not have the page yet
     vscode.extensions.onDidChange(() => refresh(false)),
     vscode.workspace.onDidChangeConfiguration((change) => {
@@ -363,6 +364,47 @@ async function browserToClaude() {
   } catch (err) {
     log("browser: error " + (err && err.message ? err.message : err));
     vscode.window.showWarningMessage("Word Page: could not send the highlighted text to Claude. " + (err && err.message ? err.message : err));
+  }
+}
+
+// ---- 4c. highlighted text in the Claude panel itself (14 Nov 2026) ----------------
+// Highlight a piece of a Claude answer in the side panel, press Ctrl+Numpad5: the piece
+// comes back into the chat box as a quote ("> ..." lines and an empty line), so the
+// next question can be about it. VS Code's copy command copies from the panel while it
+// has the keyboard. To see whether anything was highlighted, the clipboard first gets a
+// probe text; still the probe after the wait = nothing copied, only go to the chat box.
+// The clipboard is put back afterwards (text only).
+const CHAT_COPY_WAIT = 400;    // ms: the panel copies a moment after the command
+
+async function chatSelectionToClaude() {
+  const clipboard = vscode.env.clipboard;
+  const old = await clipboard.readText();
+  const probe = "word-page probe " + Date.now();
+  try {
+    await clipboard.writeText(probe);
+    await vscode.commands.executeCommand("editor.action.clipboardCopyAction");
+    const started = Date.now();
+    let copied = probe;
+    while (copied === probe && Date.now() - started < CHAT_COPY_WAIT) {
+      await pause(15);
+      copied = await clipboard.readText();
+    }
+    const piece = copied === probe ? "" : copied.replace(/\r\n/g, "\n").trim();
+    if (!piece) {
+      await clipboard.writeText(old);
+      await vscode.commands.executeCommand(CLAUDE_PANEL);
+      log("chat: nothing highlighted in the panel, only went to the chat box");
+      return;
+    }
+    const quote = piece.split("\n").map((line) => "> " + line).join("\n") + "\n\n";
+    await clipboard.writeText(quote);
+    const how = await pasteInChatBox();
+    log("chat: quoted " + piece.length + " characters (copy " + (Date.now() - started) + " ms in all, " + how + ")");
+  } catch (err) {
+    log("chat: error " + (err && err.message ? err.message : err));
+    vscode.window.showWarningMessage("Word Page: could not quote the highlighted text in the chat box. " + (err && err.message ? err.message : err));
+  } finally {
+    await clipboard.writeText(old);
   }
 }
 

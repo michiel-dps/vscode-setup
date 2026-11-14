@@ -41,6 +41,10 @@
 			{
 				"command": "wordPage.browserToClaude",
 				"title": "Word Page: Highlighted Text in the Built-in Browser to the Claude Chat Box"
+			},
+			{
+				"command": "wordPage.chatSelectionToClaude",
+				"title": "Word Page: Quote Highlighted Text of the Claude Panel in Its Chat Box"
 			}
 		],
 		"menus": {
