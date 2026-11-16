@@ -1114,6 +1114,25 @@ saving from the page in the bench and comparing the file):
     `inject/assistant.js`). It does an Accept on each: the marks go, the text
     stays. Tested in the bench: 4 marks in chapter 1 accepted, the mark in
     chapter 2 stayed.
+  - **Accept all in a selection** (16 Nov 2026, asked: "if I select a part
+    of the text i can get a button saying accept all in selected area").
+    Select text on the page: when the selection touches Claude edits, a
+    green button "Accept all n Claude edits in selection" shows under it
+    (`editsInSelection`, `showSelectionButton`; it follows `selectionchange`
+    and every redraw). Only Claude edits: the marks go, the text stays.
+    Grammarly suggestions are not touched (accepting those would change the
+    text). Tested in the bench: one paragraph selected, its mark went, the
+    mark of the next paragraph stayed.
+  - **Declined stays declined** (16 Nov 2026, asked: "dont want to see the
+    same proposal again if i declined it once"). A suggestion's id holds the
+    whole paragraph, so after any other change in that paragraph (also an
+    Accept, which makes Claude read it again) the same proposal came back
+    with a new id. Decline now also remembers the change itself, old words
+    → new words in lower case (`changeKey`, localStorage
+    `wp-assistant-declined`, the last 2000), and that change is hidden in
+    every paragraph from then on. Claude edits are not affected. Not tried
+    in the bench (needs real suggestions from Claude); same storage as the
+    per-card Decline.
   - **The switches** at the top right of the page (16 Nov 2026, asked), under
     each other: **Grammarly** (the suggestions) and **Claude edits** (Claude's
     edits, named so on 16 Nov), each with its count; green = shown in the
