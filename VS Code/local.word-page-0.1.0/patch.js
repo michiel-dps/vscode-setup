@@ -156,6 +156,24 @@ function addSpellingHook(js) {
   return { js: out, ok: true };
 }
 
+// ---- faster spelling suggestions (16 Nov 2026, "very slow") ----
+// Quarto's spelling (Typo.js) builds every word one change away from the wrong word, then
+// every word two changes away (about a million dictionary checks): 0.6 to 1.9 s per word
+// with en_GB, measured in VS Code's node. Almost every typo is one change away (recieve,
+// goverment, municipalty). The hook keeps the words one change away that are real words, and
+// only when there is none it does the slow second round, as before.
+//   function d(e){var n,r=u((n={},n[e]=!0,n)),i=u(r,!0);for(var a in r)l.check(a)&&
+const SUGGEST = /function ([\w$]+)\(([\w$]+)\)\{var ([\w$]+),([\w$]+)=([\w$]+)\(\(\3=\{\},\3\[\2\]=!0,\3\)\),([\w$]+)=\5\(\4,!0\);for\(var ([\w$]+) in \4\)([\w$]+)\.check\(\7\)&&/g;
+
+function addSuggestHook(js) {
+  if (countOf(js, SUGGEST) !== 1) { return { js: js, ok: false }; }
+  const out = js.replace(SUGGEST, (whole, fn, word, tmp, one, edits, two, key, typo) =>
+    "function " + fn + "(" + word + "){var " + tmp + "," + one + "=" + edits + "((" + tmp + "={}," + tmp + "[" + word + "]=!0," + tmp + "))," +
+    two + "=/*wp+*/(function(){var wpOne={},wpAny=!1;for(var wpW in " + one + ")if(" + typo + ".check(wpW)){wpOne[wpW]=" + one + "[wpW];wpAny=!0}return wpAny?wpOne:null})()||/*wp-*/" +
+    edits + "(" + one + ",!0);for(var " + key + " in " + one + ")" + typo + ".check(" + key + ")&&");
+  return { js: out, ok: true };
+}
+
 // The text without any word-page block or hook. A block is taken out together with the
 // line break before it and the one after it: exactly what apply() adds, so a
 // file comes back byte for byte as it was.
@@ -187,7 +205,7 @@ function wanted(quartoDir, injectDir, options) {
   const jsNow = fs.readFileSync(files.js, "utf8");
   const cssNow = fs.readFileSync(files.css, "utf8");
   const synced = addSyncHooks(strip(jsNow));
-  const spelled = addSpellingHook(synced.js);
+  const spelled = addSuggestHook(addSpellingHook(synced.js).js);
   const blocks = buildBlocks(injectDir, options, synced.ok);
   return {
     files, jsNow, cssNow, sync: synced.ok,
@@ -288,6 +306,6 @@ function holdFile(quartoDir) {
 }
 
 module.exports = {
-  findQuarto, editorFiles, buildBlocks, strip, apply, remove, state, addSyncHooks, addSpellingHook, synced, START, END,
+  findQuarto, editorFiles, buildBlocks, strip, apply, remove, state, addSyncHooks, addSpellingHook, addSuggestHook, synced, START, END,
   pdfDataFile, pdfDataCss, readPdfDataCss, writePdfData, pdfPictureDir, PICTURE_DIR, holdFile, HOLD_FILE
 };

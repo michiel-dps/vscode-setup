@@ -934,6 +934,14 @@ saving from the page in the bench and comparing the file):
   (`addSpellingHook` in `patch.js`, between `/*wp+*/` and `/*wp-*/` like the
   others) makes it look at the spot under the mouse (`posAtCoords`). A word
   without a red line still gets VS Code's normal menu (Cut, Copy, Paste).
+  **Fast** (16 Nov 2026, "very slow"): Quarto's spelling (Typo.js) built
+  every word one change away, then every word two changes away (about a
+  million dictionary checks): 0.6 to 1.9 s before the menu came (measured
+  with en_GB in VS Code's node). A fifth hook (`addSuggestHook`) keeps the
+  real words one change away and does the slow second round only when there
+  is none: 1 to 12 ms (receive, government, municipality, Norwegian,
+  definitely: the right word first or second); a word with nothing close
+  still takes about 0.3 s.
 - Spell check on the page is British English since 12 Nov 2026:
   `"quarto.visualEditor.spellingDictionary": "en_GB"` in settings.json. The
   default is American and marked "neighbours" as wrong. Quarto has en_AU,

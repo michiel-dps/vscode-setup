@@ -237,6 +237,16 @@ check("spelling hook: the spot under the mouse replaces the start of the element
 check("spelling hook: the result is valid JavaScript", (() => { try { new Function("var o={" + spelled.js + "};"); return true; } catch (e) { console.log(e.message); return false; } })());
 check("spelling hook: not twice", patch.addSpellingHook(menuLine + menuLine).ok === false);
 check("spelling hook: Quarto's code changed: nothing goes in", patch.addSpellingHook(menuLine.replace("posAtDOM", "posAt")).ok === false);
+// faster spelling suggestions (patch.addSuggestHook), on Quarto 1.139's own line of Typo.js
+const typoLine = "var l=this;function u(e,t){return{}}function d(e){var n,r=u((n={},n[e]=!0,n)),i=u(r,!0);for(var a in r)l.check(a)&&(i[a]=r[a]);return i}";
+const fast = patch.addSuggestHook(typoLine);
+check("suggest hook: it fits Quarto 1.139's code", fast.ok);
+check("suggest hook: strip gives Quarto's code back byte for byte", patch.strip(fast.js) === typoLine);
+check("suggest hook: one change away first, the slow second round only when that finds nothing",
+  fast.js.includes("i=/*wp+*/(function(){var wpOne={},wpAny=!1;for(var wpW in r)if(l.check(wpW)){wpOne[wpW]=r[wpW];wpAny=!0}return wpAny?wpOne:null})()||/*wp-*/u(r,!0);"));
+check("suggest hook: the result is valid JavaScript", (() => { try { new Function(fast.js); return true; } catch (e) { console.log(e.message); return false; } })());
+check("suggest hook: not twice", patch.addSuggestHook(typoLine + typoLine).ok === false);
+check("suggest hook: Quarto's code changed: nothing goes in", patch.addSuggestHook(typoLine.replace("u(r,!0)", "u(r,!1)")).ok === false);
 check("hooks: patch.apply puts them in a Quarto that has these lines, and remove takes them out", (() => {
   fs.writeFileSync(files.js, quartoLines);
   const done = patch.apply(old, inject, options);
