@@ -1129,6 +1129,17 @@ saving from the page in the bench and comparing the file):
     citation). Tested in the bench: three marks for a word change, a new
     paragraph and a shortened sentence, the old Undo (now Decline) changed
     page and file back, the switch and the old Keep (now Accept) work.
+  - **A Decline stays declined** (16 Nov 2026, "i just declined a claude
+    edit proposal ... and now it came back"). The keep check in
+    `extension.js` (a page write that lacks a change just read from disk
+    gets that change merged back) took the Decline for such a missed
+    change and put Claude's words back. Now `onlyDeclined` in
+    `assistant.js` first asks: does the page have the rest of the change,
+    with only some of its marks back to their old words? Then it is a
+    Decline and is left alone (log: "keep: ... put old words back with
+    Decline, left as it is"). When every mark of a change is declined, it
+    cannot be told from a missed change, so it is merged back as before:
+    then use Ctrl+Z, or ask Claude. Tests: `test.js`, "keep: a Decline".
   - **The same buttons on every card** (16 Nov 2026, asked: Claude's edits had
     a green Undo and a white Keep, the suggestions a green Accept and a white
     Dismiss, "which is confusing"). Now every card has a green **Accept** =
