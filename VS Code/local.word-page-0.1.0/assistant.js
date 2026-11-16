@@ -64,7 +64,8 @@ function paragraphsOf(markdown) {
       continue;
     }
     if (trimmed === "") { flush(); continue; }
-    if (/^(#{1,6}\s|\||:::|<|!\[|\\[a-zA-Z]|-{3,}$|\*{3,}$)/.test(trimmed)) { flush(); continue; }
+    // headings, tables and their captions (": Table A7 ..."), divs, HTML, pictures, LaTeX, rules
+    if (/^(#{1,6}\s|\||:::|:\s|<|!\[|\\[a-zA-Z]|-{3,}$|\*{3,}$)/.test(trimmed)) { flush(); continue; }
     block.push(line);
   }
   flush();

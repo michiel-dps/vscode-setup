@@ -402,10 +402,11 @@ const paperText = [
   "$$", "y = x", "$$", "",
   "::: landscape", "", "Text inside a div that is long enough to count here.", "", ":::", "",
   "Short.", "",
+  ": **Table A7.** The checks on the pipeline and what each of them shows", "",
   "[^1]: A footnote with enough words to be checked by Claude."
 ].join("\n");
 const paras = assistant.paragraphsOf(paperText).map((p) => p.text);
-check("assistant: paragraphs leave out the header, headings, code, tables and maths", !paras.some((t) => /title|What we ask|x <- 1|\| a|y = x|^# /.test(t)));
+check("assistant: paragraphs leave out the header, headings, code, tables, table captions and maths", !paras.some((t) => /title|What we ask|x <- 1|\| a|y = x|^# |Table A7/.test(t)));
 check("assistant: a running paragraph is found as in the file",
   paras.includes("The results shows that the scheme have a positive effect [@Hoydahl_2023], see @fig-map."));
 check("assistant: a list gives one paragraph per item, without the marker",
