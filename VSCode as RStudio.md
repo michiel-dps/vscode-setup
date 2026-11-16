@@ -34,6 +34,32 @@ without copying anything into it. `%APPDATA%` = `C:\Users\<you>\AppData\Roaming`
 See `README.md`: install the programs, double-click `INSTALL.cmd`, then do
 the five clicks it prints. INSTALL does sections 2 to 6 below by itself.
 
+**Choosing parts, and a guided install for someone else** (16 Nov 2026).
+`scripts\install.ps1` has eight parts: `addons`, `enter`, `settings`, `r`,
+`wordpage`, `git`, `claude`, `memory`. INSTALL.cmd installs all of them, as
+before. `-Plan` shows each part (what it does, what it downloads, which
+programs it needs and whether they are there, which files it replaces) and
+changes nothing. `-Parts a,b` installs only those. It asks only for the
+programs those parts need. `-SkipAddons` leaves Marketplace add-ons out.
+`-GitName`/`-GitEmail` fill in git's name and e-mail; with the GitHub copy's
+"Your Name" still in `.gitconfig`, the git part is skipped. The installer
+also swaps the setup folder's own path, so a GitHub copy works from any
+folder, and the `<you>` placeholder becomes the user folder. The GitHub copy
+gets a `CLAUDE.md` at the top (source: `scripts\github-CLAUDE.md`, copied
+there by publish.ps1). When someone opens the copy in VS Code and asks Claude
+Code to install it, Claude follows that guide:
+- welcome
+- `-Plan`
+- a table of the parts, ticked with the question tool
+- warnings: `settings` replaces their own settings, `CLAUDE.md` holds the
+  owner's rules, `r` and `wordpage` need the add-ons
+- every download listed with its size, and a clear yes
+- missing programs installed one at a time with winget
+- `-Parts ...`
+- the steps left to do by hand, and how to undo from the backup folder
+
+Tested 16 Nov with `-TestRoot`, from this folder and from the GitHub copy.
+
 ## 2. Startup file: watch.R in every R terminal
 
 R reads the file named in the Windows user variable `R_PROFILE_USER` at

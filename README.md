@@ -21,6 +21,19 @@ changes anything in it (for example `/personalsettings turn off line numbers`).
 INSTALL never throws anything away: every file it replaces is first copied
 to `C:\Users\<you>\setup-backup-<date>`.
 
+Only some parts, or first a look: `scripts\install.ps1 -Plan` shows every
+part (what it does, what it downloads, which files it replaces) and changes
+nothing. `-Parts settings,r` installs only those parts (the list is at the
+top of install.ps1).
+
+## Someone else installing it (from the GitHub copy)
+
+They open the copy in VS Code and ask Claude Code to install the setup.
+Claude follows `CLAUDE.md` at the top of the copy (its source here is
+`scripts\github-CLAUDE.md`): it shows the parts, lets them tick what they
+want, lists every program, add-on and package that will be downloaded, asks
+for a yes, then installs and lists the steps left to do by hand.
+
 ## Keeping this folder up to date
 
 **SAVE.cmd** copies this laptop's setup into this folder. Double-click it

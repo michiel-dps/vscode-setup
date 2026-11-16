@@ -41,7 +41,13 @@
       if (assistLink && assistLink !== link) { assistLink.remove(); }
       assistLink = link;
       var raw = getComputedStyle(document.documentElement).getPropertyValue("--wp-assistant").trim().replace(/^["']|["']$/g, "");
-      if (raw === assist.raw) { return; }
+      if (raw === assist.raw) {
+        // an accepted suggestion whose few seconds are over: draw again (it may be back)
+        for (var id in assist.gone) {
+          if (Date.now() - assist.gone[id] >= 6000) { delete assist.gone[id]; assistSchedule(true); }
+        }
+        return;
+      }
       assist.raw = raw;
       try {
         var bytes = Uint8Array.from(atob(raw), function (c) { return c.charCodeAt(0); });
@@ -166,7 +172,8 @@
     var found = [];
     for (var i = 0; i < list.length; i++) {
       var s = list[i];
-      if (dismissed.indexOf(s.id) >= 0 || assist.gone[s.id]) { continue; }
+      // accepted a moment ago: hidden until the add-on's new list has come (after Ctrl+Z it is back)
+      if (dismissed.indexOf(s.id) >= 0 || (assist.gone[s.id] && Date.now() - assist.gone[s.id] < 6000)) { continue; }
       var range = assistRange(s, page);
       if (range) { found.push({ s: s, range: range }); }
     }
@@ -272,7 +279,7 @@
     try {
       done = found.s.replacement ? document.execCommand("insertText", false, found.s.replacement) : document.execCommand("delete", false);
     } catch (err) { done = false; }
-    if (done) { assist.gone[found.s.id] = true; }
+    if (done) { assist.gone[found.s.id] = Date.now(); }
     closeCard();
     setTimeout(function () { assistSchedule(true); }, 50);
   }

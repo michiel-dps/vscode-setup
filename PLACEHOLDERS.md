@@ -8,5 +8,7 @@ paths are replaced:
 - `<name>`: the own folder inside Dropbox
 - `<project>`, `<co-author>`: a project folder and a co-author's folder
 
-Claude's memory notes are left out. Put the real names back before using
-INSTALL.cmd from this copy.
+Claude's memory notes are left out. The installer (scripts\install.ps1)
+changes `<you>` and the setup folder's own path to yours. To install with
+help, open this folder in VS Code and ask Claude Code to install the setup:
+it follows CLAUDE.md.
