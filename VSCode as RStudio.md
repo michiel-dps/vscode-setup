@@ -1704,6 +1704,13 @@ e.g. one per group of figure versions, instead of one long run. Background:
 the map versions of 11 Nov took 20 to 40 minutes as one or two processes,
 with the CPU at 30% and RAM not the limit.
 
+**No semicolons (16 Nov 2026, his wish).** A section in `~/.claude/CLAUDE.md`
+("No semicolons (every project)") tells Claude never to write a `;` in
+anything for him: chat answers, papers, notes, code comments, strings and
+setup files. A full stop, a comma or "and" instead. The only exception is
+syntax that needs it, like the separator in `[@A; @B]`. It started on 12 Nov
+as a rule for his term paper scripts and paper only.
+
 ### Black code boxes in the Claude chat wrap to the panel width (9 Nov 2026)
 
 The black boxes in the Claude chat (code blocks in replies, and tool output

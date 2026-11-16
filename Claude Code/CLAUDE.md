@@ -6,6 +6,10 @@
 - For laws and regulations on Lovdata, link to the version in force for the period the sentence is about (/LTI/ = as originally published, /SF/ or /NL/ = current version), and to the specific paragraph (§) when one is cited.
 - A citation only counts if the cited source (and the cited paragraph or page) actually says what the sentence claims. Do not cite from memory.
 
+## No semicolons (every project)
+- **Never write a semicolon (`;`) in anything for him**: chat answers, papers and documents, notes, code comments, strings and messages, setup files. He does not like them (16 Nov 2026, "i dont like using semicolons", first asked for his scripts and paper on 12 Nov). Use a full stop, a comma or "and" instead.
+- The only exception is where a language needs it as syntax and nothing else works, such as pandoc's separator between two citations in one bracket (`[@A; @B]`). R never needs one: put each statement on its own line.
+
 ## Personal settings
 - When he says "personal settings" (or "my settings", "my setup"), he means his whole setup: VS Code, the RStudio-like R setup, Claude Code (this file, settings, hooks, slash commands, memory), git, and Windows sleep and power (the laptop stays awake while Claude works, also when locked; the power plans are left alone). Master copy: the folder `C:\Users\<you>\<Dropbox>\<name>\VS Code setup`. Anonymous copy: his private GitHub repo vscode-setup, made by `scripts/publish.ps1` in that folder.
 - Questions, checks and changes about them go through `/personalsettings`. Follow its steps (real file first, update the note, save.ps1, publish.ps1) also when he asks without the command. That includes "my laptop goes to sleep" or "keep it awake": never change a sleep, lid or power-plan setting before reading section 9 of the note.
