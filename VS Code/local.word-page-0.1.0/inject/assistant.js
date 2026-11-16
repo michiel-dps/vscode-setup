@@ -545,22 +545,70 @@
     }
   }
 
-  // a click in the text on underlined words opens their card; a click elsewhere closes it
-  document.addEventListener("click", function (event) {
-    if (assistCard && assistCard.contains(event.target)) { return; }
-    if (assistPanel && assistPanel.contains(event.target)) { return; }
-    var x = event.clientX, y = event.clientY;
+  // the underlined words at a point of the window, or null
+  function markAt(x, y) {
     for (var i = 0; i < assist.found.length; i++) {
       if (!visible(assist.found[i])) { continue; }
       var rects = assist.found[i].range.getClientRects();
       for (var r = 0; r < rects.length; r++) {
         var rect = rects[r];
-        if (x >= rect.left - 1 && x <= rect.right + 1 && y >= rect.top - 2 && y <= rect.bottom + 3) {
-          openCard(assist.found[i]);
-          return;
-        }
+        if (x >= rect.left - 1 && x <= rect.right + 1 && y >= rect.top - 2 && y <= rect.bottom + 3) { return assist.found[i]; }
       }
     }
+    return null;
+  }
+
+  // Do the words touch something the page draws differently once the cursor is in it: a
+  // citation (shown as "(Author, 2020)", with the cursor as "[@key]"), maths, or a table's
+  // include line? Then a click there makes the text jump.
+  function touchesJumpy(range) {
+    var start = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
+    var block = start && start.closest ? (start.closest("p, li, dd, dt, td, th") || start) : null;
+    if (!block) { return false; }
+    var jumpy = block.querySelectorAll(".cite, [class*='math'], dl.pm-definition-list");
+    for (var i = 0; i < jumpy.length; i++) { if (range.intersectsNode(jumpy[i])) { return true; } }
+    return !!(block.closest && block.closest(".cite, [class*='math'], dl.pm-definition-list"));
+  }
+
+  // A click on underlined words opens their card (16 Nov 2026, asked: "if i click on the
+  // grammarly stuff it sometimes clicks me out of it and moves my cursor to another place").
+  // The card is chosen when the button goes down, before anything moves: before, it was chosen
+  // at the click (button up), and when the words were in or next to a citation, the cursor
+  // landing in it had already turned "(Author, 2020)" into "[@key]", the text had jumped, the
+  // click missed the words, and the card closed with the cursor somewhere else. On words that
+  // touch a citation, maths or a table line, the cursor now stays where it was (nothing jumps);
+  // on plain words it goes there as always, to type in them. A drag (selecting text) that
+  // starts on underlined words opens no card.
+  var pressed = null;        // { mark, x, y } of the button going down on underlined words
+  document.addEventListener("mousedown", function (event) {
+    pressed = null;
+    if (event.button !== 0) { return; }
+    if (assistCard && assistCard.contains(event.target)) { return; }
+    if (assistPanel && assistPanel.contains(event.target)) { return; }
+    if (selectionButton && selectionButton.contains(event.target)) { return; }
+    var mark = markAt(event.clientX, event.clientY);
+    if (!mark) { return; }
+    pressed = { mark: mark, x: event.clientX, y: event.clientY };
+    if (touchesJumpy(mark.range)) {
+      event.preventDefault();        // the cursor and the keyboard stay where they are
+      event.stopPropagation();       // the editor does not move the cursor either
+    }
+  }, true);
+
+  // a click on underlined words opens their card; a click elsewhere closes it
+  document.addEventListener("click", function (event) {
+    if (assistCard && assistCard.contains(event.target)) { return; }
+    if (assistPanel && assistPanel.contains(event.target)) { return; }
+    var down = pressed;
+    pressed = null;
+    var mark = null;
+    if (down) {
+      // the button came up close to where it went down: a click, not a drag
+      if (Math.abs(event.clientX - down.x) <= 5 && Math.abs(event.clientY - down.y) <= 5) { mark = down.mark; }
+    } else {
+      mark = markAt(event.clientX, event.clientY);
+    }
+    if (mark) { openCard(mark); return; }
     if (assist.open) { closeCard(); assistDraw(); }
   }, true);
   document.addEventListener("keydown", function (event) {

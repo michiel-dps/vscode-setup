@@ -1157,6 +1157,20 @@ saving from the page in the bench and comparing the file):
     every paragraph from then on. Claude edits are not affected. Not tried
     in the bench (needs real suggestions from Claude); same storage as the
     per-card Decline.
+  - **A click on a line no longer throws you out** (16 Nov 2026, asked: "if i
+    click on the grammarly stuff it sometimes clicks me out of it and moves
+    my cursor to another place"). The card was chosen at the click (button
+    up). When the words were in or next to a citation, the button going down
+    had already put the cursor in the citation, which turned "(Author, 2020)"
+    into "[@key]" (`drawCites`), so the text jumped, the click missed the
+    words, the card closed and the cursor sat in other text. Now the card is
+    chosen when the button goes down (`markAt`, `pressed`), and on words that
+    touch a citation, maths or a table line (`touchesJumpy`) the cursor stays
+    where it was (the button-down is stopped before the editor sees it). On
+    plain words the cursor goes there as always. A drag that starts on a line
+    opens no card. Bench test with real mouse clicks: on a mark over a
+    citation the card opened and the cursor stayed, on plain words the card
+    opened and the cursor went to the word, the editor kept the keyboard.
   - **The switches** at the top right of the page (16 Nov 2026, asked), under
     each other: **Grammarly** (the suggestions) and **Claude edits** (Claude's
     edits, named so on 16 Nov), each with its count; green = shown in the
