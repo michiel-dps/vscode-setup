@@ -1,4 +1,8 @@
 {
+    // Off since 16 Nov 2026: VS Code's experimental edit statistics kept a full copy of an open
+    // document after every change; with the paper on the Word Page that filled the window's
+    // memory until it crashed ("renderer process gone (reason: oom)", five times that day)
+    "telemetry.editStats.enabled": false,
     "git.ignoredRepositories": [
         "C:\\Users\\<you>\\<Dropbox>\\<name>\\<project>\\code\\<co-author>"
     ],

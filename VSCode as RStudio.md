@@ -368,6 +368,22 @@ history moved aside (... steps, ... MB, ... edits waiting ...)`. Tests:
 `test.js`, the end of section "saved edits after a reload". **VS Code
 crashed?** Look for `reason: oom` in main.log first.
 
+**The real cause of the crashes: VS Code's edit statistics** (16 Nov 2026,
+the same evening). The window still ran out of memory after that fix
+(14:42, 17:26, 20:28, 20:36, five times that day). A memory watch on the
+window (allocation sampling through VS Code's own debugger, 34 minutes)
+caught it: the window grew from 131 to 945 MB, and about 860 MB of that was
+full copies of a document's text, made by `getValue()` after every change
+of an open document, in VS Code's built-in "edit telemetry" (the observable
+workspace with its edit-source tracker: which edits are AI, which typed).
+It only runs while `telemetry.editStats.enabled` is on (an experiment, on by
+default) and telemetry is "all". The paper on the Word Page changes all the
+time (Quarto saves it every few seconds while you type, plus suggestions and
+Claude's edits), so the copies piled up. Now `"telemetry.editStats.enabled":
+false` in settings.json (section 3). It works at once, without a reload:
+the window went back to 131 MB. The Keep / Undo history fix above stays
+(it was real, but smaller).
+
 Side effect: because the session type has `canDelegate` (needed for the
 command that sends to it), VS Code may list "Claude's edits" among the chat
 session types (new-chat menu); ignore it.
