@@ -70,6 +70,26 @@
     try { localStorage.setItem("wp-assistant-dismissed", JSON.stringify(dismissed)); } catch (err) { /* only for this session then */ }
   }
 
+  // A declined suggestion never comes back (16 Nov 2026, asked: "dont want to see the same
+  // proposal again if i declined it once"). Its id holds the whole paragraph, so after any other
+  // change in the paragraph Claude's same proposal had a new id and showed again. So the page also
+  // remembers the change itself (old words -> new words) and hides it in every paragraph.
+  function changeKey(s) {
+    return (s.original + "\u0000" + (s.replacement || "")).toLowerCase().replace(/\s+/g, " ").trim();
+  }
+  function declinedKeysList() {
+    try { return JSON.parse(localStorage.getItem("wp-assistant-declined") || "[]"); } catch (err) { return []; }
+  }
+  var declinedKeys = declinedKeysList();
+  function decline(s) {
+    dismiss(s.id);
+    if (s.kind === "edit") { return; }          // Claude's edits: only this mark
+    var key = changeKey(s);
+    if (declinedKeys.indexOf(key) < 0) { declinedKeys.push(key); }
+    if (declinedKeys.length > 2000) { declinedKeys = declinedKeys.slice(-2000); }
+    try { localStorage.setItem("wp-assistant-declined", JSON.stringify(declinedKeys)); } catch (err) { /* only for this session then */ }
+  }
+
   // Accept all of Claude's edits in one chapter (16 Nov 2026, asked: "accept all claude edit in
   // chapter 2"). A chapter is everything from a # heading (h1 on the page) to the next one.
   function chapterOf(range) {
@@ -311,6 +331,7 @@
       var s = all[i];
       // accepted a moment ago: hidden until the add-on's new list has come (after Ctrl+Z it is back)
       if (dismissed.indexOf(s.id) >= 0 || (assist.gone[s.id] && Date.now() - assist.gone[s.id] < 6000)) { continue; }
+      if (s.kind !== "edit" && declinedKeys.indexOf(changeKey(s)) >= 0) { continue; }   // declined before
       var range = assistRange(s, page);
       if (range) { found.push({ s: s, range: range, edit: s.kind === "edit" }); }
     }
@@ -373,7 +394,7 @@
         var button = event.target.closest("button[data-do]");
         if (!button || !assist.open) { return; }
         if (button.getAttribute("data-do") === "apply") { accept(assist.open); }
-        if (button.getAttribute("data-do") === "close") { dismiss(assist.open.s.id); closeCard(); assistSchedule(true); }
+        if (button.getAttribute("data-do") === "close") { decline(assist.open.s); closeCard(); assistSchedule(true); }
         if (button.getAttribute("data-do") === "chapter") { acceptChapter(assist.open); }
       });
       document.body.appendChild(assistCard);
@@ -616,7 +637,7 @@
     if (!found) { return; }
     var pressed = event.target.closest("button[data-do]");
     if (pressed && pressed.getAttribute("data-do") === "apply") { accept(found); return; }
-    if (pressed && pressed.getAttribute("data-do") === "close") { dismiss(found.s.id); closeCard(); assistSchedule(true); return; }
+    if (pressed && pressed.getAttribute("data-do") === "close") { decline(found.s); closeCard(); assistSchedule(true); return; }
     // a click on the item: show the words in the text, with their card
     var rect = found.range.getBoundingClientRect();
     if (rect.top < 60 || rect.bottom > window.innerHeight - 60) {
