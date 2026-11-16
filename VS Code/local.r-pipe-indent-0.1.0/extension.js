@@ -640,6 +640,43 @@ function makeSavedEditsSafe(file, readNow = readText) {
   return waiting;
 }
 
+// ---- A fresh edit history when the saved one is too big (16 Nov 2026) ----
+// VS Code keeps every Claude edit of our one session in the saved history
+// (state.json plus a copy of the file at every step) and, when our session is
+// loaded, rebuilds all of it in the window's memory. On 16 Nov 2026 that was
+// 1,232 steps and 790 file copies (36 MB), collected since 5 Nov: rebuilding
+// took more than 20 minutes and the window ran out of memory twice (main.log:
+// "renderer process gone (reason: oom)"). So at start-up, before our session is
+// loaded, the saved history is moved aside (chatEditingSessions-old, only the
+// last one kept) when no edit waits for Keep / Undo, or when it is too big.
+// Files are never touched; when it is too big, the Keep / Undo of edits still
+// waiting goes (their text stays in the files as it is).
+const MAX_SAVED_STEPS = 200;              // steps in the saved history
+const MAX_SAVED_BYTES = 10 * 1024 * 1024; // file copies in the saved history
+
+function freshSavedEdits(file) {
+  if (!file || !fs.existsSync(file)) return "none";
+  const dir = path.dirname(file);
+  let saved = null;
+  try { saved = JSON.parse(fs.readFileSync(file, "utf8")); } catch (e) { /* unreadable: start fresh */ }
+  const entries = (saved && saved.recentSnapshot && saved.recentSnapshot.entries) || [];
+  const waiting = entries.filter((entry) => entry.state === 0 && !entry.isDeleted).length;
+  const steps = ((saved && saved.timeline && saved.timeline.checkpoints) || []).length;
+  let bytes = 0;
+  try {
+    for (const name of fs.readdirSync(path.join(dir, "contents"))) bytes += fs.statSync(path.join(dir, "contents", name)).size;
+  } catch (e) { /* no copies */ }
+  const tooBig = steps > MAX_SAVED_STEPS || bytes > MAX_SAVED_BYTES;
+  if (saved && waiting > 0 && !tooBig) return "kept";
+  const oldRoot = path.join(path.dirname(path.dirname(dir)), "chatEditingSessions-old");
+  fs.rmSync(oldRoot, { recursive: true, force: true });   // only the last old history is kept
+  fs.mkdirSync(oldRoot, { recursive: true });
+  fs.renameSync(dir, path.join(oldRoot, path.basename(dir)));
+  log("edits fresh: saved history moved aside (" + steps + " steps, " + Math.round(bytes / 1048576) + " MB, " +
+    waiting + " edits waiting for Keep / Undo" + (tooBig ? ", too big" : "") + ")");
+  return "moved";
+}
+
 // Right after the start: when edits wait for Keep / Undo, load our session once
 async function restoreAfterReload() {
   if (!edits.savedFile || makeSavedEditsSafe(edits.savedFile, currentText) === 0) return;
@@ -842,6 +879,9 @@ function activateClaudeEdits(context) {
   } else {
     log("ERR  stay after keep: onDidPerformAction missing (argv.json enable-proposed-api?)");
   }
+  // before anything can load our session (a Claude edit, restoreAfterReload)
+  edits.savedFile = savedEditsFile(context);
+  try { freshSavedEdits(edits.savedFile); } catch (e) { log("ERR  edits fresh " + e); }
   fs.mkdirSync(SIGNALS, { recursive: true });
   cleanOldSignals();
   writeHeartbeat();
@@ -860,7 +900,6 @@ function activateClaudeEdits(context) {
   });
   scanSignals();
   setTimeout(() => runDemoOnce().catch((e) => log("ERR  edits demo " + (e && e.stack ? e.stack : e))), 3000);
-  edits.savedFile = savedEditsFile(context);
   setTimeout(() => restoreAfterReload().catch((e) => log("ERR  edits restore " + (e && e.stack ? e.stack : e))), 2000);
 }
 
@@ -884,9 +923,9 @@ function activate(context) {
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.runStatement", runStatementLogged));
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.insertPipe", insertPipe));
   try { activateClaudeEdits(context); } catch (e) { log("ERR  edits " + (e && e.stack ? e.stack : e)); }
-  log("activated 0.5.0 (Keep selects the kept lines, 10 Nov 2026)");
+  log("activated 0.5.1 (fresh edit history when too big, 16 Nov 2026)");
 }
 
 function deactivate() {}
 
-module.exports = { activate, deactivate, _test: { blank, unterminatedQuote, statementStart, statementEnd, unfinished, makeSavedEditsSafe, changedBlock, matchingLine } };
+module.exports = { activate, deactivate, _test: { blank, unterminatedQuote, statementStart, statementEnd, unfinished, makeSavedEditsSafe, freshSavedEdits, changedBlock, matchingLine } };

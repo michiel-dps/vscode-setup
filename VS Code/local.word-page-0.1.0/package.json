@@ -45,6 +45,18 @@
 			{
 				"command": "wordPage.chatSelectionToClaude",
 				"title": "Word Page: Quote Highlighted Text of the Claude Panel in Its Chat Box"
+			},
+			{
+				"command": "wordPage.assistantCheckAll",
+				"title": "Word Page: Let Claude Read the Whole Document"
+			},
+			{
+				"command": "wordPage.assistantToggle",
+				"title": "Word Page: Claude's Suggestions On/Off"
+			},
+			{
+				"command": "wordPage.assistantMenu",
+				"title": "Word Page: Claude's Suggestions..."
 			}
 		],
 		"menus": {
@@ -82,6 +94,21 @@
 		"configuration": {
 			"title": "Word Page",
 			"properties": {
+				"wordPage.assistant": {
+					"type": "boolean",
+					"default": true,
+					"description": "Claude's suggestions on the page, like Grammarly: after a pause in typing, Claude reads the paragraph you changed and its suggestions show as coloured lines under the words, with Accept and Dismiss. Uses the Claude Code program on this laptop (your Claude subscription)."
+				},
+				"wordPage.assistantModel": {
+					"type": "string",
+					"default": "sonnet",
+					"description": "The Claude model that reads the paragraphs: sonnet (good and fast, about 5 s a paragraph), opus (best, slower) or haiku."
+				},
+				"wordPage.claudePath": {
+					"type": "string",
+					"default": "",
+					"description": "Where the Claude Code program is. Empty: found by itself (~/.local/bin/claude.exe, the Claude Code add-on, or the PATH)."
+				},
 				"wordPage.enabled": {
 					"type": "boolean",
 					"default": true,

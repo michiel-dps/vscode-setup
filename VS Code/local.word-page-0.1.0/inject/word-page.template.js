@@ -1287,6 +1287,8 @@
   /*SPELL*/
   window.wordPageSpell = wordPageSpell;
 
+/*ASSISTANT*/
+
   apply();
   // VS Code sends its theme colours again when the theme or a setting changes: put ours back
   new MutationObserver(apply).observe(document.documentElement, { attributes: true, attributeFilter: ["style"] });

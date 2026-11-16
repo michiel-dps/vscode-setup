@@ -40,6 +40,8 @@ function activate(context) {
   watchPdfs(context);
   watchTyping(context);
   watchClashes(context);
+  // Claude's suggestions on the page, like Grammarly (assistant.js, 16 Nov 2026)
+  require("./assistant").activate(context, { log: log, quartoFolders: quartoFolders, patch: patch });
 
   context.subscriptions.push(
     vscode.commands.registerCommand("wordPage.newDocument", newDocument),
@@ -52,7 +54,9 @@ function activate(context) {
     // Quarto was updated or installed: its new files do not have the page yet
     vscode.extensions.onDidChange(() => refresh(false)),
     vscode.workspace.onDidChangeConfiguration((change) => {
-      if (change.affectsConfiguration("wordPage")) { refresh(true); }
+      // the assistant's settings do not change the page itself (assistant.js follows them)
+      const assistantOnly = ["wordPage.assistant", "wordPage.assistantModel", "wordPage.claudePath"].some((name) => change.affectsConfiguration(name));
+      if (change.affectsConfiguration("wordPage") && !assistantOnly) { refresh(true); }
     }),
     vscode.window.tabGroups.onDidChangeTabs((change) => { openFirstPage(change.opened); })
   );

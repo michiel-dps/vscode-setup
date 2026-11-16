@@ -87,6 +87,7 @@ function buildBlocks(injectDir, options, sync) {
     .replace("/*SYNC*/", () => (sync ? "true" : "false"))
     .replace("/*MERGE*/", () => merge)
     .replace("/*SPELL*/", () => spell)
+    .replace("/*ASSISTANT*/", () => fs.readFileSync(path.join(injectDir, "assistant.js"), "utf8"))
     .replace(/\r\n/g, "\n").trim() + "\n";
   let css = fs.readFileSync(path.join(injectDir, "word-page.css"), "utf8").replace(/\r\n/g, "\n").trim() + "\n";
   if (look === "pdf") {
@@ -264,6 +265,32 @@ function writePdfData(quartoDir, docs) {
   writeFileSafely(pdfDataFile(quartoDir), pdfDataCss(docs));
 }
 
+// ---- Claude's suggestions, like Grammarly (16 Nov 2026) ----
+// assistant.js writes what Claude proposes for the paragraphs being written into this file
+// next to Quarto's index.js, the same way as the page ends: JSON as base64 in a CSS variable.
+const ASSISTANT_DATA = "word-page-assistant.css";
+
+function assistantDataFile(quartoDir) {
+  return path.join(quartoDir, "assets", "www", "editor", ASSISTANT_DATA);
+}
+
+// data: { busy: 0, on: true, suggestions: [{ id, original, replacement, kind, reason, before, after }] }
+function assistantDataCss(data) {
+  const base64 = Buffer.from(JSON.stringify(data), "utf8").toString("base64");
+  return "/* word-page: Claude's suggestions for the paragraphs being written (assistant.js) */\n" +
+    ':root { --wp-assistant: "' + base64 + '"; }\n';
+}
+
+// the data back from such a file (for the checks in test.js)
+function readAssistantDataCss(css) {
+  const found = /--wp-assistant:\s*"([A-Za-z0-9+/=]*)"/.exec(css);
+  return found ? JSON.parse(Buffer.from(found[1], "base64").toString("utf8")) : null;
+}
+
+function writeAssistantData(quartoDir, data) {
+  writeFileSafely(assistantDataFile(quartoDir), assistantDataCss(data));
+}
+
 // Take the blocks out. Returns "removed" or "clean".
 function remove(quartoDir) {
   const files = editorFiles(quartoDir);
@@ -278,6 +305,10 @@ function remove(quartoDir) {
   }
   if (fs.existsSync(holdFile(quartoDir))) {
     fs.unlinkSync(holdFile(quartoDir));
+    changed = true;
+  }
+  if (fs.existsSync(assistantDataFile(quartoDir))) {
+    fs.unlinkSync(assistantDataFile(quartoDir));
     changed = true;
   }
   for (const file of [files.js, files.css]) {
@@ -311,5 +342,6 @@ function holdFile(quartoDir) {
 
 module.exports = {
   findQuarto, editorFiles, buildBlocks, strip, apply, remove, state, addSyncHooks, addSpellingHook, addSuggestHook, synced, START, END,
-  pdfDataFile, pdfDataCss, readPdfDataCss, writePdfData, pdfPictureDir, PICTURE_DIR, holdFile, HOLD_FILE
+  pdfDataFile, pdfDataCss, readPdfDataCss, writePdfData, pdfPictureDir, PICTURE_DIR, holdFile, HOLD_FILE,
+  assistantDataFile, assistantDataCss, readAssistantDataCss, writeAssistantData
 };

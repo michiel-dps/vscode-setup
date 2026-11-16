@@ -324,6 +324,24 @@ file, but no work lost (log: `edits restore: <file> changed since, left as
 it is`). Without this, typing in such a file after a reload and then a
 Claude edit put the older text back.
 
+**A fresh edit history when the saved one is too big** (16 Nov 2026, v0.5.1).
+The add-on uses one session for all of Claude's edits, so VS Code's saved
+history of it only grew: on 16 Nov it held 1,232 steps and 790 file copies
+(36 MB, collected since 5 Nov). Loading the session rebuilds all of it in the
+window's memory. That took more than 20 minutes, and the window crashed
+twice (`%APPDATA%\Code\logs\<date>\main.log`: `renderer process gone
+(reason: oom)`). Found with a one-minute memory sample of the window: nearly
+all new memory came from VS Code's `restoreState` of the chat edit session.
+Now, when the window starts and before the session can load, the add-on
+moves the saved history aside to `chatEditingSessions-old` next to it (only
+the last one is kept) when no edit waits for Keep / Undo, or when it has more
+than 200 steps or 10 MB of copies (`MAX_SAVED_STEPS`, `MAX_SAVED_BYTES`).
+Files are never touched. In the too-big case, edits still waiting lose their
+Keep / Undo, but their text stays in the file. Log: `edits fresh: saved
+history moved aside (... steps, ... MB, ... edits waiting ...)`. Tests:
+`test.js`, the end of section "saved edits after a reload". **VS Code
+crashed?** Look for `reason: oom` in main.log first.
+
 Side effect: because the session type has `canDelegate` (needed for the
 command that sends to it), VS Code may list "Claude's edits" among the chat
 session types (new-chat menu); ignore it.

@@ -389,6 +389,61 @@ fs.utimesSync(draftMark, new Date(1000), new Date(1000));
 typing.clean(marks, Date.now());
 check("a mark file older than 10 minutes is removed, a new one stays", !fs.existsSync(draftMark) && fs.readdirSync(marks).length === 1);
 
+// Claude's suggestions on the page (assistant.js, inject/assistant.js)
+const assistant = require("./assistant");
+const paperText = [
+  "---", "title: \"Test\"", "abstract: |", "  - What we ask: something long enough to be a paragraph here.", "---", "",
+  "# Introduction", "",
+  "The results shows that the scheme have a positive effect [@Hoydahl_2023], see @fig-map.", "",
+  "```{r}", "x <- 1", "```", "",
+  "- First item of a list with enough words in it",
+  "- Second item of the list, also long enough", "",
+  "| a | b |", "|---|---|", "| 1 | 2 |", "",
+  "$$", "y = x", "$$", "",
+  "::: landscape", "", "Text inside a div that is long enough to count here.", "", ":::", "",
+  "Short.", "",
+  "[^1]: A footnote with enough words to be checked by Claude."
+].join("\n");
+const paras = assistant.paragraphsOf(paperText).map((p) => p.text);
+check("assistant: paragraphs leave out the header, headings, code, tables and maths", !paras.some((t) => /title|What we ask|x <- 1|\| a|y = x|^# /.test(t)));
+check("assistant: a running paragraph is found as in the file",
+  paras.includes("The results shows that the scheme have a positive effect [@Hoydahl_2023], see @fig-map."));
+check("assistant: a list gives one paragraph per item, without the marker",
+  paras.includes("First item of a list with enough words in it") && paras.includes("Second item of the list, also long enough"));
+check("assistant: text inside a div is a paragraph, the ::: lines are not", paras.includes("Text inside a div that is long enough to count here."));
+check("assistant: a footnote is a paragraph without its [^1]: mark", paras.includes("A footnote with enough words to be checked by Claude."));
+check("assistant: short paragraphs are left to the caller (word count)", assistant.wordCount("Short.") < assistant.MIN_WORDS);
+check("assistant: plain text drops citations, references and maths",
+  assistant.plainOf("A *big* effect [@Hoydahl_2023] in @fig-map with $x^2$ and [a link](https://x.y).") === "A big effect in with and a link.");
+
+const para = "The results shows that the scheme have a positive effect [@Hoydahl_2023], see @fig-map.";
+const good = assistant.prepare(para, { original: "The results shows", replacement: "The results show", kind: "grammar", reason: "Plural subject." });
+check("assistant: a good suggestion is kept, with an id and the letters after it",
+  good && good.id.length === 16 && good.before === "" && good.after.startsWith("thatthescheme") && good.kind === "grammar");
+check("assistant: words not in the paragraph are dropped", assistant.prepare(para, { original: "the effects", replacement: "x", kind: "grammar", reason: "" }) === null);
+check("assistant: Markdown in the old words is dropped", assistant.prepare(para, { original: "effect [@Hoydahl_2023]", replacement: "effect", kind: "concise", reason: "" }) === null);
+check("assistant: words found twice are dropped", assistant.prepare("the cat and the cat", { original: "the cat", replacement: "a cat", kind: "wording", reason: "" }) === null);
+check("assistant: no change is dropped", assistant.prepare(para, { original: "results", replacement: "results", kind: "wording", reason: "" }) === null);
+check("assistant: an unknown kind becomes clarity", assistant.prepare(para, { original: "positive", replacement: "clear", kind: "style", reason: "" }).kind === "clarity");
+const otherOne = assistant.prepare(para, { original: "the scheme have", replacement: "the scheme has", kind: "grammar", reason: "" });
+const accepted = para.replace("The results shows", "The results show");
+const carried = assistant.afterAccept(para, accepted, [good, otherOne]);
+check("assistant: accepting one suggestion keeps the others of the paragraph",
+  carried && carried.carried.length === 1 && carried.carried[0].original === "the scheme have");
+check("assistant: another change is not taken for an accept", assistant.afterAccept(para, para + " More.", [good, otherOne]) === null);
+const args = assistant.claudeArgs("sonnet");
+check("assistant: the request has no tools, no MCP, no saved session, project settings only, JSON answer",
+  args.includes("-p") && args[args.indexOf("--tools") + 1] === "" && args.includes("--strict-mcp-config") &&
+  args.includes("--no-session-persistence") && args[args.indexOf("--setting-sources") + 1] === "project" &&
+  args[args.indexOf("--output-format") + 1] === "json" && JSON.parse(args[args.indexOf("--json-schema") + 1]).required[0] === "suggestions");
+const assistCss = patch.assistantDataCss({ on: true, busy: 1, error: "", suggestions: [good] });
+check("assistant: the data file gives the data back", JSON.stringify(patch.readAssistantDataCss(assistCss)) === JSON.stringify({ on: true, busy: 1, error: "", suggestions: [good] }));
+check("assistant: the script block carries the page part, and it is valid JavaScript", (() => {
+  const b = patch.buildBlocks(inject, options);
+  if (!b.js.includes("word-page-assistant.css") || b.js.includes("/*ASSISTANT*/")) { return false; }
+  try { new Function(b.js.replace(/^\/\*[^\n]*\*\/\n/, "")); return true; } catch (e) { console.log(e.message); return false; }
+})());
+
 fs.rmSync(temp, { recursive: true, force: true });
 console.log(passed + " passed, " + failed + " failed");
 process.exit(failed === 0 ? 0 : 1);

@@ -252,6 +252,26 @@ async function pipe(lineText, col) {
     write([entry("same3.R", "y\n", "y\n", 0)], 1);
     const before = fs.readFileSync(stateFile, "utf8");
     check("nothing changed: state.json not rewritten", (safe(stateFile), fs.readFileSync(stateFile, "utf8") === before), true);
+
+    // a fresh edit history when the saved one is too big (freshSavedEdits, 16 Nov 2026)
+    const fresh = ext._test.freshSavedEdits;
+    const oldCopy = path.join(tmp, "chatEditingSessions-old", "x", "state.json");
+    const history = (steps, waitingState) => {
+      fs.mkdirSync(path.join(session, "contents"), { recursive: true });
+      const checkpoints = Array.from({ length: steps }, (_, i) => ({ checkpointId: "c" + i }));
+      fs.writeFileSync(stateFile, JSON.stringify({ version: 2, recentSnapshot: { entries: [{ state: waitingState }] }, timeline: { checkpoints } }));
+    };
+    check("no saved history", fresh(path.join(tmp, "nothing", "state.json")), "none");
+    history(5, 0);
+    check("small, an edit waits: kept", fresh(stateFile), "kept");
+    history(5, 1);
+    check("small, nothing waits: moved", [fresh(stateFile), fs.existsSync(stateFile), fs.existsSync(oldCopy)], ["moved", false, true]);
+    history(1232, 0);
+    check("too many steps, an edit waits: moved", [fresh(stateFile), fs.existsSync(stateFile)], ["moved", false]);
+    history(5, 0);
+    fs.writeFileSync(path.join(session, "contents", "big"), Buffer.alloc(11 * 1024 * 1024));
+    check("too many MB, an edit waits: moved", fresh(stateFile), "moved");
+    check("only the last old history kept", fs.readdirSync(path.join(tmp, "chatEditingSessions-old")), ["x"]);
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 
