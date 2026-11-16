@@ -573,7 +573,9 @@ it").** Four more things, all in the PDF look:
   second header further down (`nocite`) are one thin grey line, for example
   "R code: Table 3 is made here (click to see the code)" or "LaTeX:
   \afterpage{". A click opens the box; arrow keys into it open it too.
-- **Page ends**: a dashed line across the page with "page 7" in the right
+- **Page ends** (switched off since 16 Nov 2026 at his request:
+  `"wordPage.pageEnds": false` in settings.json; set it to true to get them
+  back): a dashed line across the page with "page 7" in the right
   margin where each page of the PDF next to the document starts
   (`draft.qmd` -> `draft.pdf`), and at the top right "page ends: draft.pdf,
   built 15:51". After Ctrl+Shift+K the lines move by themselves within a few
@@ -892,7 +894,8 @@ page (the rules and fonts are then not even written into Quarto's file).
   `wordPage.look` (`"pdf"` = the page as a paper's PDF, `"word"` = the
   Word-like page of before), `wordPage.pageWidth` (820; in the PDF look this
   is the zoom), `wordPage.foldCode` (on: header as title block, code as a
-  grey line), `wordPage.pageEnds` (on: the PDF's page ends),
+  grey line), `wordPage.pageEnds` (on: the PDF's page ends; off in his
+  settings since 16 Nov 2026),
   `wordPage.fromPdf` (on: citations and pictures from the PDF),
   `wordPage.python` (`"python"`: the Python with PyMuPDF that reads the PDF).
   After a change: close the document tab and open it again.
