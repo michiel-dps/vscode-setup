@@ -22,18 +22,42 @@
     concise: { label: "Conciseness", colour: "#2b63d9" },
     wording: { label: "Word choice", colour: "#16915a" },
     source: { label: "Source", colour: "#8250df" },
-    notation: { label: "Notation", colour: "#0f7b8a" }
+    notation: { label: "Notation", colour: "#0f7b8a" },
+    edit: { label: "Claude changed this", colour: "#d97706" }
   };
 
-  // the switch on the "Claude" button: show or hide all suggestions in the text (Claude keeps
-  // reading in the background either way); remembered by this page
+  // Claude's own edits of the file (16 Nov 2026, asked: "underline the rows you added or changed,
+  // with a little window that shows what you changed, and a switch to turn it off or on"). The
+  // add-on compares each edit from the disk with the text before (assistant.js, changesBetween)
+  // and sends the marks along with the suggestions: { added, removed, before, after, at, undo }.
+  // On the page an edit is drawn in amber with a light background, its card shows the old words
+  // struck through and the new words, with Keep (the mark goes) and Undo (the old words come back,
+  // as an edit on the page, so Ctrl+Z brings Claude's words back).
+
+  // the two switches on the "Claude" button: show or hide all suggestions, and all of Claude's
+  // edits, in the text (Claude keeps reading in the background either way); remembered by this page
   var linesShown = true;
+  var editsShown = true;
   try { linesShown = localStorage.getItem("wp-assistant-shown") !== "no"; } catch (err) { linesShown = true; }
-  function setShown(on) {
-    linesShown = on;
-    try { localStorage.setItem("wp-assistant-shown", on ? "yes" : "no"); } catch (err) { /* this session only */ }
-    if (!on) { closeCard(); }
+  try { editsShown = localStorage.getItem("wp-assistant-edits-shown") !== "no"; } catch (err) { editsShown = true; }
+  function setShown(which, on) {
+    if (which === "edits") { editsShown = on; } else { linesShown = on; }
+    try { localStorage.setItem(which === "edits" ? "wp-assistant-edits-shown" : "wp-assistant-shown", on ? "yes" : "no"); } catch (err) { /* this session only */ }
+    if (assist.open && !visible(assist.open)) { closeCard(); }
     assistSchedule(true);
+  }
+  function visible(found) {
+    return found.edit ? editsShown : linesShown;
+  }
+
+  // "3 min ago"
+  function ago(time) {
+    var minutes = Math.round((Date.now() - time) / 60000);
+    if (minutes < 1) { return "just now"; }
+    if (minutes < 60) { return minutes + " min ago"; }
+    var hours = Math.round(minutes / 60);
+    if (hours < 24) { return hours + " h ago"; }
+    return Math.round(hours / 24) + " days ago";
   }
 
   function dismissedList() {
@@ -140,6 +164,11 @@
       "#wp-assist-layer { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 40; pointer-events: none; }",
       "#wp-assist-layer .wp-line { position: fixed; height: 2px; border-radius: 1px; pointer-events: none; }",
       "#wp-assist-layer .wp-line.wp-active { height: 100%; opacity: .14; border-radius: 2px; }",
+      "#wp-assist-layer .wp-line.wp-edit { background: rgba(217, 119, 6, .10); border-radius: 2px; }",
+      ".wp-assist-card .wp-when, .wp-assist-panel .wp-when { color: #8a8f98; font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 6px; }",
+      ".wp-assist-panel .wp-head .wp-pair { display: flex; align-items: center; gap: 6px; font-weight: 400; font-size: 12px; }",
+      ".wp-assist-panel .wp-head .wp-pair + .wp-pair { margin-left: 4px; }",
+      ".wp-assist-panel .wp-head .wp-title { font-weight: 600; margin-right: 2px; }",
       ".wp-assist-card { position: fixed; z-index: 60; width: 330px; max-width: calc(100vw - 24px); background: #fff; color: #1f2328;",
       "  border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.22), 0 0 0 1px rgba(0,0,0,.06); padding: 12px 14px;",
       "  font: 13px/1.45 'Segoe UI', system-ui, sans-serif; }",
@@ -150,11 +179,11 @@
       ".wp-assist-card .wp-why { color: #57606a; margin-bottom: 10px; }",
       ".wp-assist-card button, .wp-assist-panel button { font: 600 12px 'Segoe UI', system-ui, sans-serif; border-radius: 6px; padding: 5px 12px; cursor: pointer; border: 1px solid #d0d7de; background: #f6f8fa; color: #24292f; }",
       ".wp-assist-card button.wp-accept, .wp-assist-panel button.wp-accept { background: #1f7a4d; border-color: #1f7a4d; color: #fff; margin-right: 6px; }",
-      ".wp-assist-panel { position: fixed; z-index: 50; right: 12px; top: 12px; width: 280px; max-height: calc(100vh - 24px); display: flex; flex-direction: column;",
+      ".wp-assist-panel { position: fixed; z-index: 50; right: 12px; top: 12px; width: 330px; max-height: calc(100vh - 24px); display: flex; flex-direction: column;",
       "  background: #fff; color: #1f2328; border-radius: 10px; box-shadow: 0 4px 18px rgba(0,0,0,.16), 0 0 0 1px rgba(0,0,0,.06); font: 13px/1.4 'Segoe UI', system-ui, sans-serif; }",
       ".wp-assist-panel.wp-folded { width: auto; }",
-      ".wp-assist-panel .wp-head { display: flex; align-items: center; gap: 8px; padding: 9px 12px; cursor: pointer; font-weight: 600; user-select: none; }",
-      ".wp-assist-panel .wp-head .wp-count { margin-left: auto; min-width: 20px; text-align: center; border-radius: 10px; padding: 0 6px; background: #d1343b; color: #fff; font-size: 12px; }",
+      ".wp-assist-panel .wp-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 9px 12px; cursor: pointer; font-weight: 600; user-select: none; }",
+      ".wp-assist-panel .wp-head .wp-count { min-width: 20px; text-align: center; border-radius: 10px; padding: 0 6px; background: #d1343b; color: #fff; font-size: 12px; }",
       ".wp-assist-panel .wp-head .wp-count.wp-zero { background: #1f7a4d; }",
       ".wp-assist-panel .wp-state { padding: 0 12px 8px; color: #57606a; font-size: 12px; }",
       ".wp-assist-panel .wp-list { overflow-y: auto; padding: 0 8px 8px; }",
@@ -189,19 +218,31 @@
     return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
-  // the suggestions found on the page now, in the order of the text, with their ranges
+  // An edit of Claude as a suggestion of its own kind: the "old words" on the page are the new
+  // words, Undo puts the old ones back (accept with replacement = removed), Keep is Dismiss.
+  function editAsSuggestion(mark) {
+    return {
+      id: "edit-" + mark.id, kind: "edit", original: mark.added, replacement: mark.removed, before: mark.before, after: mark.after,
+      rich: mark.rich, undo: mark.undo, at: mark.at, added: mark.added, removed: mark.removed
+    };
+  }
+
+  // the suggestions and Claude's edits found on the page now, in the order of the text, with their ranges
   function assistFind() {
     var content = pageContent();
-    var list = (assist.data && assist.data.on && assist.data.suggestions) || [];
-    if (!content || !list.length) { return []; }
+    var data = assist.data || {};
+    var list = (data.on && data.suggestions) || [];
+    var edits = (data.edits || []).map(editAsSuggestion);
+    if (!content || !list.length && !edits.length) { return []; }
     var page = textOfPage(content);
     var found = [];
-    for (var i = 0; i < list.length; i++) {
-      var s = list[i];
+    var all = list.concat(edits);
+    for (var i = 0; i < all.length; i++) {
+      var s = all[i];
       // accepted a moment ago: hidden until the add-on's new list has come (after Ctrl+Z it is back)
       if (dismissed.indexOf(s.id) >= 0 || (assist.gone[s.id] && Date.now() - assist.gone[s.id] < 6000)) { continue; }
       var range = assistRange(s, page);
-      if (range) { found.push({ s: s, range: range }); }
+      if (range) { found.push({ s: s, range: range, edit: s.kind === "edit" }); }
     }
     found.sort(function (a, b) { return a.range.compareBoundaryPoints(Range.START_TO_START, b.range); });
     return found;
@@ -223,14 +264,19 @@
     if (needFind) { assist.found = assistFind(); needFind = false; }
     var parts = [];
     var height = window.innerHeight;
-    for (var i = 0; linesShown && i < assist.found.length; i++) {
+    for (var i = 0; i < assist.found.length; i++) {
       var f = assist.found[i];
+      if (!visible(f)) { continue; }
       var colour = (KIND[f.s.kind] || KIND.clarity).colour;
       var rects = f.range.getClientRects();
       var active = assist.open && assist.open.s.id === f.s.id;
       for (var r = 0; r < rects.length; r++) {
         var rect = rects[r];
         if (rect.width < 1 || rect.bottom < 0 || rect.top > height) { continue; }
+        if (f.edit && !active) {
+          // Claude's edit: a light amber background under the words, like a marker pen
+          parts.push('<div class="wp-line wp-edit" style="left:' + rect.left + "px;top:" + rect.top + "px;width:" + rect.width + "px;height:" + rect.height + 'px"></div>');
+        }
         if (active) {
           parts.push('<div class="wp-line wp-active" style="left:' + rect.left + "px;top:" + rect.top + "px;width:" + rect.width + "px;height:" + rect.height + "px;background:" + colour + '"></div>');
         }
@@ -263,16 +309,30 @@
     var s = found.s;
     var kind = KIND[s.kind] || KIND.clarity;
     assistCard.innerHTML =
-      '<div class="wp-kind" style="color:' + kind.colour + '">' + kind.label + "</div>" + changeHtml(s) +
-      (s.reason ? '<div class="wp-why">' + escapeHtml(s.reason) + "</div>" : "") +
-      (s.note ? "" : '<button class="wp-accept">Accept</button>') + '<button class="wp-dismiss">Dismiss</button>';
+      '<div class="wp-kind" style="color:' + kind.colour + '">' + kind.label +
+      (s.at ? '<span class="wp-when">' + ago(s.at) + "</span>" : "") + "</div>" + changeHtml(s) +
+      (s.reason ? '<div class="wp-why">' + escapeHtml(s.reason) + "</div>" : "") + buttonsHtml(s, "");
     assistCard.style.display = "block";
     placeCard();
     assistDraw();
   }
 
-  // old words struck through -> new words; a remark shows only the words it is about
+  // Accept and Dismiss; for Claude's edits Undo and Keep (no Undo when the page cannot put the
+  // old words back, e.g. bold or code: then Ctrl+Z in the text view, Ctrl+Numpad1)
+  function buttonsHtml(s, at) {
+    if (s.kind === "edit") {
+      return (s.undo ? '<button class="wp-accept"' + at + ">Undo</button>" : "") + '<button class="wp-dismiss"' + at + ">Keep</button>";
+    }
+    return (s.note ? "" : '<button class="wp-accept"' + at + ">Accept</button>") + '<button class="wp-dismiss"' + at + ">Dismiss</button>";
+  }
+
+  // old words struck through -> new words; a remark shows only the words it is about;
+  // Claude's edit: what was there before, struck through, then what Claude wrote
   function changeHtml(s) {
+    if (s.kind === "edit") {
+      if (!s.removed) { return '<div class="wp-change">Added: <span class="wp-new">' + escapeHtml(s.added) + "</span></div>"; }
+      return '<div class="wp-change"><span class="wp-old">' + escapeHtml(s.removed) + '</span> &rarr; <span class="wp-new">' + escapeHtml(s.added) + "</span></div>";
+    }
     if (s.note) { return '<div class="wp-change"><span class="wp-new" style="background:#f3edff">' + escapeHtml(s.original) + "</span></div>"; }
     return '<div class="wp-change"><span class="wp-old">' + escapeHtml(s.original) + '</span> &rarr; <span class="wp-new">' +
       (s.replacement ? escapeHtml(s.replacement) : "<i>(remove)</i>") + "</span></div>";
@@ -382,9 +442,9 @@
   document.addEventListener("click", function (event) {
     if (assistCard && assistCard.contains(event.target)) { return; }
     if (assistPanel && assistPanel.contains(event.target)) { return; }
-    if (!linesShown) { return; }
     var x = event.clientX, y = event.clientY;
     for (var i = 0; i < assist.found.length; i++) {
+      if (!visible(assist.found[i])) { continue; }
       var rects = assist.found[i].range.getClientRects();
       for (var r = 0; r < rects.length; r++) {
         var rect = rects[r];
@@ -408,28 +468,37 @@
     return window.innerWidth - right >= 300;
   }
 
+  function switchHtml(which, on, label, count, busy) {
+    return '<span class="wp-pair"><span class="wp-switch ' + (on ? "wp-on" : "wp-off") + '" data-which="' + which + '" title="' +
+      label + (on ? " shown: click to hide them" : " hidden: click to show them") + '"><span class="wp-knob"></span></span>' + label +
+      '<span class="wp-count' + (count ? "" : " wp-zero") + '"' + (which === "edits" ? ' style="background:' + (count ? KIND.edit.colour : "#1f7a4d") + '"' : "") + ">" +
+      (busy && !count ? "…" : count) + "</span></span>";
+  }
+
   function drawPanel() {
     var data = assist.data || {};
-    if (!data.on) { assistPanel.style.display = "none"; return; }
+    var editCount = assist.found.filter(function (f) { return f.edit; }).length;
+    var suggestionCount = assist.found.length - editCount;
+    if (!data.on && !editCount) { assistPanel.style.display = "none"; return; }
     assistPanel.style.display = "flex";
     var folded = assist.panelOpen === null ? !panelFits() : !assist.panelOpen;
     assistPanel.classList.toggle("wp-folded", folded);
-    var n = assist.found.length;
+    var shown = assist.found.filter(visible);
     var state = data.error ? "Claude: " + data.error :
-      !linesShown ? "Suggestions hidden. Claude keeps reading; switch on to see them." :
-      data.busy ? "Claude is reading " + data.busy + " paragraph" + (data.busy === 1 ? "" : "s") + "…" :
-      n ? "" : "No suggestions for what you wrote.";
-    var items = !linesShown ? "" : assist.found.map(function (f, i) {
+      !linesShown && !editsShown ? "Both hidden. Switch one on to see it." :
+      data.busy && linesShown ? "Claude is reading " + data.busy + " paragraph" + (data.busy === 1 ? "" : "s") + "…" :
+      shown.length ? "" : "Nothing to show for what is on the page.";
+    var items = shown.map(function (f) {
+      var i = assist.found.indexOf(f);
       var kind = KIND[f.s.kind] || KIND.clarity;
       return '<div class="wp-item" data-i="' + i + '" style="border-left-color:' + kind.colour + '">' +
-        '<div class="wp-kind" style="color:' + kind.colour + '">' + kind.label + "</div>" + changeHtml(f.s) +
-        (f.s.reason ? '<div class="wp-why">' + escapeHtml(f.s.reason) + "</div>" : "") +
-        (f.s.note ? "" : '<button class="wp-accept" data-i="' + i + '">Accept</button>') +
-        '<button class="wp-dismiss" data-i="' + i + '">Dismiss</button></div>';
+        '<div class="wp-kind" style="color:' + kind.colour + '">' + kind.label + (f.s.at ? '<span class="wp-when">' + ago(f.s.at) + "</span>" : "") + "</div>" +
+        changeHtml(f.s) + (f.s.reason ? '<div class="wp-why">' + escapeHtml(f.s.reason) + "</div>" : "") +
+        buttonsHtml(f.s, ' data-i="' + i + '"') + "</div>";
     }).join("");
-    var html = '<div class="wp-head"><span class="wp-switch ' + (linesShown ? "wp-on" : "wp-off") + '" title="' +
-      (linesShown ? "Suggestions shown: click to hide them" : "Suggestions hidden: click to show them") + '"><span class="wp-knob"></span></span>Claude' +
-      '<span class="wp-count' + (n ? "" : " wp-zero") + '">' + (data.busy && !n ? "…" : n) + "</span></div>" +
+    var html = '<div class="wp-head"><span class="wp-title">Claude</span>' +
+      (data.on ? switchHtml("suggestions", linesShown, "Suggestions", suggestionCount, data.busy) : "") +
+      switchHtml("edits", editsShown, "Claude's edits", editCount, 0) + "</div>" +
       (state ? '<div class="wp-state">' + escapeHtml(state) + "</div>" : "") +
       '<div class="wp-list">' + items + "</div>";
     if (assistPanel.innerHTML !== html) {
@@ -443,7 +512,12 @@
 
   document.addEventListener("click", function (event) {
     if (!assistPanel || !assistPanel.contains(event.target)) { return; }
-    if (event.target.closest(".wp-switch")) { setShown(!linesShown); return; }
+    var flip = event.target.closest(".wp-switch");
+    if (flip) {
+      var which = flip.getAttribute("data-which");
+      setShown(which, !(which === "edits" ? editsShown : linesShown));
+      return;
+    }
     if (event.target.closest(".wp-head")) {
       assist.panelOpen = assistPanel.classList.contains("wp-folded");
       drawPanel();

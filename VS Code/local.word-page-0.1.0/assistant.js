@@ -33,6 +33,7 @@ const NO_MARKUP = /[*_`$@\[\]#^\\{}<>|~]/;   // an "original" with these is not 
 const CITATION = /\[[^\]]*@[^\]]*\]|-?@[\w:.&-]+/g;
 // inline maths: $y_{it}$
 const INLINE_MATHS = /\$[^$\n]+\$/g;
+const CITATION_IN_BRACKETS = /\[[^\]]*@[^\]]*\]/g;
 
 // ---- the paragraphs of a Markdown document ----
 
@@ -154,6 +155,138 @@ function prepare(paragraph, s) {
   const id = crypto.createHash("sha1").update(paragraph + "\u0000" + original + "\u0000" + replacement).digest("hex").slice(0, 16);
   const rich = !note && /[\[\]@$]/.test(original + replacement);
   return { id, original, replacement, kind, reason, before, after, note, rich };
+}
+
+// ---- what Claude changed in the file (16 Nov 2026) ----
+// Asked: "underline the rows you added or changed, with a little window like the suggestions
+// that shows what you changed, and a switch to turn it off or on". A change that comes from the
+// disk (a Claude edit through the Edit/Write tools: the file already holds the new text when VS
+// Code sees it) is compared with the text before, word by word: each run of changed words
+// becomes one mark, { added: the new words, removed: the old words }, with the letters around
+// it so the page can find it. A deletion gets the word next to it as its mark.
+const MIN_MARK_LETTERS = 8;    // shorter marks take in the words around them, so they can be found
+const MAX_MARKS = 300;         // per change of the file
+
+function tokens(text) {
+  return text.match(/\s+|[\p{L}\p{N}_@'’-]+|[^\s\p{L}\p{N}]/gu) || [];
+}
+
+// the longest common subsequence of two lists of strings: pairs [i, j] of equal items, in order
+function commonItems(a, b) {
+  const n = a.length, m = b.length;
+  if (n * m > 4e6) { return null; }   // too big to compare item by item
+  const table = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      table[i][j] = a[i] === b[j] ? table[i + 1][j + 1] + 1 : Math.max(table[i + 1][j], table[i][j + 1]);
+    }
+  }
+  const pairs = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) { pairs.push([i, j]); i++; j++; }
+    else if (table[i + 1][j] >= table[i][j + 1]) { i++; }
+    else { j++; }
+  }
+  return pairs;
+}
+
+// the marks for one old line and its new line: runs of changed words
+function wordMarks(oldLine, newLine) {
+  const a = tokens(oldLine), b = tokens(newLine);
+  const pairs = commonItems(a, b) || [];
+  pairs.push([a.length, b.length]);
+  const runs = [];
+  let i = 0, j = 0;
+  for (const [pi, pj] of pairs) {
+    if (pi > i || pj > j) { runs.push({ a0: i, a1: pi, b0: j, b1: pj }); }
+    i = pi + 1; j = pj + 1;
+  }
+  // runs with only spaces between them are one change
+  const merged = [];
+  for (const run of runs) {
+    const last = merged[merged.length - 1];
+    if (last && b.slice(last.b1, run.b0).every((t) => /^\s+$/.test(t)) && a.slice(last.a1, run.a0).every((t) => /^\s+$/.test(t))) {
+      last.a1 = run.a1; last.b1 = run.b1;
+    } else { merged.push(Object.assign({}, run)); }
+  }
+  const out = [];
+  for (const run of merged) {
+    if (b.slice(run.b0, run.b1).concat(a.slice(run.a0, run.a1)).every((t) => /^\s+$/.test(t))) { continue; }   // only spaces
+    // a mark needs some letters of the new text: take in words around it until it has enough
+    let { a0, a1, b0, b1 } = run;
+    const lettersIn = () => letters(b.slice(b0, b1).join("")).length;
+    while (lettersIn() < MIN_MARK_LETTERS && (b0 > 0 || b1 < b.length)) {
+      if (b1 < b.length) { b1++; a1++; }
+      if (lettersIn() < MIN_MARK_LETTERS && b0 > 0) { b0--; a0--; }
+    }
+    a0 = Math.max(0, a0); a1 = Math.min(a.length, a1);
+    out.push({ added: b.slice(b0, b1).join("").trim(), removed: a.slice(a0, a1).join("").trim(), b0: b0, b1: b1, tokens: b });
+  }
+  return out;
+}
+
+// All marks between the old and the new text of a file. Lines are compared first (a line that
+// is new is one mark; an old line that became a new line is compared word by word).
+function changesBetween(oldText, newText) {
+  const oldLines = oldText.replace(/\r\n/g, "\n").split("\n");
+  const newLines = newText.replace(/\r\n/g, "\n").split("\n");
+  let top = 0;
+  while (top < oldLines.length && top < newLines.length && oldLines[top] === newLines[top]) { top++; }
+  let end = 0;
+  while (end < oldLines.length - top && end < newLines.length - top &&
+    oldLines[oldLines.length - 1 - end] === newLines[newLines.length - 1 - end]) { end++; }
+  // empty lines are all the same: they would tie old and new paragraphs together in the wrong places
+  const oldMid = oldLines.slice(top, oldLines.length - end).filter((line) => line.trim());
+  const newMid = newLines.slice(top, newLines.length - end).filter((line) => line.trim());
+  const pairs = (commonItems(oldMid, newMid) || []).concat([[oldMid.length, newMid.length]]);
+  const marks = [];
+  let i = 0, j = 0;
+  for (const [pi, pj] of pairs) {
+    const gone = oldMid.slice(i, pi), came = newMid.slice(j, pj);
+    // each new line with the old line that looks most like it (in order), else it is all new
+    let from = 0;
+    for (let k = 0; k < came.length; k++) {
+      if (!came[k].trim()) { continue; }
+      let best = -1, bestScore = 0.4;
+      for (let g = from; g < gone.length; g++) {
+        const score = alike(gone[g], came[k]);
+        if (score > bestScore) { best = g; bestScore = score; }
+      }
+      if (best >= 0) {
+        wordMarks(gone[best], came[k]).forEach((mark) => marks.push(withContext(mark, came[k])));
+        from = best + 1;
+      } else {
+        marks.push(withContext({ added: came[k].trim(), removed: "", b0: 0, b1: tokens(came[k]).length, tokens: tokens(came[k]) }, came[k]));
+      }
+    }
+    i = pi + 1; j = pj + 1;
+  }
+  return marks.filter((mark) => letters(mark.added)).slice(0, MAX_MARKS);
+}
+
+// how much two lines share: 0 (nothing) to 1 (the same words)
+function alike(a, b) {
+  const wa = a.toLowerCase().match(/[\p{L}\p{N}]+/gu) || [], wb = b.toLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+  if (!wa.length || !wb.length) { return 0; }
+  const count = new Map();
+  wa.forEach((w) => count.set(w, (count.get(w) || 0) + 1));
+  let shared = 0;
+  wb.forEach((w) => { if (count.get(w) > 0) { shared++; count.set(w, count.get(w) - 1); } });
+  return 2 * shared / (wa.length + wb.length);
+}
+
+function withContext(mark, line) {
+  const id = crypto.createHash("sha1").update(mark.removed + "\u0000" + mark.added + "\u0000" + line).digest("hex").slice(0, 16);
+  return {
+    id: id, added: mark.added, removed: mark.removed,
+    before: letters(plainOf(mark.tokens.slice(0, mark.b0).join(""))).slice(-40),
+    after: letters(plainOf(mark.tokens.slice(mark.b1).join(""))).slice(0, 40),
+    // Undo on the page: plain text, whole citations and inline maths only (a key alone inside a
+    // citation, or bold, code and the like: Ctrl+Z in the text view instead)
+    undo: plainEnough(mark.added, true) && plainEnough(mark.removed, true) && !/@/.test((mark.added + mark.removed).replace(CITATION_IN_BRACKETS, "")),
+    rich: /[\[\]@$]/.test(mark.added + mark.removed)
+  };
 }
 
 // ---- what Claude gets to know about the document ----
@@ -425,6 +558,45 @@ function savedResults(file) {
   };
 }
 
+// Claude's edits per document, kept on the disk for EDIT_DAYS days (also after a restart):
+// { "<document>": [mark, ...] }; every save takes in what other VS Code windows wrote.
+const EDIT_DAYS = 7;
+
+function savedEdits(file) {
+  let store = {};
+  try { store = JSON.parse(fs.readFileSync(file, "utf8")) || {}; } catch (err) { store = {}; }
+  let timer = null;
+  function save() {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      try {
+        let disk = {};
+        try { disk = JSON.parse(fs.readFileSync(file, "utf8")) || {}; } catch (err) { disk = {}; }
+        const oldest = Date.now() - EDIT_DAYS * 86400000;
+        for (const doc of new Set(Object.keys(disk).concat(Object.keys(store)))) {
+          const byId = new Map();
+          (disk[doc] || []).concat(store[doc] || []).forEach((mark) => { if (mark.at >= oldest) { byId.set(mark.id, mark); } });
+          store[doc] = Array.from(byId.values());
+          if (!store[doc].length) { delete store[doc]; }
+        }
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        const temp = file + "." + process.pid + ".tmp";
+        fs.writeFileSync(temp, JSON.stringify(store));
+        fs.renameSync(temp, file);
+      } catch (err) { /* kept in memory until the next save */ }
+    }, 1000);
+  }
+  return {
+    get: (doc) => store[doc] || [],
+    add: (doc, marks) => {
+      const byId = new Map((store[doc] || []).map((mark) => [mark.id, mark]));
+      marks.forEach((mark) => byId.set(mark.id, mark));
+      store[doc] = Array.from(byId.values());
+      save();
+    }
+  };
+}
+
 // ---- in VS Code ----
 
 function activate(context, helpers) {
@@ -434,6 +606,8 @@ function activate(context, helpers) {
   // paragraph text -> { suggestions }, kept on disk in this VS Code's own add-on folder (a test
   // copy of VS Code with its own --user-data-dir has its own)
   const results = savedResults(path.join(context.globalStorageUri.fsPath, "assistant-answers.json"));
+  // document -> Claude's edits in it (the marks on the page, see changesBetween)
+  const edits = savedEdits(path.join(context.globalStorageUri.fsPath, "assistant-edits.json"));
   const asking = new Set();      // paragraph texts being asked about now
   const waiting = [];            // paragraph texts to ask about, oldest first
   const lastText = new Map();    // document -> its text at the last change
@@ -462,16 +636,20 @@ function activate(context, helpers) {
   // what the page should show: the suggestions of every paragraph of the open pages
   function data() {
     const suggestions = [];
+    const changes = [];
     const seen = new Set();
     for (const doc of pageDocs()) {
-      for (const p of paragraphsOf(doc.getText())) {
+      const text = doc.getText();
+      for (const p of paragraphsOf(text)) {
         const found = results.get(p.text);
         if (!found || seen.has(p.text)) { continue; }
         seen.add(p.text);
         suggestions.push(...found.suggestions);
       }
+      // Claude's edits whose new words are still in the document
+      edits.get(doc.uri.toString()).forEach((mark) => { if (text.includes(mark.added)) { changes.push(mark); } });
     }
-    return { on: isOn(), busy: asking.size + waiting.length, error: failure, suggestions: suggestions };
+    return { on: isOn(), busy: asking.size + waiting.length, error: failure, suggestions: suggestions, edits: changes };
   }
 
   function writeSoon() {
@@ -572,6 +750,18 @@ function activate(context, helpers) {
   // ---- watching the page documents ----
   const changed = new Set();     // paragraph texts that are new since the last pause
 
+  // Claude's edit (a change from the disk): the marks of what changed, kept for the page
+  function recordEdits(doc, previous) {
+    try {
+      const marks = changesBetween(previous, doc.getText()).map((mark) => Object.assign(mark, { at: Date.now() }));
+      if (!marks.length) { return; }
+      edits.add(doc.uri.toString(), marks);
+      log("assistant: an edit from the disk in " + path.basename(doc.uri.fsPath) + ": " + marks.length + " mark" + (marks.length === 1 ? "" : "s"));
+    } catch (err) {
+      log("assistant: ERR could not compare the edit: " + (err && err.message ? err.message : err));
+    }
+  }
+
   function sameAsDisk(doc) {
     try { return fs.readFileSync(doc.uri.fsPath, "utf8").replace(/\r\n/g, "\n") === doc.getText().replace(/\r\n/g, "\n"); }
     catch (err) { return false; }
@@ -582,14 +772,17 @@ function activate(context, helpers) {
     const key = doc.uri.toString();
     // a document not seen before: only note the text (else every paragraph would count as new)
     if (!lastText.has(key)) { lastText.set(key, doc.getText()); return; }
-    if (!pageDocs().includes(doc)) { lastText.set(key, doc.getText()); return; }
-    const before = paragraphsOf(lastText.get(key));
-    const now = paragraphsOf(doc.getText());
-    lastText.set(key, doc.getText());
+    const previous = lastText.get(key);
     // A change from the disk (a Claude edit, a file changed elsewhere) is not typing: the file
     // on the disk already holds exactly the new text. Typed text is saved only after the
     // change (files.autoSave 100 ms), so "not dirty" alone cannot tell them apart.
-    if (!doc.isDirty && sameAsDisk(doc)) { writeSoon(); return; }
+    const fromDisk = !doc.isDirty && sameAsDisk(doc);
+    if (fromDisk) { recordEdits(doc, previous); }
+    if (!pageDocs().includes(doc)) { lastText.set(key, doc.getText()); return; }
+    const before = paragraphsOf(previous);
+    const now = paragraphsOf(doc.getText());
+    lastText.set(key, doc.getText());
+    if (fromDisk) { writeSoon(); return; }
     const old = new Set(before.map((p) => p.text));
     const fresh = now.filter((p) => !old.has(p.text)).map((p) => p.text);
     const gone = before.filter((p) => !now.some((q) => q.text === p.text)).map((p) => p.text);
@@ -716,6 +909,6 @@ function activate(context, helpers) {
 
 module.exports = {
   activate, paragraphsOf, plainOf, letters, prepare, afterAccept, claudeArgs, findClaude, askClaude, wordCount, savedResults,
-  bibliographyFiles, bibLines, outlineOf, systemFor,
+  bibliographyFiles, bibLines, outlineOf, systemFor, changesBetween, savedEdits,
   SYSTEM, SCHEMA, PAUSE, MIN_WORDS
 };

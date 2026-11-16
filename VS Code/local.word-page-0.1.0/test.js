@@ -412,6 +412,23 @@ const carried = assistant.afterAccept(para, accepted, [good, otherOne]);
 check("assistant: accepting one suggestion keeps the others of the paragraph",
   carried && carried.carried.length === 1 && carried.carried[0].original === "the scheme have");
 check("assistant: another change is not taken for an accept", assistant.afterAccept(para, para + " More.", [good, otherOne]) === null);
+// Claude's edits: what changed between the old and the new text of a file
+const oldDoc = ["# Intro", "", "The results shows that the scheme have a positive effect on young adults in rural areas.", "",
+  "We use two datasets to find this effect and it is very interesting.", "", "Earlier work agrees [@kline2015].", ""].join("\n");
+const newDoc = ["# Intro", "", "The results show that the scheme has a positive effect on young adults in rural areas.", "",
+  "A new paragraph that Claude wrote about the policy and its timing.", "", "We use two datasets to find this effect.", "",
+  "Earlier work agrees [@kline2014].", ""].join("\n");
+const editMarks = assistant.changesBetween(oldDoc, newDoc);
+const markOf = (added) => editMarks.find((m) => m.added === added);
+check("edits: a changed word is one mark with the old and the new words", markOf("show that") && markOf("show that").removed === "shows that");
+check("edits: a second change in the same line is a mark of its own", markOf("scheme has a") && markOf("scheme has a").removed === "scheme have a");
+check("edits: a new paragraph is one mark, all added", markOf("A new paragraph that Claude wrote about the policy and its timing.").removed === "");
+check("edits: a shortened sentence keeps the words next to the cut", markOf("this effect.") && markOf("this effect.").removed === "this effect and it is very interesting.");
+check("edits: a key inside a citation is marked, but without Undo on the page", markOf("@kline2014") && markOf("@kline2014").undo === false);
+check("edits: five marks, nothing for unchanged lines", editMarks.length === 5);
+check("edits: no change, no marks", assistant.changesBetween(oldDoc, oldDoc).length === 0);
+check("edits: each mark has the letters around it", markOf("scheme has a").before.endsWith("showthatthe") && markOf("scheme has a").after.startsWith("positiveeffect"));
+
 const answersFile = path.join(temp, "answers.json");
 const store = assistant.savedResults(answersFile);
 store.set(para, { suggestions: [good] });

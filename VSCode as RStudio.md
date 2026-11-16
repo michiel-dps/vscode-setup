@@ -1053,9 +1053,27 @@ saving from the page in the bench and comparing the file):
     Quarto's maths button does: the text `$...$` with the mark `math` of type
     `InlineMath`, put in by Quarto's editor like a citation (both are
     "rich" suggestions; tested in the bench: the file then has `$y_{it}$`).
-  - **The switch** on the "Claude" button (16 Nov 2026, asked): green = the
-    suggestions are shown in the text, red = all lines and the list are
-    hidden (Claude keeps reading). The page remembers it.
+  - **Claude's edits** (16 Nov 2026, asked: "underline the rows you added or
+    changed, with a little window like the suggestions that shows what you
+    changed, and a switch to turn it off or on"). A change of a `.qmd`/`.md`
+    that comes from the disk (a Claude edit: the file already has the new
+    text when VS Code sees it) is compared with the text before:
+    `changesBetween` in assistant.js, lines first (empty lines left out,
+    each new line paired with the old line most like it, at least 40% the
+    same words), then word by word; each run of changed words is one mark
+    (at least 8 letters, else the words around it are taken in). The marks
+    are kept 7 days in `globalStorage\local.word-page\assistant-edits.json`
+    and shown while their new words are in the document: a light amber
+    background with an amber line, card "Claude changed this · 3 min ago"
+    with the old words struck through → the new words, **Undo** (puts the
+    old words back on the page, like Accept, so Ctrl+Z gives Claude's words
+    back; not offered for bold, code or a key alone inside a citation) and
+    **Keep** (the mark goes, remembered by the page). Tested in the bench:
+    three marks for a word change, a new paragraph and a shortened sentence,
+    Undo changed page and file back, the switch and Keep work.
+  - **The switches** on the "Claude" button (16 Nov 2026, asked): one for
+    Suggestions and one for Claude's edits; green = shown in the text, red =
+    hidden (Claude keeps reading). The page remembers both.
   - The answers live in the add-on's own folder of this VS Code
     (`globalStorage\local.word-page\assistant-answers.json`; a test copy of
     VS Code has its own), and every save takes in what other VS Code windows
