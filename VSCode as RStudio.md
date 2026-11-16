@@ -199,6 +199,7 @@ line between editor groups, not the edge of the side windows or the bottom panel
 | Ctrl+Shift+M | types ` %>%` (RStudio's pipe shortcut); right after a space just `%>%`, so no double spaces |
 | Ctrl+M | disabled (it toggled "Tab moves focus" by accident) |
 | Ctrl+Enter | run the statement at the cursor, or the selection widened to whole statements; refuses an unfinished statement with a yellow warning (section 5) |
+| Ctrl+Numpad1 | a `.qmd`: Word Page ↔ plain text, both ways (section 5c; 16 Nov 2026). In the text you see Claude's edits red/green with Keep / Undo |
 | Ctrl+Numpad5 | jump to the **Claude Code** chat box in the side panel (opens it if closed). With lines highlighted in a file, it also types a reference to them into the message, e.g. `@code/04_maps.R#12-20` (file from the project folder, first-last line), so Claude reads exactly those lines; without a highlight it only jumps. Two entries for the same key: the plain one first, then one with `"when": "editorTextFocus && editorHasSelection"` that runs `claude-vscode.sidebar.open` and then `claude-vscode.insertAtMention` (the Claude add-on's own Alt+K command); the later entry wins when its `when` is true. The order inside matters: side panel first, because the add-on types the reference into every Claude chat that is visible at that moment (read in its code, version 2.1.322), so a Claude tab that is open next to the code gets the reference too; delete it there. A highlight on a Word Page is not an editor selection, so there a third entry (`"when": "activeCustomEditorId == 'quarto.visualEditor' ..."`, keyboard on the page) runs the Word Page add-on's own command, which does the same job in another way: section 5c, "Highlighted text to Claude". A highlight in the macro Tutor (VS Code's built-in browser, Ctrl+Numpad3) is not an editor selection either: a fourth entry (`"when": "activeEditor == 'workbench.editor.browser' ..."`) runs `wordPage.browserToClaude`, which pastes the highlighted piece, where it sits and its card into the chat box, ending "My question: " (section 5c, "Highlighted text in the built-in browser", 14 Nov 2026). A highlight inside the Claude side panel itself (a piece of an answer): a fifth entry (`"when": "focusedView == 'claudeVSCodeSidebar' || ..."`) runs `wordPage.chatSelectionToClaude`, which puts the piece back into the chat box as a quote (`> ...`) for a follow-up question (section 5c, "Highlighted text in the Claude panel", 14 Nov 2026). NumLock must be on (added 11 Nov 2026) |
 | Ctrl+Numpad7 | new **Claude Code** chat as a tab in its own column on the right (runs on the Claude subscription): it first focuses the second editor group (VS Code makes one on the right if there is only one), then runs `claude-vscode.primaryEditor.open`, which opens in that active group (or in a column that already holds only Claude tabs) and, unlike `claude-vscode.editor.open`, does not switch `claudeCode.preferredLocation` from sidebar to panel. Changed 4 Nov 2026: it first opened VS Code's own Claude harness ("Claude copilot"), but that chat cannot send anything here: Copilot Free (`copilot token sku: free_limited_copilot`) offers it no Claude models, and Anthropic does not allow claude.ai subscription logins in Agent SDK products (Agent SDK overview page), so it would need an Anthropic API key or a paid Copilot plan. Old notes on that harness, kept for later: it first focuses the second editor group (VS Code makes one on the right if there is only one), then opens the chat there; if that column already shows a Claude chat, the new one replaces it in place (the old one stays in the sessions list). Layout: Claude Code in the left side bar, code + Claude chat in the middle, Copilot chat ("Chat"; VS Code cannot rename a view) in the right side bar. VS Code has only one chat view, which is why the Claude chat is an editor tab and not a second side bar. Session type `agent-host-claude` (VS Code's Agent Host; the same command as picking "Claude" in the chat's session-type menu). Needed `"chat.agentHost.claudeAgent.enabled": true` in settings.json; **removed again 5 Nov 2026**: with it on, the Copilot chat panel opened this Claude chat type (which cannot send) and the old Copilot chats dropped out of the sessions list. Do not turn it back on (the old name `github.copilot.chat.claudeAgent.enabled` no longer exists in VS Code 1.144). Who pays depends on the model picked in that chat: models from your own Anthropic login (VS Code tags them `anthropic`, "native") bill your Claude account; the others go through Copilot. While signed in to GitHub, Copilot is the default. Native models only appear after VS Code has downloaded the Claude Agent SDK (agenthost.log said "SDK not downloaded yet" on 4 Nov). Added 4 Nov 2026 |
 | Ctrl+Numpad8 | jump to the Copilot chat box in the side window (opens it if closed); NumLock must be on (added 4 Nov 2026) |
@@ -805,11 +806,25 @@ page (the rules and fonts are then not even written into Quarto's file).
   folder in the Explorer, or File > New File...). It asks for a name, makes
   `<name>.qmd` in the folder of the open file with the header below, and opens
   it as a page. A `.bib` file in that folder becomes its list of sources.
-- A `.qmd` whose header has `editor: visual` opens as a page by itself.
-  Quarto does that only for files opened after it has started, so the add-on
-  does it for the first `.qmd` of a session. A `.md` never opens as a page by
-  itself: right-click it, `Word Page: Open as Page`.
-- **Ctrl+Shift+F4** switches between the page and the plain markdown text.
+- **Every `.qmd` opens as a page by itself** (16 Nov 2026):
+  `"workbench.editorAssociations"` has `"*.qmd": "quarto.visualEditor"` in
+  settings.json. A `.md` never opens as a page by itself: right-click it,
+  `Word Page: Open as Page`.
+- **Ctrl+Numpad1** switches between the page and the plain markdown text, both
+  ways (Quarto's `quarto.editInSourceMode` on the page,
+  `quarto.editInVisualMode` in the text; keybindings.json, 16 Nov 2026). His
+  Ctrl+Shift+F4 did nothing (probably the laptop's F4 needs Fn).
+- **No `editor: visual` in the header any more** (16 Nov 2026, "it kicks me
+  back to the visual editor every time"). With that line Quarto reopens the
+  page whenever a text tab of the file opens, except right after its own
+  switch. But it forgets that switch after 0.1 s (`onDidChangeActiveTextEditor`,
+  100 ms debounce, deletes `visualEditorPendingSwitchToSource`), while its tab
+  check first reads the file (`await fs.readFile`): when the read is slower,
+  the page comes back. Read in Quarto 1.139's `out/main.js`. Removed from
+  `paper/first_draft.qmd`; `Word Page: New Document` no longer writes it;
+  the editor association above opens the page instead. The line changes only
+  the editor, never the PDF. `paper/draft.qmd` still has it.
+- Older text (12 Nov 2026), from when the header had `editor: visual`:
   **The plain text of a page** (12 Nov 2026, asked: "the text editor
   function doesn't work anymore for the quarto file"): Quarto opens a `.qmd`
   whose header says `editor: visual` as a page every time, also after
@@ -844,7 +859,6 @@ page (the rules and fonts are then not even written into Quarto's file).
 ```yaml
 ---
 title: "Draft"
-editor: visual
 bibliography: references.bib
 ---
 ```
@@ -912,6 +926,14 @@ saving from the page in the bench and comparing the file):
   when its markdown was not yet in that tidy style.
 - It is for `.qmd` and `.md`. An `.Rmd` cannot be opened as a page (Quarto
   does not allow it): write in a `.qmd`, Claude moves the text into the `.Rmd`.
+- **Right-click on a word with a red line** gives Quarto's own menu: up to 5
+  suggestions, "Ignore All", "Add to Dictionary" (16 Nov 2026, he got VS
+  Code's normal menu). Quarto looked for the misspelled word at the start of
+  the element under the mouse (`posAtDOM(target, 0)`), usually the start of
+  the paragraph, so it found nothing. A fourth hook in Quarto's `index.js`
+  (`addSpellingHook` in `patch.js`, between `/*wp+*/` and `/*wp-*/` like the
+  others) makes it look at the spot under the mouse (`posAtCoords`). A word
+  without a red line still gets VS Code's normal menu (Cut, Copy, Paste).
 - Spell check on the page is British English since 12 Nov 2026:
   `"quarto.visualEditor.spellingDictionary": "en_GB"` in settings.json. The
   default is American and marked "neighbours" as wrong. Quarto has en_AU,
@@ -1523,7 +1545,7 @@ script (hooks in `~/.claude/settings.json`, script `~/.claude/review/review.py`)
 
 **On a `.qmd` (16 Nov 2026):** the red/green and Keep / Undo work for `.qmd`
 too, but only in the plain text view: the Word Page (Quarto's visual editor,
-a web page) cannot draw them. **Ctrl+Shift+F4** switches between the Word
+a web page) cannot draw them. **Ctrl+Numpad1** switches between the Word
 Page and the text view (Quarto's own key). Red/green on the Word Page itself
 is wanted, planned after the hand-in of 17 Nov 2026.
 

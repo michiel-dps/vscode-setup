@@ -29,7 +29,9 @@
     "r.plot.backend": "httpgd",
     "workbench.editorAssociations": {
         "*.copilotmd": "vscode.markdown.preview.editor",
-        "*.md": "vscode.markdown.preview.editor"
+        "*.md": "vscode.markdown.preview.editor",
+        // A .qmd opens as the Word Page (Quarto's visual editor). Not "editor: visual" in the header: with that, Quarto throws you back to the page when you switch to the text
+        "*.qmd": "quarto.visualEditor"
     },
     "editor.tokenColorCustomizations": {
         "[idleFingers]": {

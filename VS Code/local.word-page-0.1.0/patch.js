@@ -139,6 +139,23 @@ function addSyncHooks(js) {
   return { js: out, ok: true };
 }
 
+// ---- right-click on a word with a red line (16 Nov 2026) ----
+// Quarto's page shows its own menu with spelling suggestions, "Ignore All" and "Add to
+// Dictionary" only when it finds a misspelled word where you clicked. It looks at the start of
+// the element under the mouse (posAtDOM(target,0)): the start of the paragraph whenever the red
+// line is not drawn as its own element (the cursor in the word takes the red line away), so it
+// found nothing and VS Code's normal menu came. The hook looks at the spot under the mouse.
+//   contextMenu(e){if(e.target&&e.target instanceof Node){let t=this.view.posAtDOM(e.target,0);
+// Independent of the sync hooks: when it does not fit exactly once, only this hook stays out.
+const RIGHT_CLICK = /contextMenu\(([\w$]+)\)\{if\(\1\.target&&\1\.target instanceof Node\)\{let ([\w$]+)=this\.view\.posAtDOM\(\1\.target,0\);/g;
+
+function addSpellingHook(js) {
+  if (countOf(js, RIGHT_CLICK) !== 1) { return { js: js, ok: false }; }
+  const out = js.replace(RIGHT_CLICK, (whole, event, pos) =>
+    whole + "/*wp+*/{let wpAt=this.view.posAtCoords({left:" + event + ".clientX,top:" + event + ".clientY});if(wpAt)" + pos + "=wpAt.pos;}/*wp-*/");
+  return { js: out, ok: true };
+}
+
 // The text without any word-page block or hook. A block is taken out together with the
 // line break before it and the one after it: exactly what apply() adds, so a
 // file comes back byte for byte as it was.
@@ -170,10 +187,11 @@ function wanted(quartoDir, injectDir, options) {
   const jsNow = fs.readFileSync(files.js, "utf8");
   const cssNow = fs.readFileSync(files.css, "utf8");
   const synced = addSyncHooks(strip(jsNow));
+  const spelled = addSpellingHook(synced.js);
   const blocks = buildBlocks(injectDir, options, synced.ok);
   return {
     files, jsNow, cssNow, sync: synced.ok,
-    js: blocks.js + synced.js, css: strip(cssNow) + "\n" + blocks.css
+    js: blocks.js + spelled.js, css: strip(cssNow) + "\n" + blocks.css
   };
 }
 
@@ -270,6 +288,6 @@ function holdFile(quartoDir) {
 }
 
 module.exports = {
-  findQuarto, editorFiles, buildBlocks, strip, apply, remove, state, addSyncHooks, synced, START, END,
+  findQuarto, editorFiles, buildBlocks, strip, apply, remove, state, addSyncHooks, addSpellingHook, synced, START, END,
   pdfDataFile, pdfDataCss, readPdfDataCss, writePdfData, pdfPictureDir, PICTURE_DIR, holdFile, HOLD_FILE
 };

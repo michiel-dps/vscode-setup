@@ -203,7 +203,9 @@ async function newDocument(clicked) {
 
   // a .bib file in the same folder becomes the document's list of sources
   const bibFiles = fs.readdirSync(folder).filter((entry) => entry.toLowerCase().endsWith(".bib")).sort();
-  const header = ["---", 'title: "' + clean.replace(/"/g, '\\"') + '"', "editor: visual"];
+  // no "editor: visual": with it Quarto throws you back to the page when you switch to the text
+  // (16 Nov 2026); "*.qmd": "quarto.visualEditor" in settings.json opens it as a page instead
+  const header = ["---", 'title: "' + clean.replace(/"/g, '\\"') + '"'];
   if (bibFiles.length > 0) { header.push("bibliography: " + bibFiles[0]); }
   header.push("---", "", "");
 

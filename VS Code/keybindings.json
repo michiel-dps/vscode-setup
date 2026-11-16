@@ -48,6 +48,16 @@
         "when": "focusedView == 'claudeVSCodeSidebar' || focusedView == 'claudeVSCodeSidebarSecondary'"
     },
     {
+        "key": "ctrl+numpad1",
+        "command": "quarto.editInSourceMode",
+        "when": "activeCustomEditorId == 'quarto.visualEditor'"
+    },
+    {
+        "key": "ctrl+numpad1",
+        "command": "quarto.editInVisualMode",
+        "when": "editorTextFocus && editorLangId == quarto"
+    },
+    {
         "key": "ctrl+numpad6",
         "command": "workbench.action.toggleAuxiliaryBar"
     },

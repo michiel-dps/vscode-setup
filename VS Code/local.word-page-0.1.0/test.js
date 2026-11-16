@@ -227,6 +227,16 @@ check("hooks: not twice", patch.addSyncHooks(quartoLines + quartoLines).ok === f
 check("hooks: without the swap lines nothing goes in", patch.addSyncHooks(quartoLines.replace("this.pandocConverter.toProsemirror", "this.converter.toProsemirror")).ok === false);
 check("hooks: other variable names (another Quarto build) still fit", patch.addSyncHooks(quartoLines.replace(/\bc\(t\)/, "d(t)")).ok);
 check("hooks: Quarto's code changed: nothing goes in", patch.addSyncHooks(quartoLines.replace("!window.document.hasFocus()&&", "")).ok === false);
+// right-click on a word with a red line (patch.addSpellingHook), on Quarto 1.139's own line
+const menuLine = "contextMenu(e){if(e.target&&e.target instanceof Node){let t=this.view.posAtDOM(e.target,0);if(t!==-1){return t}}}";
+const spelled = patch.addSpellingHook(menuLine);
+check("spelling hook: it fits Quarto 1.139's code", spelled.ok);
+check("spelling hook: strip gives Quarto's code back byte for byte", patch.strip(spelled.js) === menuLine);
+check("spelling hook: the spot under the mouse replaces the start of the element",
+  spelled.js.includes("posAtDOM(e.target,0);/*wp+*/{let wpAt=this.view.posAtCoords({left:e.clientX,top:e.clientY});if(wpAt)t=wpAt.pos;}/*wp-*/"));
+check("spelling hook: the result is valid JavaScript", (() => { try { new Function("var o={" + spelled.js + "};"); return true; } catch (e) { console.log(e.message); return false; } })());
+check("spelling hook: not twice", patch.addSpellingHook(menuLine + menuLine).ok === false);
+check("spelling hook: Quarto's code changed: nothing goes in", patch.addSpellingHook(menuLine.replace("posAtDOM", "posAt")).ok === false);
 check("hooks: patch.apply puts them in a Quarto that has these lines, and remove takes them out", (() => {
   fs.writeFileSync(files.js, quartoLines);
   const done = patch.apply(old, inject, options);
