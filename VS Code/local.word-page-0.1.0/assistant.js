@@ -267,6 +267,22 @@ function changesBetween(oldText, newText) {
   return marks.filter((mark) => letters(mark.added)).slice(0, MAX_MARKS);
 }
 
+// Decline on the card of a Claude edit puts its old words back on the page (16 Nov 2026: the
+// keep check in extension.js took that for a missed change and put Claude's words back, "if i
+// decline i dont want it"). It is a Decline when the page has the rest of the change from disk,
+// and only some of its marks are back to their old words. When every mark is back, it cannot be
+// told from a missed change, so extension.js merges the change back as before.
+function onlyDeclined(base, page, disk) {
+  let reverted = disk;
+  for (const mark of changesBetween(base, disk)) {
+    const inPage = page.split(mark.added).length - 1;
+    const inDisk = reverted.split(mark.added).length - 1;
+    if (inPage < inDisk) { reverted = reverted.replace(mark.added, mark.removed); }
+  }
+  if (reverted === disk || reverted === base) { return false; }
+  return require("./merge").merge3(base, page, reverted).text === page;
+}
+
 // how much two lines share: 0 (nothing) to 1 (the same words)
 function alike(a, b) {
   const wa = a.toLowerCase().match(/[\p{L}\p{N}]+/gu) || [], wb = b.toLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
@@ -937,6 +953,6 @@ function activate(context, helpers) {
 
 module.exports = {
   activate, messageFor, paragraphsOf, plainOf, letters, prepare, afterAccept, claudeArgs, findClaude, askClaude, wordCount, savedResults,
-  bibliographyFiles, bibLines, outlineOf, systemFor, changesBetween, savedEdits,
+  bibliographyFiles, bibLines, outlineOf, systemFor, changesBetween, onlyDeclined, savedEdits,
   SYSTEM, SCHEMA, PAUSE, MIN_WORDS
 };

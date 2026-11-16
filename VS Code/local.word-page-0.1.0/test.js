@@ -444,6 +444,15 @@ check("edits: a shortened sentence keeps the words next to the cut", markOf("thi
 check("edits: a key inside a citation is marked, but without Undo on the page", markOf("@kline2014") && markOf("@kline2014").undo === false);
 check("edits: five marks, nothing for unchanged lines", editMarks.length === 5);
 check("edits: no change, no marks", assistant.changesBetween(oldDoc, oldDoc).length === 0);
+// Decline of one Claude edit: the keep check must not put Claude's words back
+const oneDeclined = newDoc.replace("The results show that", "The results shows that");
+check("keep: a Decline of one Claude edit is seen as a Decline", assistant.onlyDeclined(oldDoc, oneDeclined, newDoc) === true);
+check("keep: a Decline and typing elsewhere is still a Decline",
+  assistant.onlyDeclined(oldDoc, oneDeclined.replace("# Intro", "# Introduction"), newDoc) === true);
+check("keep: a page that missed the whole change is not a Decline (merged back as before)", assistant.onlyDeclined(oldDoc, oldDoc, newDoc) === false);
+check("keep: a page that missed the change while he typed is not a Decline",
+  assistant.onlyDeclined(oldDoc, oldDoc.replace("# Intro", "# Introduction"), newDoc) === false);
+check("keep: a page with the whole change is not a Decline", assistant.onlyDeclined(oldDoc, newDoc, newDoc) === false);
 check("edits: each mark has the letters around it", markOf("scheme has a").before.endsWith("showthatthe") && markOf("scheme has a").after.startsWith("positiveeffect"));
 
 const answersFile = path.join(temp, "answers.json");

@@ -884,8 +884,7 @@ async function checkClash(uri) {
 // text) leaves the change out (bench, 13 Nov 2026: 3 of 11 quick outside writes lost). So
 // after a change from disk, the next write from the page is checked: when it lacks that
 // change, the change is merged back in, and the page hears of the result.
-const fromDisk = new Map();     // file -> { base, disk }
-const savingSince = new Map();  // file -> when VS Code began saving it (until the save is done)
+const fromDisk = new Map();     // file -> { base, disk }const savingSince = new Map();  // file -> when VS Code began saving it (until the save is done)
 
 function documentChanged(change) {
   const doc = change.document;
@@ -918,6 +917,10 @@ function documentChanged(change) {
   fromDisk.delete(key);
   const merged = merge.merge3(known.base, text, known.disk).text;
   if (merged === text) { return; }                      // the page had it: all well
+  if (require("./assistant").onlyDeclined(known.base, text, known.disk)) {
+    log("keep: " + path.basename(doc.uri.fsPath) + ": the page put old words back with Decline; left as it is");
+    return;
+  }
   debugNote("keep", { base: known.base, page: text, disk: known.disk, merged: merged });
   if (looksCut(known.disk, known.base, text) || tooShort(merged, text, known.disk)) {
     log("keep: " + path.basename(doc.uri.fsPath) + ": merging back would take out too much text; not done");
