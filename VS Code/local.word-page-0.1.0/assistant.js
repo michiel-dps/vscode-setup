@@ -27,8 +27,10 @@ const MIN_WORDS = 6;         // shorter paragraphs (headings, captions, labels) 
 const AT_ONCE = 2;           // requests to Claude at the same time
 const TIME_LIMIT = 120000;   // ms: a request that takes longer is stopped
 const MAX_SUGGESTIONS = 6;   // per paragraph
-const KINDS = ["grammar", "punctuation", "clarity", "concise", "wording"];
+const KINDS = ["grammar", "punctuation", "clarity", "concise", "wording", "source"];
 const NO_MARKUP = /[*_`$@\[\]#^\\{}<>|~]/;   // an "original" with these is not plain text on the page
+// a citation: [@key], [see @key, p. 5], [@a; @b], or @key in the running text
+const CITATION = /\[[^\]]*@[^\]]*\]|-?@[\w:.&-]+/g;
 
 // ---- the paragraphs of a Markdown document ----
 
@@ -121,20 +123,95 @@ function count(text, part) {
 // A suggestion from Claude, checked and made ready for the page, or null when it is not usable:
 // the words must be in the paragraph exactly once and be plain text (no Markdown), the new words
 // must differ. before/after: up to 40 letters of the text around it, to find the right place.
+// Plain text, or plain text with citations in it: anything else (bold, maths, code) is left alone.
+function plainEnough(text) {
+  return !NO_MARKUP.test(text.replace(CITATION, ""));
+}
+
+// A suggestion from Claude, checked and made ready for the page, or null when it is not usable:
+// the old words must be in the paragraph exactly once, and old and new words may only hold plain
+// text and citations. before/after: up to 40 letters around it, to find the right place.
+// note: a source problem without a fix from the list (new words = old words): only a remark.
+// citation: old or new words hold a citation; typing cannot make a citation, so the page lets
+// Quarto's own editor put the new words in (inject/assistant.js, acceptWithQuarto).
 function prepare(paragraph, s) {
   if (!s || typeof s.original !== "string" || typeof s.replacement !== "string") { return null; }
   const original = s.original;
   const replacement = s.replacement;
-  if (!original.trim() || original === replacement || original.length > 400) { return null; }
-  if (NO_MARKUP.test(original) || NO_MARKUP.test(replacement.replace(/[\[\]]/g, ""))) { return null; }
+  const kind = KINDS.includes(s.kind) ? s.kind : "clarity";
+  const note = original === replacement;
+  if (!original.trim() || original.length > 400 || (note && kind !== "source")) { return null; }
+  if (!plainEnough(original) || !plainEnough(replacement)) { return null; }
   if (count(paragraph, original) !== 1 || !letters(original)) { return null; }
   const at = paragraph.indexOf(original);
   const before = letters(plainOf(paragraph.slice(0, at))).slice(-40);
   const after = letters(plainOf(paragraph.slice(at + original.length))).slice(0, 40);
-  const kind = KINDS.includes(s.kind) ? s.kind : "clarity";
-  const reason = String(s.reason || "").replace(/\s+/g, " ").trim().slice(0, 140);
+  const reason = String(s.reason || "").replace(/\s+/g, " ").trim().slice(0, 160);
   const id = crypto.createHash("sha1").update(paragraph + "\u0000" + original + "\u0000" + replacement).digest("hex").slice(0, 16);
-  return { id, original, replacement, kind, reason, before, after };
+  const citation = !note && /[\[\]@]/.test(original + replacement);
+  return { id, original, replacement, kind, reason, before, after, note, citation };
+}
+
+// ---- what Claude gets to know about the document ----
+
+// The sources of the document's .bib file(s), one short line each: key, first author, year,
+// title. The header says which file(s): "bibliography: references.bib" or a list.
+function bibliographyFiles(markdown, folder) {
+  const header = /^---\n([\s\S]*?)\n---/.exec(markdown.replace(/\r\n/g, "\n"));
+  if (!header) { return []; }
+  const files = [];
+  const one = /^bibliography:[ \t]*(\S.*)$/m.exec(header[1]);
+  if (one && !one[1].startsWith("[")) { files.push(one[1].replace(/["']/g, "").trim()); }
+  const list = /^bibliography:\s*\n((?:\s+-\s*.+\n?)+)/m.exec(header[1]);
+  if (list) { list[1].split("\n").forEach((line) => { const m = /-\s*(.+)/.exec(line); if (m) { files.push(m[1].replace(/["']/g, "").trim()); } }); }
+  return files.map((file) => path.resolve(folder, file));
+}
+
+function bibLines(bibText) {
+  const out = [];
+  const entry = /@(\w+)\s*\{\s*([^,\s]+)\s*,([\s\S]*?)\n\}/g;
+  let m;
+  while ((m = entry.exec(bibText))) {
+    if (/^(comment|string|preamble)$/i.test(m[1])) { continue; }
+    const body = m[3] + "\n";   // the last field has no comma or line end of its own
+    const field = (name) => {
+      const f = new RegExp("\\b" + name + "\\s*=\\s*[{\"]([\\s\\S]*?)[}\"]\\s*,?[ \\t]*\\n", "i").exec(body);
+      return f ? f[1].replace(/[{}]/g, "").replace(/\s+/g, " ").trim() : "";
+    };
+    const authors = field("author") || field("editor") || field("organization") || field("publisher");
+    const first = authors.split(/\s+and\s+/)[0].split(",")[0].trim();
+    const more = /\s+and\s+/.test(authors) ? (authors.split(/\s+and\s+/).length > 2 ? " et al." : " & " + authors.split(/\s+and\s+/)[1].split(",")[0].trim()) : "";
+    const year = (field("year") || field("date")).slice(0, 4) || "n.d.";
+    out.push(m[2] + " | " + first + more + " " + year + " | " + field("title").slice(0, 90));
+  }
+  return out;
+}
+
+// The numbered parts of the paper, as the PDF numbers them, and its figures and tables:
+// so Claude can tell when the text points at a section, figure or table that is not there.
+function outlineOf(markdown) {
+  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  const numbers = [0, 0, 0, 0];
+  const sections = [];
+  let fence = false;
+  let header = lines[0] === "---";
+  for (let i = header ? 1 : 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (header) { if (line === "---") { header = false; } continue; }
+    if (/^(```|~~~)/.test(line.trim())) { fence = !fence; continue; }
+    if (fence) { continue; }
+    const h = /^(#{1,4})\s+(.*)$/.exec(line);
+    if (!h) { continue; }
+    const title = h[2].replace(/\{[^}]*\}/g, "").trim();
+    if (/\{[^}]*\.unnumbered[^}]*\}|\{-\}/.test(h[2])) { sections.push("(no number) " + title); continue; }
+    const level = h[1].length - 1;
+    numbers[level]++;
+    for (let k = level + 1; k < numbers.length; k++) { numbers[k] = 0; }
+    sections.push(numbers.slice(0, level + 1).join(".") + " " + title);
+  }
+  const figures = Array.from(new Set((markdown.match(/\*\*Figure ([A-Z]?\d+)\.\*\*/g) || []).map((x) => x.replace(/\*|\./g, ""))));
+  const tables = Array.from(new Set((markdown.match(/\*\*Table ([A-Z]?\d+)\.\*\*/g) || []).map((x) => x.replace(/\*|\./g, ""))));
+  return "Sections: " + sections.join("; ") + "\nFigures: " + (figures.join(", ") || "none") + "\nTables: " + (tables.join(", ") || "none");
 }
 
 // The paragraph changed from `old` to `now`. When the change is exactly one of its suggestions
@@ -170,14 +247,31 @@ const SYSTEM = [
   "  change that fixes the problem.",
   "- \"original\" is copied character for character from the paragraph, as short as possible",
   "  (usually 1 to 8 words), appears exactly once in the paragraph, and contains no Markdown or",
-  "  LaTeX characters: none of * _ ` $ @ [ ] # ^ \\ { }.",
-  "- Never change citations ([@key]), cross references (@fig-...), numbers, maths, code or URLs.",
+  "  LaTeX characters: none of * _ ` $ # ^ \\ { } outside a citation. A citation may be part of it.",
+  "- Never change numbers, maths, code or URLs.",
   "- \"replacement\" replaces exactly the \"original\" text.",
-  "- \"reason\": at most 10 plain words, written for a student.",
-  "- \"kind\": grammar, punctuation, clarity, concise or wording.",
+  "- \"reason\": at most 12 plain words, written for a student.",
+  "- \"kind\": grammar, punctuation, clarity, concise, wording or source.",
   "- At most " + MAX_SUGGESTIONS + " suggestions, the most important first. If the paragraph is fine, return an",
-  "  empty list. Do not suggest a change you would not insist on."
+  "  empty list. Do not suggest a change you would not insist on.",
+  "Sources and references (kind \"source\"):",
+  "- Citations are written [@key], [@key, p. 5], [@a; @b] or @key. The keys that exist are in the list",
+  "  of sources below; never invent a key.",
+  "- Flag a citation whose key is not in the list (a typo: propose the right key), broken citation",
+  "  syntax (a missing bracket, stray characters such as {}), and a source written by hand or left",
+  "  open, such as \"(source)\", \"(datum)\" or \"(Ministry 2020)\": when one source in the list clearly",
+  "  fits, the replacement is the citation, e.g. \"(source)\" -> \"[@Hoydahl_2023]\"; keep page numbers.",
+  "- When no source in the list fits, or you are not sure which, give a remark: \"replacement\" is the",
+  "  same text as \"original\" and \"reason\" says what is missing (e.g. \"No source in your list for this; add one.\").",
+  "- Flag a reference to a section, figure or table that does not exist in the outline below",
+  "  (e.g. \"Section 5.1\" when there is no 5.1): a remark, or the right number when it is clear."
 ].join("\n");
+
+// the instructions with the sources and the outline of this document
+function systemFor(sources, outline) {
+  return SYSTEM + "\n\nThe sources in the document's bibliography (key | author year | title):\n" +
+    (sources.length ? sources.join("\n") : "(none)") + "\n\nThe outline of the document:\n" + outline;
+}
 
 const SCHEMA = JSON.stringify({
   type: "object",
@@ -220,14 +314,14 @@ function findClaude(setting) {
 // The arguments of one request: print mode, JSON answer in the fixed form, no tools, no MCP
 // servers, no session saved, and only "project" settings from an empty folder, so his own hooks
 // (review.py, the awake hooks) do not run for these requests.
-function claudeArgs(model) {
-  return ["-p", "--output-format", "json", "--json-schema", SCHEMA, "--system-prompt", SYSTEM,
+function claudeArgs(model, system) {
+  return ["-p", "--output-format", "json", "--json-schema", SCHEMA, "--system-prompt", system || SYSTEM,
     "--tools", "", "--strict-mcp-config", "--no-session-persistence", "--setting-sources", "project",
     "--model", model || "sonnet", "--effort", "low"];
 }
 
 // The suggestions Claude makes for one paragraph: Promise of [{ original, replacement, kind, reason }]
-function askClaude(exe, model, paragraph, workDir) {
+function askClaude(exe, model, paragraph, workDir, system) {
   return new Promise((resolve, reject) => {
     fs.mkdirSync(workDir, { recursive: true });
     const env = Object.assign({}, process.env);
@@ -238,7 +332,7 @@ function askClaude(exe, model, paragraph, workDir) {
     }
     let child;
     try {
-      child = childProcess.spawn(exe, claudeArgs(model), { cwd: workDir, env: env, windowsHide: true });
+      child = childProcess.spawn(exe, claudeArgs(model, system), { cwd: workDir, env: env, windowsHide: true });
     } catch (err) { reject(err); return; }
     let out = "";
     let err = "";
@@ -266,6 +360,9 @@ function askClaude(exe, model, paragraph, workDir) {
 // read again only when its text changed (each read uses some of his Claude usage). Kept by the
 // SHA-1 of the text, in answers.json; the newest KEEP answers stay. Works like a Map of texts.
 const KEEP = 5000;
+// Raise this when a saved answer would no longer fit the page (new fields): older answers are
+// then asked again. 2: note and citation (16 Nov 2026).
+const ANSWER_VERSION = 2;
 
 function textKey(text) {
   return crypto.createHash("sha1").update(text).digest("hex").slice(0, 24);
@@ -275,6 +372,7 @@ function savedResults(file) {
   let store = {};
   try { store = JSON.parse(fs.readFileSync(file, "utf8")) || {}; } catch (err) { store = {}; }
   let timer = null;
+  let cleared = false;   // "forget": the next save writes only what is new, without the file
   function save() {
     clearTimeout(timer);
     timer = setTimeout(() => {
@@ -283,17 +381,27 @@ function savedResults(file) {
         if (keys.length > KEEP) {
           keys.sort((a, b) => (store[a].at || 0) - (store[b].at || 0)).slice(0, keys.length - KEEP).forEach((k) => { delete store[k]; });
         }
+        // another VS Code window keeps its own answers in the same file: take those in first
+        if (!cleared) {
+          try { store = Object.assign(JSON.parse(fs.readFileSync(file, "utf8")) || {}, store); } catch (err) { /* no file yet */ }
+        }
+        cleared = false;
         fs.mkdirSync(path.dirname(file), { recursive: true });
-        fs.writeFileSync(file + ".tmp", JSON.stringify(store));
-        fs.renameSync(file + ".tmp", file);
+        const temp = file + "." + process.pid + ".tmp";
+        fs.writeFileSync(temp, JSON.stringify(store));
+        fs.renameSync(temp, file);
       } catch (err) { /* kept in memory until the next save */ }
     }, 1000);
   }
+  const current = (text) => {
+    const entry = store[textKey(text)];
+    return entry && entry.v === ANSWER_VERSION ? entry : undefined;
+  };
   return {
-    has: (text) => Object.prototype.hasOwnProperty.call(store, textKey(text)),
-    get: (text) => store[textKey(text)],
-    set: (text, value) => { store[textKey(text)] = { suggestions: value.suggestions, at: Date.now() }; save(); },
-    clear: () => { store = {}; save(); }
+    has: (text) => current(text) !== undefined,
+    get: (text) => current(text),
+    set: (text, value) => { store[textKey(text)] = { v: ANSWER_VERSION, suggestions: value.suggestions, at: Date.now() }; save(); },
+    clear: () => { store = {}; cleared = true; save(); }
   };
 }
 
@@ -303,7 +411,9 @@ function activate(context, helpers) {
   const vscode = require("vscode");
   const log = helpers.log;
   const workDir = path.join(process.env.LOCALAPPDATA || os.tmpdir(), "word-page", "assistant");
-  const results = savedResults(path.join(workDir, "answers.json"));   // paragraph text -> { suggestions } (kept on disk)
+  // paragraph text -> { suggestions }, kept on disk in this VS Code's own add-on folder (a test
+  // copy of VS Code with its own --user-data-dir has its own)
+  const results = savedResults(path.join(context.globalStorageUri.fsPath, "assistant-answers.json"));
   const asking = new Set();      // paragraph texts being asked about now
   const waiting = [];            // paragraph texts to ask about, oldest first
   const lastText = new Map();    // document -> its text at the last change
@@ -397,14 +507,30 @@ function activate(context, helpers) {
     return pageDocs().some((doc) => paragraphsOf(doc.getText()).some((p) => p.text === text));
   }
 
+  // the sources of a .bib file, read again only when the file changed
+  const bibRead = new Map();   // file -> { time, lines }
+  function sourcesOf(doc) {
+    const lines = [];
+    for (const file of bibliographyFiles(doc.getText(), path.dirname(doc.uri.fsPath))) {
+      try {
+        const time = fs.statSync(file).mtimeMs;
+        if (!bibRead.has(file) || bibRead.get(file).time !== time) { bibRead.set(file, { time: time, lines: bibLines(fs.readFileSync(file, "utf8")) }); }
+        lines.push(...bibRead.get(file).lines);
+      } catch (err) { /* no such file: no sources from it */ }
+    }
+    return lines;
+  }
+
   async function ask(text) {
     asking.add(text);
     writeSoon();
     const exe = findClaude(settings().get("claudePath", ""));
     const model = settings().get("assistantModel", "sonnet");
+    const doc = pageDocs().find((d) => paragraphsOf(d.getText()).some((p) => p.text === text));
+    const system = doc ? systemFor(sourcesOf(doc), outlineOf(doc.getText())) : SYSTEM;
     const started = Date.now();
     try {
-      const list = await askClaude(exe, model, text, workDir);
+      const list = await askClaude(exe, model, text, workDir, system);
       const ready = list.slice(0, MAX_SUGGESTIONS).map((s) => prepare(text, s)).filter(Boolean);
       results.set(text, { suggestions: ready });
       failure = "";
@@ -570,5 +696,6 @@ function activate(context, helpers) {
 
 module.exports = {
   activate, paragraphsOf, plainOf, letters, prepare, afterAccept, claudeArgs, findClaude, askClaude, wordCount, savedResults,
+  bibliographyFiles, bibLines, outlineOf, systemFor,
   SYSTEM, SCHEMA, PAUSE, MIN_WORDS
 };

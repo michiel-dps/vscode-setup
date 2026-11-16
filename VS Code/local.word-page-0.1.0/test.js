@@ -222,7 +222,7 @@ check("hooks: external gets the text, the editor, its options and Quarto's own w
   hooked.js.includes("window.wordPageSync.external(t,e,o,c)") && hooked.js.includes("window.wordPageSync.markdown(t,e,o)") &&
   hooked.js.includes("window.wordPageSync.started(i.canonical),/*wp-*/i.canonical):null}catch"));
 check("hooks: the swap asks changedSince right after reading the markdown, before swapping",
-  hooked.js.includes("toProsemirror(e,this.pandocFormat);/*wp+*/if(window.wordPageSync&&window.wordPageSync.changedSince&&window.wordPageSync.changedSince(this.state))throw"));
+  hooked.js.includes("toProsemirror(e,this.pandocFormat);/*wp+*/if(window.wordPageSync&&window.wordPageSync.changedSince&&window.wordPageSync.changedSince(this.state,this))throw"));
 check("hooks: not twice", patch.addSyncHooks(quartoLines + quartoLines).ok === false);
 check("hooks: without the swap lines nothing goes in", patch.addSyncHooks(quartoLines.replace("this.pandocConverter.toProsemirror", "this.converter.toProsemirror")).ok === false);
 check("hooks: other variable names (another Quarto build) still fit", patch.addSyncHooks(quartoLines.replace(/\bc\(t\)/, "d(t)")).ok);
@@ -422,7 +422,23 @@ const good = assistant.prepare(para, { original: "The results shows", replacemen
 check("assistant: a good suggestion is kept, with an id and the letters after it",
   good && good.id.length === 16 && good.before === "" && good.after.startsWith("thatthescheme") && good.kind === "grammar");
 check("assistant: words not in the paragraph are dropped", assistant.prepare(para, { original: "the effects", replacement: "x", kind: "grammar", reason: "" }) === null);
-check("assistant: Markdown in the old words is dropped", assistant.prepare(para, { original: "effect [@Hoydahl_2023]", replacement: "effect", kind: "concise", reason: "" }) === null);
+check("assistant: a citation in the old words is fine, and is put in by Quarto's editor",
+  assistant.prepare(para, { original: "[@Hoydahl_2023]", replacement: "[@Hoydahl_2017]", kind: "source", reason: "" }).citation === true);
+check("assistant: other Markdown (bold, maths, code) in the old or new words is dropped",
+  assistant.prepare("A *big* effect here and more", { original: "*big*", replacement: "large", kind: "wording", reason: "" }) === null &&
+  assistant.prepare(para, { original: "positive", replacement: "$x$", kind: "wording", reason: "" }) === null);
+const remark = assistant.prepare("It is clear (source) that this holds.", { original: "(source)", replacement: "(source)", kind: "source", reason: "No source in your list." });
+check("assistant: a source remark without a fix is kept as a note, without Accept", remark && remark.note === true && remark.citation === false);
+check("assistant: the same old and new words are only a note for sources", assistant.prepare(para, { original: "positive", replacement: "positive", kind: "wording", reason: "" }) === null);
+check("assistant: the bibliography file is found in the header (one file or a list)",
+  assistant.bibliographyFiles("---\ntitle: x\nbibliography: references.bib\n---\n", "C:\\paper")[0] === path.resolve("C:\\paper", "references.bib") &&
+  assistant.bibliographyFiles("---\nbibliography:\n  - a.bib\n  - b.bib\n---\n", "C:\\p").length === 2);
+const bibOut = assistant.bibLines("@article{Hoydahl_2023,\n  author = {H{\\o}ydahl, Erik and Smith, Ann},\n  title = {{Flytting} i Norge},\n  year = {2023}\n}\n\n@online{Kartverket_nd,\n  author = {{Kartverket}},\n  title = {Stedsnavn},\n  date = {2024-01-01}\n}\n");
+check("assistant: each source is one short line: key | author year | title",
+  bibOut.length === 2 && bibOut[0].startsWith("Hoydahl_2023 | ") && bibOut[0].includes("2023") && bibOut[0].includes("Flytting i Norge") && bibOut[1].startsWith("Kartverket_nd | Kartverket 2024"));
+const outline = assistant.outlineOf("---\ntitle: x\n---\n\n# Intro\n\n## Data\n\n```{r}\n# not a heading\n```\n\n# Results\n\n# References {.unnumbered}\n\n![**Figure 1.** A map](m.png)\n\n: **Table A7.** Checks\n");
+check("assistant: the outline numbers sections as the PDF does, and lists figures and tables",
+  outline.includes("1 Intro; 1.1 Data; 2 Results; (no number) References") && outline.includes("Figures: Figure 1") && outline.includes("Tables: Table A7"));
 check("assistant: words found twice are dropped", assistant.prepare("the cat and the cat", { original: "the cat", replacement: "a cat", kind: "wording", reason: "" }) === null);
 check("assistant: no change is dropped", assistant.prepare(para, { original: "results", replacement: "results", kind: "wording", reason: "" }) === null);
 check("assistant: an unknown kind becomes clarity", assistant.prepare(para, { original: "positive", replacement: "clear", kind: "style", reason: "" }).kind === "clarity");

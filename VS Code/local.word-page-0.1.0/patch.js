@@ -140,7 +140,7 @@ function addSyncHooks(js) {
     .replace(SWAP, (whole, md, opts, emit, fix, doc, rest) =>
       "async setMarkdown(" + md + "," + opts + "," + emit + "){" + opts + "=" + fix + "(" + opts + ");" +
       "let{doc:" + doc + "," + rest + "}=await this.pandocConverter.toProsemirror(" + md + ",this.pandocFormat);" +
-      "/*wp+*/if(window.wordPageSync&&window.wordPageSync.changedSince&&window.wordPageSync.changedSince(this.state))" +
+      "/*wp+*/if(window.wordPageSync&&window.wordPageSync.changedSince&&window.wordPageSync.changedSince(this.state,this))" +
       "throw new Error(\"word-page: the page changed while it swapped its text\");/*wp-*/");
   return { js: out, ok: true };
 }

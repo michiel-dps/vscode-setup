@@ -19,8 +19,20 @@
     punctuation: { label: "Correctness", colour: "#d1343b" },
     clarity: { label: "Clarity", colour: "#2b63d9" },
     concise: { label: "Conciseness", colour: "#2b63d9" },
-    wording: { label: "Word choice", colour: "#16915a" }
+    wording: { label: "Word choice", colour: "#16915a" },
+    source: { label: "Source", colour: "#8250df" }
   };
+
+  // the switch on the "Claude" button: show or hide all suggestions in the text (Claude keeps
+  // reading in the background either way); remembered by this page
+  var linesShown = true;
+  try { linesShown = localStorage.getItem("wp-assistant-shown") !== "no"; } catch (err) { linesShown = true; }
+  function setShown(on) {
+    linesShown = on;
+    try { localStorage.setItem("wp-assistant-shown", on ? "yes" : "no"); } catch (err) { /* this session only */ }
+    if (!on) { closeCard(); }
+    assistSchedule(true);
+  }
 
   function dismissedList() {
     try { return JSON.parse(localStorage.getItem("wp-assistant-dismissed") || "[]"); } catch (err) { return []; }
@@ -104,6 +116,12 @@
     try {
       range.setStart(startNode, startOffset);
       range.setEnd(endNode, endOffset);
+      // old words that start or end with a citation: the whole citation, with its [ ] (Quarto
+      // draws the brackets as pieces of their own, so the letters alone miss them)
+      var citeStart = startNode.parentElement && startNode.parentElement.closest(".cite");
+      var citeEnd = endNode.parentElement && endNode.parentElement.closest(".cite");
+      if (citeStart && /^\[/.test(s.original)) { range.setStartBefore(citeStart); }
+      if (citeEnd && /\]$/.test(s.original)) { range.setEndAfter(citeEnd); }
     } catch (err) { return null; }
     return range;
   }
@@ -146,7 +164,13 @@
       ".wp-assist-panel .wp-item .wp-new { font-weight: 600; }",
       ".wp-assist-panel .wp-item .wp-why { color: #57606a; font-size: 12px; margin-bottom: 6px; }",
       ".wp-assist-panel .wp-item .wp-kind { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }",
-      ".wp-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }"
+      ".wp-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }",
+      ".wp-switch { position: relative; width: 34px; height: 18px; border-radius: 9px; flex: none; cursor: pointer; transition: background .15s; }",
+      ".wp-switch.wp-on { background: #1f9d55; }",
+      ".wp-switch.wp-off { background: #d1343b; }",
+      ".wp-switch .wp-knob { position: absolute; top: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: left .15s; }",
+      ".wp-switch.wp-on .wp-knob { left: 18px; }",
+      ".wp-switch.wp-off .wp-knob { left: 2px; }"
     ].join("\n");
     document.head.appendChild(style);
     assistLayer = document.createElement("div");
@@ -197,7 +221,7 @@
     if (needFind) { assist.found = assistFind(); needFind = false; }
     var parts = [];
     var height = window.innerHeight;
-    for (var i = 0; i < assist.found.length; i++) {
+    for (var i = 0; linesShown && i < assist.found.length; i++) {
       var f = assist.found[i];
       var colour = (KIND[f.s.kind] || KIND.clarity).colour;
       var rects = f.range.getClientRects();
@@ -237,14 +261,19 @@
     var s = found.s;
     var kind = KIND[s.kind] || KIND.clarity;
     assistCard.innerHTML =
-      '<div class="wp-kind" style="color:' + kind.colour + '">' + kind.label + "</div>" +
-      '<div class="wp-change"><span class="wp-old">' + escapeHtml(s.original) + '</span> &rarr; <span class="wp-new">' +
-      (s.replacement ? escapeHtml(s.replacement) : "<i>(remove)</i>") + "</span></div>" +
+      '<div class="wp-kind" style="color:' + kind.colour + '">' + kind.label + "</div>" + changeHtml(s) +
       (s.reason ? '<div class="wp-why">' + escapeHtml(s.reason) + "</div>" : "") +
-      '<button class="wp-accept">Accept</button><button class="wp-dismiss">Dismiss</button>';
+      (s.note ? "" : '<button class="wp-accept">Accept</button>') + '<button class="wp-dismiss">Dismiss</button>';
     assistCard.style.display = "block";
     placeCard();
     assistDraw();
+  }
+
+  // old words struck through -> new words; a remark shows only the words it is about
+  function changeHtml(s) {
+    if (s.note) { return '<div class="wp-change"><span class="wp-new" style="background:#f3edff">' + escapeHtml(s.original) + "</span></div>"; }
+    return '<div class="wp-change"><span class="wp-old">' + escapeHtml(s.original) + '</span> &rarr; <span class="wp-new">' +
+      (s.replacement ? escapeHtml(s.replacement) : "<i>(remove)</i>") + "</span></div>";
   }
 
   function placeCard() {
@@ -275,19 +304,78 @@
     var selection = window.getSelection();
     selection.removeAllRanges();
     selection.addRange(range);
+    closeCard();
+    if (found.s.citation) {
+      acceptWithQuarto(found.s, range).then(function (done) {
+        if (done) { assist.gone[found.s.id] = Date.now(); }
+        setTimeout(function () { assistSchedule(true); }, 50);
+      });
+      return;
+    }
     var done = false;
     try {
       done = found.s.replacement ? document.execCommand("insertText", false, found.s.replacement) : document.execCommand("delete", false);
     } catch (err) { done = false; }
     if (done) { assist.gone[found.s.id] = Date.now(); }
-    closeCard();
     setTimeout(function () { assistSchedule(true); }, 50);
+  }
+
+  // New words with a citation: typed, Quarto keeps "[@key]" as plain text ("\[\@key\]" in the
+  // file). A citation on the page is text with two marks: "cite" on the whole [...] and "cite_id"
+  // on each @key (that is how Quarto's own Insert > Citation builds it). So the new words are
+  // built that way and put over the old words in one step in Quarto's editor: a real citation,
+  // and Ctrl+Z undoes it. sync.core is Quarto's editor (handed over by the hook in its setMarkdown).
+  function citationNodes(schema, text) {
+    var nodes = [];
+    var cite = schema.marks.cite.create();
+    var plainText = function (t, marks) { if (t) { nodes.push(schema.text(t, marks || [])); } };
+    var all = /\[[^\]]*@[^\]]*\]|-?@[\w:.&-]+/g;
+    var last = 0, m;
+    while ((m = all.exec(text))) {
+      plainText(text.slice(last, m.index));
+      var part = m[0];
+      if (part.charAt(0) === "[") {
+        var key = /-?@[\w:.&-]+/g, inside = 0, k;
+        while ((k = key.exec(part))) {
+          plainText(part.slice(inside, k.index), [cite]);
+          nodes.push(schema.text(k[0], [cite, schema.marks.cite_id.create()]));
+          inside = k.index + k[0].length;
+        }
+        plainText(part.slice(inside), [cite]);
+      } else {
+        nodes.push(schema.text(part, [schema.marks.cite_id.create()]));   // @key in the running text
+      }
+      last = m.index + part.length;
+    }
+    plainText(text.slice(last));
+    return nodes;
+  }
+
+  // why an Accept with a citation did not happen (for the bench: window.wordPageAssistLog)
+  var assistLog = window.wordPageAssistLog = [];
+  function acceptWithQuarto(s, range) {
+    var view = sync && sync.core && sync.core.view;
+    if (!view || !view.state || !view.state.schema.marks.cite || !view.state.schema.marks.cite_id) {
+      assistLog.push("no editor view (the page has not loaded through Quarto's setMarkdown yet)");
+      return Promise.resolve(false);
+    }
+    try {
+      var from = view.posAtDOM(range.startContainer, range.startOffset);
+      var to = view.posAtDOM(range.endContainer, range.endOffset);
+      view.dispatch(view.state.tr.replaceWith(from, to, citationNodes(view.state.schema, s.replacement)));
+      try { view.focus(); } catch (err) { /* fine */ }
+      return Promise.resolve(true);
+    } catch (err) {
+      assistLog.push("error: " + (err && err.message ? err.message : err));
+      return Promise.resolve(false);
+    }
   }
 
   // a click in the text on underlined words opens their card; a click elsewhere closes it
   document.addEventListener("click", function (event) {
     if (assistCard && assistCard.contains(event.target)) { return; }
     if (assistPanel && assistPanel.contains(event.target)) { return; }
+    if (!linesShown) { return; }
     var x = event.clientX, y = event.clientY;
     for (var i = 0; i < assist.found.length; i++) {
       var rects = assist.found[i].range.getClientRects();
@@ -321,18 +409,19 @@
     assistPanel.classList.toggle("wp-folded", folded);
     var n = assist.found.length;
     var state = data.error ? "Claude: " + data.error :
+      !linesShown ? "Suggestions hidden. Claude keeps reading; switch on to see them." :
       data.busy ? "Claude is reading " + data.busy + " paragraph" + (data.busy === 1 ? "" : "s") + "…" :
       n ? "" : "No suggestions for what you wrote.";
-    var items = assist.found.map(function (f, i) {
+    var items = !linesShown ? "" : assist.found.map(function (f, i) {
       var kind = KIND[f.s.kind] || KIND.clarity;
       return '<div class="wp-item" data-i="' + i + '" style="border-left-color:' + kind.colour + '">' +
-        '<div class="wp-kind" style="color:' + kind.colour + '">' + kind.label + "</div>" +
-        '<div class="wp-change"><span class="wp-old">' + escapeHtml(f.s.original) + '</span> &rarr; <span class="wp-new">' +
-        (f.s.replacement ? escapeHtml(f.s.replacement) : "<i>(remove)</i>") + "</span></div>" +
+        '<div class="wp-kind" style="color:' + kind.colour + '">' + kind.label + "</div>" + changeHtml(f.s) +
         (f.s.reason ? '<div class="wp-why">' + escapeHtml(f.s.reason) + "</div>" : "") +
-        '<button class="wp-accept" data-i="' + i + '">Accept</button><button class="wp-dismiss" data-i="' + i + '">Dismiss</button></div>';
+        (f.s.note ? "" : '<button class="wp-accept" data-i="' + i + '">Accept</button>') +
+        '<button class="wp-dismiss" data-i="' + i + '">Dismiss</button></div>';
     }).join("");
-    var html = '<div class="wp-head"><span class="wp-dot" style="background:#7c4dff"></span>Claude' +
+    var html = '<div class="wp-head"><span class="wp-switch ' + (linesShown ? "wp-on" : "wp-off") + '" title="' +
+      (linesShown ? "Suggestions shown: click to hide them" : "Suggestions hidden: click to show them") + '"><span class="wp-knob"></span></span>Claude' +
       '<span class="wp-count' + (n ? "" : " wp-zero") + '">' + (data.busy && !n ? "…" : n) + "</span></div>" +
       (state ? '<div class="wp-state">' + escapeHtml(state) + "</div>" : "") +
       '<div class="wp-list">' + items + "</div>";
@@ -347,6 +436,7 @@
 
   document.addEventListener("click", function (event) {
     if (!assistPanel || !assistPanel.contains(event.target)) { return; }
+    if (event.target.closest(".wp-switch")) { setShown(!linesShown); return; }
     if (event.target.closest(".wp-head")) {
       assist.panelOpen = assistPanel.classList.contains("wp-folded");
       drawPanel();

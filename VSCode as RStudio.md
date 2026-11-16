@@ -979,8 +979,8 @@ saving from the page in the bench and comparing the file):
   editor"). What you see: when a document opens as a page, Claude reads
   the text that is already there in the background, paragraph by paragraph
   (`wordPage.assistantReadAll`, on since 16 Nov 2026, asked: "existing text
-  can also just be checked"); the answers are kept in
-  `%LOCALAPPDATA%\word-page\assistant\answers.json`, so after a restart
+  can also just be checked"); the answers are kept on the laptop (see
+  below), so after a restart
   only changed paragraphs are read again. After you stop typing for about
   4 seconds, the paragraph you changed goes to Claude first; about 5 seconds later coloured lines
   appear under words on the page (red = correctness, blue = clarity and
@@ -1007,6 +1007,32 @@ saving from the page in the bench and comparing the file):
     it, the file is saved as always. After an Accept the other suggestions
     of that paragraph stay and it is not sent again. Dismiss is remembered by
     the page (localStorage). Each paragraph text is asked about once.
+  - **Sources and references** (16 Nov 2026, asked: "also if I mess up typing
+    sources or inline references"). Every request also gets the document's
+    sources (the `.bib` file(s) of its header, one line each: key | author
+    year | title) and its outline (numbered sections as the PDF numbers
+    them, figures, tables). Claude then flags (purple, "Source"): a key not
+    in the list (with the right key), broken citation syntax, "(source)",
+    "(datum)" and hand-typed references (with a `[@key]` when one source
+    clearly fits, else a remark with only Dismiss), and references to a
+    section, figure or table that does not exist. Accept of new words with a
+    citation: typing cannot make one (Quarto keeps typed `[@key]` as text,
+    `\[\@key\]` in the file; tried 16 Nov, also one letter at a time and as
+    a paste), so the page builds it as Quarto's Insert > Citation does: text
+    with the marks `cite` (the whole `[...]`) and `cite_id` (each `@key`),
+    put in by Quarto's own editor in one step (Ctrl+Z undoes it). That
+    editor comes from the hook in Quarto's `setMarkdown`, which now also
+    hands over `this` (`changedSince(this.state, this)`, kept as
+    `sync.core`). `window.wordPageAssistLog` says why such an Accept did not
+    happen. Saved answers carry a version (`ANSWER_VERSION`), so answers of
+    an older version are asked again.
+  - **The switch** on the "Claude" button (16 Nov 2026, asked): green = the
+    suggestions are shown in the text, red = all lines and the list are
+    hidden (Claude keeps reading). The page remembers it.
+  - The answers live in the add-on's own folder of this VS Code
+    (`globalStorage\local.word-page\assistant-answers.json`; a test copy of
+    VS Code has its own), and every save takes in what other VS Code windows
+    wrote, so windows do not wipe each other's answers.
   - Not sent: the header, headings, code, maths, tables and their captions,
     paragraphs under 6 words, and changes that come from the disk (Claude's
     edits: the file on disk already has the new text; typed text is saved

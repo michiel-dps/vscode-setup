@@ -1171,7 +1171,10 @@
   var swapFrom = null;     // the page's text (as JSON) when the swap started; null: no swap now
   var swapPlace = null;    // the words around the cursor right before the swap
 
-  function changedSince(state) {
+  function changedSince(state, core) {
+    // Quarto's real editor (with its view), from inside its setMarkdown, which runs when the page
+    // loads: Claude's suggestions with a citation need it (inject/assistant.js, 16 Nov 2026)
+    if (core && core.view) { sync.core = core; }
     if (swapFrom === null) { return false; }
     if (JSON.stringify(state.doc.toJSON()) !== swapFrom) { return true; }
     var pm = document.querySelector(".ProseMirror");
