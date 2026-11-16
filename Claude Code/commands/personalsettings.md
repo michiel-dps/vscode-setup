@@ -21,7 +21,7 @@ How does X work, why does Y happen, is Z switched on: read the relevant section 
 
 **A window where Claude does not open, or that behaves strangely** (12 and 13 Nov 2026, the H26 folder): run `<folder>\scripts\check-vscode.ps1` first, and with `-Fix` when it says WRONG. It checks that the `vscode://` links, the taskbar list of recent folders and every running window belong to the real VS Code (`%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe`) and not to a test copy. Background: note section 5c, "Test bench for Claude".
 
-**A test copy of VS Code** (for testing an add-on) always gets its own `--user-data-dir` and its own names in its `product.json` (`urlProtocol`, `win32AppUserModelId`, `win32MutexName`), as `bench\launch.ps1` of the Word Page add-on does. Without them Windows starts the copy in place of the real VS Code. Run `check-vscode.ps1` after the test.
+**A test copy of VS Code** (for testing an add-on) always gets its own `--user-data-dir` and its own names in its `product.json` (`urlProtocol`, `win32AppUserModelId`, `win32MutexName`, `sharedDataFolderName`), as `bench\launch.ps1` of the Word Page add-on does. Without the first three Windows starts the copy in place of the real VS Code; without `sharedDataFolderName` the copy shares `~\.vscode-shared` and drops his GitHub login (16 Nov 2026). Run `check-vscode.ps1` after the test.
 
 ## A change
 

@@ -250,10 +250,15 @@ if (-not (Test-Path -LiteralPath $code)) {
 #   and a click on "H26-Data Science" there started the COPY with his own settings. That copy
 #   then wrote the list and the links again, so the fix of 12 Nov 2026 (links only) did not
 #   hold: on 13 Nov Claude again would not open in his H26 window.
+# - sharedDataFolderName: VS Code keeps logins (GitHub) in ~\.vscode-shared, the same folder
+#   for every copy, also with its own --user-data-dir. The copy has its own encryption key,
+#   cannot read his GitHub login there and drops it: after each bench run he had to sign in
+#   to GitHub again (found 16 Nov 2026).
 $ownNames = [ordered]@{
-    'win32MutexName'      = 'vscodewordpagebench'
-    'urlProtocol'         = 'vscode-wordpagebench'
-    'win32AppUserModelId' = 'WordPageBench.VSCode'
+    'win32MutexName'       = 'vscodewordpagebench'
+    'urlProtocol'          = 'vscode-wordpagebench'
+    'win32AppUserModelId'  = 'WordPageBench.VSCode'
+    'sharedDataFolderName' = '.vscode-wordpagebench-shared'
 }
 foreach ($product in @(Get-ChildItem "$Work\vscode\*\resources\app\product.json")) {
     $text = [IO.File]::ReadAllText($product.FullName)

@@ -1108,7 +1108,18 @@ start the real VS Code, the taskbar list starts the real VS Code, and no
 copy of VS Code runs with your own settings (a copy without its own
 `--user-data-dir`). The rule for every test copy of VS Code, also a future
 one: its own `--user-data-dir` and its own names in `product.json`. This is
-also written in `~/.claude/CLAUDE.md` and in `/personalsettings`. The other
+also written in `~/.claude/CLAUDE.md` and in `/personalsettings`.
+**16 Nov 2026: he had to sign in to GitHub in VS Code again and again.**
+VS Code keeps logins (GitHub, Copilot) in `~\.vscode-shared\sharedStorage\state.vscdb`,
+a folder named by `sharedDataFolderName` in `product.json`, the same for
+every copy even with its own `--user-data-dir`. The bench copy has its own
+encryption key (`Local State` in its own data folder), could not read his
+GitHub login there and dropped it (the store had no `github.auth` left; the
+bench last ran on 13 Nov, and from then on every start said "Got 0
+sessions"). Fixed: `launch.ps1` also gives the copy its own
+`sharedDataFolderName` = `.vscode-wordpagebench-shared` (the existing copy in
+`%TEMP%\word-page-bench` was changed the same day). His login after the
+sign-in of 16 Nov: `secret://...github.auth` in the real store. The other
 traps are written at the top of `launch.ps1` (a waiting VS Code update blocks
 a second VS Code, hence the copy; Quarto's one-time question; Quick Open only
 finds files opened before). For the page look there are three more probes in
