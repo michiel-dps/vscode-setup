@@ -1014,7 +1014,11 @@
     var pt = parseFloat(cs.fontSize) / 10.91;
     var body = content.parentElement;
     if (!body || !pt) { return; }
-    var textLeft = content.getBoundingClientRect().left - body.getBoundingClientRect().left + (parseFloat(cs.paddingLeft) || 0);
+    // measured from the start of the scrolled area, not from what is on screen: the editor
+    // (body) scrolls sideways, and counting that scroll moved the sheet by the same amount after
+    // every change on the page, so a map scrolled to the right jumped back (16 Nov 2026, asked:
+    // "if i scroll to the right to see the whole of figure 7 it keeps jumping me back")
+    var textLeft = content.getBoundingClientRect().left - body.getBoundingClientRect().left + body.scrollLeft + (parseFloat(cs.paddingLeft) || 0);
     var textWidth = content.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
     var sheet = 841.89 * pt;
     var left = Math.round(Math.max((textWidth - sheet) / 2, 12 + 22 * pt - textLeft)) + "px";

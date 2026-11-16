@@ -853,6 +853,15 @@ What it still cannot copy, so the real PDF still differs:
   that sheet the editor scrolls sideways (or make the editor wider: Ctrl+B
   hides the side bar). The figures on upright pages were already at their
   PDF size (measured: Figure 5 452.3 points on the page, 453.5 in the PDF).
+  **Scrolled sideways, the sheet stays put** (16 Nov 2026, asked: "if i
+  scroll to the right to see the whole of figure 7 it keeps jumping me
+  back"): `placeSideways` in the script block measured where the text starts
+  as seen on screen, so with the editor (`.body`) scrolled sideways every
+  change on the page (a redraw of the suggestion lines while scrolling is
+  enough, through the MutationObserver) moved the sheet right by the scrolled
+  amount and the map's left edge came back into view. It now adds
+  `body.scrollLeft`. Bench test: scrolled 300 px, one change on the page, the
+  sheet stayed at the same place (before the fix it moved 300 px).
 - No ligatures (fi, fl drawn as one letter): the editor switches them off.
 
 The fonts are eight files in `inject\fonts` (copied unchanged from TinyTeX,
