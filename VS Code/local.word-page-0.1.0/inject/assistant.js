@@ -93,13 +93,47 @@
     if (declinedKeys.length > 2000) { declinedKeys = declinedKeys.slice(-2000); }
     try { localStorage.setItem("wp-assistant-declined", JSON.stringify(declinedKeys)); } catch (err) { /* only for this session then */ }
   }
+  // Declined words (16 Nov 2026, "i just declined this proposal dont show it again"): after the
+  // paragraph is read again Claude can come back with other new words for the same old words
+  // ("Finally we ask ourselves, does" got four different proposals). So a Decline also hides every
+  // later proposal for the same old words, or for old words that mostly overlap them (the shorter
+  // inside the longer and at least 60% of its length, so a small spelling fix inside a declined
+  // sentence still shows).
+  function plainWords(t) {
+    return (t || "").toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim();
+  }
+  function declinedWordsList() {
+    try { return JSON.parse(localStorage.getItem("wp-assistant-declined-words") || "[]"); } catch (err) { return []; }
+  }
+  var declinedWords = declinedWordsList();
+  function rememberWords(original) {
+    var w = plainWords(original);
+    if (!w || declinedWords.indexOf(w) >= 0) { return; }
+    declinedWords.push(w);
+    if (declinedWords.length > 2000) { declinedWords = declinedWords.slice(-2000); }
+    try { localStorage.setItem("wp-assistant-declined-words", JSON.stringify(declinedWords)); } catch (err) { /* only for this session then */ }
+  }
+  function wordsDeclined(original) {
+    var w = plainWords(original);
+    if (!w) { return false; }
+    for (var i = 0; i < declinedWords.length; i++) {
+      var d = declinedWords[i];
+      var shorter = w.length < d.length ? w : d;
+      var longer = shorter === w ? d : w;
+      if (longer.indexOf(shorter) >= 0 && shorter.length >= 0.6 * longer.length) { return true; }
+    }
+    return false;
+  }
   function declined(s) {
-    return s.kind !== "edit" && declinedKeys.indexOf(changeKey(s)) >= 0;
+    if (s.kind === "edit") { return false; }
+    if (declinedKeys.indexOf(changeKey(s)) >= 0) { rememberWords(s.original); return true; }   // also older declines
+    return wordsDeclined(s.original);
   }
   function decline(s) {
     dismiss(s.id);
     if (s.kind === "edit") { return; }          // Claude's edits: only this mark
     rememberKey(changeKey(s));
+    rememberWords(s.original);
   }
   // after an Accept, the opposite change is never proposed again
   function blockWayBack(s) {

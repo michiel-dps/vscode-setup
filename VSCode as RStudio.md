@@ -1086,9 +1086,15 @@ saving from the page in the bench and comparing the file):
     brought in is checked too (16 Nov 2026, asked "make sure it rechecks"
     after an Accept had typed "30--39"; `results.answered()` = a real answer,
     `has()` = also the carried ones). Decline is remembered by the page
-    (localStorage); after the recheck a declined suggestion can come back
-    once, because its paragraph text changed. Each paragraph text is asked
-    about once.
+    (localStorage) twice: the pair of old and new words, and since 16 Nov
+    2026 also the old words alone (`wp-assistant-declined-words`), because
+    on every recheck Claude came back with other new words for the same
+    old words ("Finally we ask ourselves, does" got four different
+    proposals, "i just declined this proposal dont show it again"). A later
+    proposal is hidden when its old words are the same as declined ones,
+    or mostly overlap them (the shorter inside the longer and at least 60%
+    of its length, so a small spelling fix inside a declined sentence
+    still shows). Each paragraph text is asked about once.
   - **Real dashes** (16 Nov 2026): "--" is Markdown for a dash, but typed on
     the page it stays two hyphens. SYSTEM asks for – and — (never "--" or
     "---"), and `prepare` turns "--"/"---" in the new words into – and —
