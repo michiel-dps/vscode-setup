@@ -70,6 +70,28 @@
     try { localStorage.setItem("wp-assistant-dismissed", JSON.stringify(dismissed)); } catch (err) { /* only for this session then */ }
   }
 
+  // Accept all of Claude's edits in one chapter (16 Nov 2026, asked: "accept all claude edit in
+  // chapter 2"). A chapter is everything from a # heading (h1 on the page) to the next one.
+  function chapterOf(range) {
+    var chapter = null;
+    var headings = document.querySelectorAll(".pm-content h1.pm-heading");
+    for (var i = 0; i < headings.length; i++) {
+      // the heading comes before the start of the words: it is this chapter, or an earlier one
+      if (headings[i].compareDocumentPosition(range.startContainer) & Node.DOCUMENT_POSITION_FOLLOWING) { chapter = headings[i]; }
+    }
+    return chapter;
+  }
+  function editsInChapter(found) {
+    var chapter = chapterOf(found.range);
+    if (!chapter) { return []; }
+    return assist.found.filter(function (f) { return f.edit && visible(f) && chapterOf(f.range) === chapter; });
+  }
+  function acceptChapter(found) {
+    editsInChapter(found).forEach(function (f) { dismiss(f.s.id); });
+    closeCard();
+    assistSchedule(true);
+  }
+
   function loadAssistData() {
     if (!ASSIST_URL || document.visibilityState === "hidden") { return; }
     var link = document.createElement("link");
@@ -177,6 +199,7 @@
       ".wp-assist-card .wp-old { text-decoration: line-through; color: #8a8f98; }",
       ".wp-assist-card .wp-new { font-weight: 600; background: #e7f6ec; border-radius: 3px; padding: 0 3px; }",
       ".wp-assist-card .wp-why { color: #57606a; margin-bottom: 10px; }",
+      ".wp-assist-card .wp-all { margin-top: 8px; padding-top: 8px; border-top: 1px solid #eaeef2; }",
       ".wp-assist-card button, .wp-assist-panel button { font: 600 12px 'Segoe UI', system-ui, sans-serif; border-radius: 6px; padding: 5px 12px; cursor: pointer; border: 1px solid #d0d7de; background: #f6f8fa; color: #24292f; }",
       ".wp-assist-card button.wp-green, .wp-assist-panel button.wp-green { background: #1f7a4d; border-color: #1f7a4d; color: #fff; margin-right: 6px; }",
       ".wp-assist-panel { position: fixed; z-index: 50; right: 12px; top: 12px; width: 330px; max-height: calc(100vh - 24px); display: flex; flex-direction: column;",
@@ -304,6 +327,7 @@
         if (!button || !assist.open) { return; }
         if (button.getAttribute("data-do") === "apply") { accept(assist.open); }
         if (button.getAttribute("data-do") === "close") { dismiss(assist.open.s.id); closeCard(); assistSchedule(true); }
+        if (button.getAttribute("data-do") === "chapter") { acceptChapter(assist.open); }
       });
       document.body.appendChild(assistCard);
     }
@@ -312,7 +336,7 @@
     assistCard.innerHTML =
       '<div class="wp-kind" style="color:' + kind.colour + '">' + kind.label +
       (s.at ? '<span class="wp-when">' + ago(s.at) + "</span>" : "") + "</div>" + changeHtml(s) +
-      (s.reason ? '<div class="wp-why">' + escapeHtml(s.reason) + "</div>" : "") + buttonsHtml(s, "");
+      (s.reason ? '<div class="wp-why">' + escapeHtml(s.reason) + "</div>" : "") + buttonsHtml(s, "") + chapterButtonHtml(found);
     assistCard.style.display = "block";
     placeCard();
     assistDraw();
@@ -331,6 +355,14 @@
       return green + 'close"' + at + ">Accept</button>" + (s.undo ? white + 'apply"' + at + ">Decline</button>" : "");
     }
     return (s.note ? "" : green + 'apply"' + at + ">Accept</button>") + white + 'close"' + at + ">Decline</button>";
+  }
+
+  // on the card of a Claude edit, when its chapter has more of them: accept them all at once
+  function chapterButtonHtml(found) {
+    if (!found.edit) { return ""; }
+    var count = editsInChapter(found).length;
+    if (count < 2) { return ""; }
+    return '<div class="wp-all"><button class="wp-green" data-do="chapter">Accept all ' + count + " in this chapter</button></div>";
   }
 
   // old words struck through -> new words; a remark shows only the words it is about;

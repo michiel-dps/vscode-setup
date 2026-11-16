@@ -1095,6 +1095,14 @@ saving from the page in the bench and comparing the file):
     words in the text (Accept of a suggestion, Decline of an edit), "close"
     only takes the mark away (Decline of a suggestion, Accept of an edit).
     The colour comes from the class `wp-green`, not from what the button does.
+  - **Accept all in this chapter** (16 Nov 2026, asked: "accept all claude
+    edit in chapter 2"). The card of a Claude edit gets a third, green button
+    "Accept all n in this chapter" when its chapter has 2 or more Claude
+    edits shown. A chapter = from a `#` heading (`h1.pm-heading` on the
+    page) to the next one (`chapterOf`, `editsInChapter`, `acceptChapter` in
+    `inject/assistant.js`). It does an Accept on each: the marks go, the text
+    stays. Tested in the bench: 4 marks in chapter 1 accepted, the mark in
+    chapter 2 stayed.
   - **The switches** at the top right of the page (16 Nov 2026, asked), under
     each other: **Grammarly** (the suggestions) and **Claude edits** (Claude's
     edits, named so on 16 Nov), each with its count; green = shown in the
