@@ -970,6 +970,46 @@ saving from the page in the bench and comparing the file):
   when its markdown was not yet in that tidy style.
 - It is for `.qmd` and `.md`. An `.Rmd` cannot be opened as a page (Quarto
   does not allow it): write in a `.qmd`, Claude moves the text into the `.Rmd`.
+- **Claude's suggestions, like Grammarly** (16 Nov 2026, asked: "me having a
+  window open with you and if I'm on some text you can come with proposals
+  like Grammarly does ... make sure it works properly in the Quarto visual
+  editor"). What you see: after you stop typing for about 4 seconds, the
+  paragraph you changed goes to Claude; about 5 seconds later coloured lines
+  appear under words on the page (red = correctness, blue = clarity and
+  conciseness, green = word choice). Click the words: a card with the new
+  words, a short reason, **Accept** and **Dismiss**. The button "Claude n" at
+  the top right opens the list of all of them (folded when the editor is
+  narrow). The status bar shows "Claude n" / "Claude reading"; a click there
+  gives: let Claude read the whole document (asks first, uses your Claude
+  usage), turn it off/on (`wordPage.assistant`), forget and read again.
+  - How: `assistant.js` (add-on side) notes the changed paragraphs of the
+    documents open as a page, and after the pause runs the Claude Code
+    program of this laptop without a window (`claude -p`, your subscription,
+    model `wordPage.assistantModel` = sonnet, effort low, no tools, no MCP,
+    no session saved, `--setting-sources project` from the empty folder
+    `%LOCALAPPDATA%\word-page\assistant`, so your hooks do not run; your
+    global CLAUDE.md is still read, cached). The answer is a fixed JSON form
+    (`--json-schema`): exact old words, new words, kind, reason. Only
+    suggestions whose old words are plain text found once in the paragraph
+    are kept. They go to the page in `word-page-assistant.css` next to
+    Quarto's index.js (like the page ends); `inject/assistant.js` reads it
+    every 2 s and draws in a layer of its own on top of the page, never in
+    Quarto's editor. Accept selects the old words and types the new ones
+    (`execCommand("insertText")`), so Quarto takes it as typing: Ctrl+Z undoes
+    it, the file is saved as always. After an Accept the other suggestions
+    of that paragraph stay and it is not sent again. Dismiss is remembered by
+    the page (localStorage). Each paragraph text is asked about once.
+  - Not sent: the header, headings, code, maths, tables and their captions,
+    paragraphs under 6 words, and changes that come from the disk (Claude's
+    edits: the file on disk already has the new text; typed text is saved
+    0.1 s later, `files.autoSave`).
+  - Tested in the bench (Quarto 1.139, 16 Nov 2026) on a test file and on a
+    copy of first_draft.qmd: lines in the right place (justified PDF look,
+    across a line break, next to page ends and citations), card, Accept from
+    the card and from the list (file on disk changed, citations untouched),
+    Ctrl+Z, Dismiss. Finding the words again after each keystroke takes
+    about 5 ms on the whole paper. Log lines `assistant: ...` in
+    `%TEMP%\word-page.log` (times in UTC).
 - **Right-click on a word with a red line** gives Quarto's own menu: up to 5
   suggestions, "Ignore All", "Add to Dictionary" (16 Nov 2026, he got VS
   Code's normal menu). Quarto looked for the misspelled word at the start of
