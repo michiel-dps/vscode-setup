@@ -142,7 +142,9 @@ function plainEnough(text, mathsToo) {
 function prepare(paragraph, s) {
   if (!s || typeof s.original !== "string" || typeof s.replacement !== "string") { return null; }
   const original = s.original;
-  const replacement = s.replacement;
+  // "--" and "---" are Markdown for a dash, but typed on the page they stay two or three hyphens
+  // ("30-39" became "30--39", 16 Nov 2026): new words get the real dashes, – and —
+  const replacement = original.includes("--") ? s.replacement : s.replacement.replace(/---/g, "—").replace(/--/g, "–");
   const kind = KINDS.includes(s.kind) ? s.kind : "clarity";
   const note = original === replacement;
   if (!original.trim() || original.length > 400 || (note && kind !== "source")) { return null; }
@@ -402,6 +404,9 @@ const SYSTEM = [
   "  (usually 1 to 8 words), appears exactly once in the paragraph, and contains no Markdown or",
   "  LaTeX characters: none of * _ ` $ # ^ \\ { } outside a citation. A citation may be part of it.",
   "- Never change numbers, existing maths, code or URLs.",
+  "- Type the real characters, never Markdown stand-ins: an en dash – for ranges (ages 20–39,",
+  "  2016–2024), never \"--\"; an em dash —, never \"---\". The author's \"--\" or \"-\" in a range",
+  "  becomes – (kind \"punctuation\").",
   "- \"replacement\" replaces exactly the \"original\" text.",
   "- \"reason\": at most 12 plain words, written for a student.",
   "- \"kind\": spelling, grammar, punctuation, clarity, concise, wording, source or notation.",
@@ -569,10 +574,12 @@ function savedResults(file) {
     const entry = store[textKey(text)];
     return entry && entry.v === ANSWER_VERSION ? entry : undefined;
   };
+  // carried: only the suggestions left over after an Accept; Claude still reads the new text
   return {
     has: (text) => current(text) !== undefined,
+    answered: (text) => current(text) !== undefined && !current(text).carried,
     get: (text) => current(text),
-    set: (text, value) => { store[textKey(text)] = { v: ANSWER_VERSION, suggestions: value.suggestions, at: Date.now() }; save(); },
+    set: (text, value) => { store[textKey(text)] = { v: ANSWER_VERSION, suggestions: value.suggestions, carried: value.carried ? true : undefined, at: Date.now() }; save(); },
     clear: () => { store = {}; cleared = true; save(); }
   };
 }
@@ -714,7 +721,7 @@ function activate(context, helpers) {
   function next() {
     while (isOn() && asking.size < AT_ONCE && waiting.length) {
       const text = waiting.shift();
-      if (results.has(text) || asking.has(text) || !stillThere(text)) { continue; }
+      if (results.answered(text) || asking.has(text) || !stillThere(text)) { continue; }
       ask(text);
     }
     writeSoon();
@@ -762,7 +769,7 @@ function activate(context, helpers) {
   }
 
   function queue(text, front) {
-    if (!checkable(text) || results.has(text) || asking.has(text) || waiting.includes(text)) { return; }
+    if (!checkable(text) || results.answered(text) || asking.has(text) || waiting.includes(text)) { return; }
     if (front) { waiting.unshift(text); } else { waiting.push(text); }
   }
 
@@ -805,10 +812,12 @@ function activate(context, helpers) {
     const old = new Set(before.map((p) => p.text));
     const fresh = now.filter((p) => !old.has(p.text)).map((p) => p.text);
     const gone = before.filter((p) => !now.some((q) => q.text === p.text)).map((p) => p.text);
-    // one paragraph changed into one other: maybe he accepted a suggestion
+    // one paragraph changed into one other: maybe he accepted a suggestion. The other suggestions
+    // stay on the page at once, and Claude still reads the new text after the pause, so what the
+    // Accept brought in is checked too (asked 16 Nov 2026, after an Accept typed "30--39")
     if (fresh.length === 1 && gone.length === 1 && results.has(gone[0])) {
       const kept = afterAccept(gone[0], fresh[0], results.get(gone[0]).suggestions);
-      if (kept) { results.set(fresh[0], { suggestions: kept.carried }); writeSoon(); return; }
+      if (kept) { results.set(fresh[0], { suggestions: kept.carried, carried: true }); }
     }
     fresh.forEach((text) => changed.add(text));
     if (fresh.length) { log("assistant: " + fresh.length + " changed paragraph" + (fresh.length === 1 ? "" : "s") + " in " + path.basename(doc.uri.fsPath) + ", waiting for a pause"); }
@@ -846,7 +855,7 @@ function activate(context, helpers) {
       const key = doc.uri.toString();
       if (readDocs.has(key)) { continue; }
       readDocs.add(key);
-      const todo = paragraphsOf(doc.getText()).map((p) => p.text).filter((text) => checkable(text) && !results.has(text));
+      const todo = paragraphsOf(doc.getText()).map((p) => p.text).filter((text) => checkable(text) && !results.answered(text));
       todo.forEach((text) => queue(text, false));
       if (todo.length) { log("assistant: " + path.basename(doc.uri.fsPath) + " opened as a page: " + todo.length + " paragraphs to read"); }
     }
@@ -885,7 +894,7 @@ function activate(context, helpers) {
   async function checkAll() {
     const doc = activePageDoc();
     if (!doc) { vscode.window.showWarningMessage("Word Page: open a document as a page first."); return; }
-    const todo = paragraphsOf(doc.getText()).map((p) => p.text).filter((text) => checkable(text) && !results.has(text));
+    const todo = paragraphsOf(doc.getText()).map((p) => p.text).filter((text) => checkable(text) && !results.answered(text));
     if (!todo.length) { vscode.window.showInformationMessage("Claude has already read every paragraph of " + path.basename(doc.uri.fsPath) + "."); return; }
     const go = await vscode.window.showInformationMessage(
       "Let Claude read " + todo.length + " paragraph" + (todo.length === 1 ? "" : "s") + " of " + path.basename(doc.uri.fsPath) +

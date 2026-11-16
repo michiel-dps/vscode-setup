@@ -421,6 +421,14 @@ const carried = assistant.afterAccept(para, accepted, [good, otherOne]);
 check("assistant: accepting one suggestion keeps the others of the paragraph",
   carried && carried.carried.length === 1 && carried.carried[0].original === "the scheme have");
 check("assistant: another change is not taken for an accept", assistant.afterAccept(para, para + " More.", [good, otherOne]) === null);
+const dashPara = "For ages 20–29 both shrank. Age group 30-39 shows a similar situation.";
+const dash = assistant.prepare(dashPara, { original: "30-39", replacement: "30--39", kind: "punctuation", reason: "" });
+check("assistant: \"--\" in new words becomes a real en dash (\"---\" an em dash)",
+  dash && dash.replacement === "30–39" &&
+  assistant.prepare(dashPara, { original: "a similar situation", replacement: "a similar situation --- again", kind: "wording", reason: "" }).replacement === "a similar situation — again");
+check("assistant: the author's own \"--\" in the old words can become an en dash",
+  assistant.prepare("Age group 30--39 shows a similar situation.", { original: "30--39", replacement: "30–39", kind: "punctuation", reason: "" }).replacement === "30–39");
+check("assistant: SYSTEM asks for real dashes", assistant.SYSTEM.includes("never \"--\""));
 // Claude's edits: what changed between the old and the new text of a file
 const oldDoc = ["# Intro", "", "The results shows that the scheme have a positive effect on young adults in rural areas.", "",
   "We use two datasets to find this effect and it is very interesting.", "", "Earlier work agrees [@kline2015].", ""].join("\n");
@@ -442,6 +450,11 @@ const answersFile = path.join(temp, "answers.json");
 const store = assistant.savedResults(answersFile);
 store.set(para, { suggestions: [good] });
 check("assistant: an answer is there at once", store.has(para) && store.get(para).suggestions[0].id === good.id && !store.has(accepted));
+store.set(accepted, { suggestions: [otherOne], carried: true });
+check("assistant: after an Accept the leftover suggestions show, but the new text is still read again",
+  store.has(accepted) && store.get(accepted).suggestions.length === 1 && !store.answered(accepted) && store.answered(para));
+store.set(accepted, { suggestions: [] });
+check("assistant: Claude's answer for the new text counts as read", store.answered(accepted));
 const args = assistant.claudeArgs("sonnet");
 check("assistant: the request has no tools, no MCP, no saved session, project settings only, JSON answer",
   args.includes("-p") && args[args.indexOf("--tools") + 1] === "" && args.includes("--strict-mcp-config") &&
