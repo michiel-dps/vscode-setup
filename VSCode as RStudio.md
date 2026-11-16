@@ -101,7 +101,7 @@ own code (1.146) and the Claude Code add-on's (2.1.323):
 
 | What | Comes back? | Why |
 |---|---|---|
-| Every VS Code window | yes | `"window.restoreWindows": "preserve"` (default `all`). With `all`, starting VS Code from a folder in the taskbar list opened only that folder; `preserve` reopens the rest too |
+| Every VS Code window | yes, at a plain start | `"window.restoreWindows": "all"` (VS Code's default). A plain start (Start menu, taskbar icon, after a reboot) reopens every window of the last session. Opening one folder (taskbar list, Open Folder, a `vscode://` link) opens only that folder. Was `preserve` from 13 Nov 2026, which reopened all windows also when he opened one folder; he did not want that (16 Nov 2026), so back to `all` |
 | Editor tabs in each window | yes | VS Code default |
 | Claude Code chats opened **as tabs** (Ctrl+Numpad7) | yes, with the conversation | the add-on restores its tabs (`registerWebviewPanelSerializer("claudeVSCodePanel")`); `claudeCode.continueAfterReload` (default on) even finishes a step that was cut off |
 | The Claude Code chat **in the side bar** | no, it opens empty | the add-on starts the side bar without a session. The old chat is in its list of past conversations (or `/chats`). A chat you want back after a restart: open it as a tab |
@@ -385,6 +385,12 @@ A click or any key stops it at once and goes to VS Code.
   - A second VS Code window, or "Startup screen: play now": the add-on leaves
     `request-show` and the helper shows it. The helper writes `helper-alive`
     every 5 s and `showing` while the screen is up; the add-on reads them.
+  - **One screen per start** (16 Nov 2026): every window VS Code reopens runs
+    the add-on, so after a reboot (VS Code opened before the helper had
+    started) three windows gave three screens in a row. Now a screen in the
+    last minute (`lastShown` in `state.json`, shared by all windows) counts
+    for every window; the log says "skip: another window of this start
+    showed the screen". "Startup screen: play now" is not affected.
   - Waiting: about 23 MB of memory, no CPU; up to about 100 MB after a screen.
   - Without the helper (it does not run): the add-on shows the screen
     itself, a few seconds later: Microsoft Edge in kiosk mode (whole screen,
