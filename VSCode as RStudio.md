@@ -1227,6 +1227,14 @@ saving from the page in the bench and comparing the file):
     opens no card. Bench test with real mouse clicks: on a mark over a
     citation the card opened and the cursor stayed, on plain words the card
     opened and the cursor went to the word, the editor kept the keyboard.
+  - **Source check notes in grey** (16 Nov 2026, asked: "change the font of
+    the source check text, it is getting hard to distinguish the notes from
+    the real text made by me"). Every "(SOURCE CHECK: ...)" up to its own
+    closing bracket (never past the end of its paragraph) is drawn in grey
+    letters on a light grey background, through the browser's highlight
+    feature (`CSS.highlights`, `::highlight(wp-source-check)`, in
+    `inject/assistant.js`, `highlightSourceChecks`). The text in the file
+    and on the page is unchanged, the PDF prints the notes as normal text.
   - **The switches** at the top right of the page (16 Nov 2026, asked), under
     each other: **Grammarly** (the suggestions) and **Claude edits** (Claude's
     edits, named so on 16 Nov), each with its count; green = shown in the
