@@ -1521,6 +1521,12 @@ let Claude Code update) and take `wrapCodeBlocks()` out of the opener.
 What you see: section 5. How it works, around every Edit/Write of an R
 script (hooks in `~/.claude/settings.json`, script `~/.claude/review/review.py`):
 
+**On a `.qmd` (16 Nov 2026):** the red/green and Keep / Undo work for `.qmd`
+too, but only in the plain text view: the Word Page (Quarto's visual editor,
+a web page) cannot draw them. **Ctrl+Shift+F4** switches between the Word
+Page and the text view (Quarto's own key). Red/green on the Word Page itself
+is wanted, planned after the hand-in of 17 Nov 2026.
+
 0. For a `.qmd` or `.md` file, `review.py pre` first waits until the user has
    not typed in it for 5 seconds, then holds the open Word Pages for the
    moment of the write (`word-page-hold.css`), and `post` releases them and
