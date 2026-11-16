@@ -1099,7 +1099,15 @@
     /*MERGE*/
     return module.exports;
   })();
-  var QUIET_APPLY = 1500;     // ms without typing before a change made outside is put on the page
+  // Working in the page while a Claude chat edits it (16 Nov 2026, asked: "when you were editing
+  // my cursor was going around in the qmd file and i was unable to work on it at the same time").
+  // Ten edits in a row gave ten swaps, each after a pause of 1.5 s, and each could put the cursor
+  // at the first place in the paper with the same words. Now: one swap after a burst of edits
+  // (none for 2 s and no chat holding the file), only after 3 s without typing, and the cursor
+  // goes to the match nearest to where it was (caretPlace / putCaret).
+  var QUIET_APPLY = 3000;     // ms without typing before a change made outside is put on the page
+  var SETTLE_OUTSIDE = 2000;  // ms without a new change from outside before it is put on the page
+  var lastOutside = 0;        // when the last change from outside came in
   var HOLD_URL = thisScript ? thisScript.replace(/index\.js(\?.*)?$/, "word-page-hold.css") : "";
   var sync = {
     editor: null, prefs: null,
@@ -1208,6 +1216,7 @@
     if (text.length < sync.file.length && text.slice(-80) !== sync.file.slice(-80) && text.slice(-80) !== sync.base.slice(-80)) { return; }
     note("outside", { file: text });
     sync.file = text;
+    lastOutside = Date.now();
     scheduleApply();
   }
 
@@ -1219,7 +1228,8 @@
     }, 300);
   }
 
-  // the words around the cursor, to put it back after the page took in a change
+  // the words around the cursor, and where in the page's text it is, to put it back after the
+  // page took in a change
   function caretPlace() {
     var sel = window.getSelection();
     var pm = document.querySelector(".ProseMirror");
@@ -1230,7 +1240,19 @@
     range.selectNodeContents(block);
     range.setEnd(sel.anchorNode, sel.anchorOffset);
     var before = range.toString();
-    return { before: before.slice(-40), after: block.textContent.slice(before.length, before.length + 40) };
+    var whole = document.createRange();
+    whole.selectNodeContents(pm);
+    whole.setEnd(sel.anchorNode, sel.anchorOffset);
+    return { before: before.slice(-40), after: block.textContent.slice(before.length, before.length + 40), at: whole.toString().length };
+  }
+
+  // the place of `words` in `text` nearest to `near` (-1: not there)
+  function nearest(text, words, near) {
+    var best = -1;
+    for (var i = text.indexOf(words); i >= 0; i = text.indexOf(words, i + 1)) {
+      if (best < 0 || Math.abs(i - near) < Math.abs(best - near)) { best = i; }
+    }
+    return best;
   }
 
   function putCaret(place) {
@@ -1243,10 +1265,11 @@
     var n;
     while ((n = walker.nextNode())) { nodes.push(n); starts.push(text.length); text += n.data; }
     var at = -1;
-    var i = text.indexOf(place.before + place.after);
+    var i = nearest(text, place.before + place.after, place.at - place.before.length);
     if (i >= 0 && (place.before + place.after).length > 0) { at = i + place.before.length; }
-    else if (place.before && (i = text.indexOf(place.before)) >= 0) { at = i + place.before.length; }
-    else if (place.after && (i = text.indexOf(place.after)) >= 0) { at = i; }
+    else if (place.before && (i = nearest(text, place.before, place.at - place.before.length)) >= 0) { at = i + place.before.length; }
+    else if (place.after && (i = nearest(text, place.after, place.at)) >= 0) { at = i; }
+    else { at = Math.min(place.at, text.length); }      // the words are gone: the same spot
     if (at < 0) { return; }
     for (var k = nodes.length - 1; k >= 0; k--) {
       if (starts[k] <= at) {
@@ -1285,8 +1308,10 @@
 
   async function applyOutside() {
     if (sync.file === null || sync.file === sync.base || !sync.editor) { return; }
-    if (sync.answering || sync.applying || Date.now() - lastTyping < QUIET_APPLY) { scheduleApply(); return; }
+    if (sync.answering || sync.applying || Date.now() - lastTyping < QUIET_APPLY || Date.now() - lastOutside < SETTLE_OUTSIDE) { scheduleApply(); return; }
     sync.applying = true;
+    // a Claude chat still writing (more edits coming): wait, so a burst becomes one swap
+    if (await chatWriting()) { sync.applying = false; scheduleApply(); return; }
     var target = sync.file;
     var pm = document.querySelector(".ProseMirror");
     var scroller = pm && pm.parentElement;

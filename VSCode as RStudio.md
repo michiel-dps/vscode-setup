@@ -747,14 +747,29 @@ happen. Six parts:
    write coming back is recognised and ignored. A write is only noted as done
    at the very end, after a last check that no chat is writing and that the
    file did not change meanwhile (noting it earlier lost letters in the bench).
-3. **The page shows a chat's change when you pause** (1.5 s without typing):
+3. **The page shows a chat's change when you pause** (3 s without typing,
+   1.5 s until 16 Nov 2026):
    Quarto's `setMarkdown` reads the new text and swaps it in. Right before
    the swap the hook asks `changedSince`: did anything on the page change
    since the swap began? Then it is called off, nothing changes, and it is
    tried again at the next pause. Question and swap run without a break, so
    no keystroke can get lost. (First tried: holding keys pressed during the
    swap and typing them again afterwards; that lost 5 of 264 words.) The
-   cursor goes back to the same words.
+   cursor goes back to the same words, the match nearest to where it was.
+   **Working in the page while a chat edits it** (16 Nov 2026, asked: "when
+   you were editing my cursor was going around in the qmd file and i was
+   unable to work on it at the same time"). Ten edits in a row gave ten
+   swaps, each after a 1.5 s pause, and `putCaret` took the first place in
+   the whole paper with the same 40 letters around the cursor (or with only
+   half of them), so the cursor could land in another paragraph each time.
+   Now: a swap waits until no change from outside came for 2 s
+   (`SETTLE_OUTSIDE`) and no chat holds the file (`chatWriting`), so a burst
+   of edits is one swap; it needs 3 s without typing (`QUIET_APPLY`); and
+   `caretPlace` also notes where in the page's text the cursor is, so
+   `putCaret` takes the match nearest to it (`nearest`), or that same spot
+   when the words are gone. Bench test: cursor in a paragraph whose words
+   also stand in an earlier paragraph, five edits 0.5 s apart above it: one
+   swap, cursor at the same letter of the same paragraph.
 4. **The hold** (`word-page-hold.css` next to Quarto's `index.js`): just
    before a chat writes a `.qmd`, `review.py` writes a time a few seconds
    ahead into that file in each Quarto folder the add-on registered
