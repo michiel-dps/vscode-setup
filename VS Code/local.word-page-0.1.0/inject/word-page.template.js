@@ -1282,6 +1282,11 @@
     }, 300);
   }, true);
 
+  // Spelling suggestions of our own (inject/spell.js, 16 Nov 2026): the hook in Quarto's
+  // suggestionList asks window.wordPageSpell first (patch.js, addSuggestHook)
+  /*SPELL*/
+  window.wordPageSpell = wordPageSpell;
+
   apply();
   // VS Code sends its theme colours again when the theme or a setting changes: put ours back
   new MutationObserver(apply).observe(document.documentElement, { attributes: true, attributeFilter: ["style"] });

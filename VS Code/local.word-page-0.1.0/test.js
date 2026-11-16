@@ -237,16 +237,39 @@ check("spelling hook: the spot under the mouse replaces the start of the element
 check("spelling hook: the result is valid JavaScript", (() => { try { new Function("var o={" + spelled.js + "};"); return true; } catch (e) { console.log(e.message); return false; } })());
 check("spelling hook: not twice", patch.addSpellingHook(menuLine + menuLine).ok === false);
 check("spelling hook: Quarto's code changed: nothing goes in", patch.addSpellingHook(menuLine.replace("posAtDOM", "posAt")).ok === false);
-// faster spelling suggestions (patch.addSuggestHook), on Quarto 1.139's own line of Typo.js
-const typoLine = "var l=this;function u(e,t){return{}}function d(e){var n,r=u((n={},n[e]=!0,n)),i=u(r,!0);for(var a in r)l.check(a)&&(i[a]=r[a]);return i}";
-const fast = patch.addSuggestHook(typoLine);
-check("suggest hook: it fits Quarto 1.139's code", fast.ok);
-check("suggest hook: strip gives Quarto's code back byte for byte", patch.strip(fast.js) === typoLine);
-check("suggest hook: one change away first, the slow second round only when that finds nothing",
-  fast.js.includes("i=/*wp+*/(function(){var wpOne={},wpAny=!1;for(var wpW in r)if(l.check(wpW)){wpOne[wpW]=r[wpW];wpAny=!0}return wpAny?wpOne:null})()||/*wp-*/u(r,!0);"));
-check("suggest hook: the result is valid JavaScript", (() => { try { new Function(fast.js); return true; } catch (e) { console.log(e.message); return false; } })());
-check("suggest hook: not twice", patch.addSuggestHook(typoLine + typoLine).ok === false);
-check("suggest hook: Quarto's code changed: nothing goes in", patch.addSuggestHook(typoLine.replace("u(r,!0)", "u(r,!1)")).ok === false);
+// our own spelling suggestions (patch.addSuggestHook), on Quarto 1.139's own line
+const suggestLine = "({suggestionList(e,t){t(n.current?.suggest(e)||[])},addToDictionary(e){}})";
+const ours = patch.addSuggestHook(suggestLine);
+check("suggest hook: it fits Quarto 1.139's code", ours.ok);
+check("suggest hook: strip gives Quarto's code back byte for byte", patch.strip(ours.js) === suggestLine);
+check("suggest hook: asks window.wordPageSpell with Quarto's dictionary, Quarto's own list otherwise",
+  ours.js.includes("suggestionList(e,t){/*wp+*/if(window.wordPageSpell&&n.current){try{t(window.wordPageSpell.suggest(e,n.current));return}catch(wpErr){}}/*wp-*/t(n.current?.suggest(e)||[])}"));
+check("suggest hook: the result is valid JavaScript", (() => { try { new Function("var n={};return " + ours.js); return true; } catch (e) { console.log(e.message); return false; } })());
+check("suggest hook: not twice", patch.addSuggestHook(suggestLine + suggestLine).ok === false);
+check("suggest hook: Quarto's code changed: nothing goes in", patch.addSuggestHook(suggestLine.replace("suggest(e)", "suggestions(e)")).ok === false);
+check("suggest hook: the script block carries spell.js with the word list",
+  (() => { const b = patch.buildBlocks(inject, options); return b.js.includes("window.wordPageSpell = wordPageSpell;") && b.js.includes('var FREQUENCY = "you i the to a') && !b.js.includes("/*FREQ*/") && !b.js.includes("/*SPELL*/"); })());
+
+// spell.js itself, on a small dictionary that works like Quarto's (Typo.js)
+const spellSource = fs.readFileSync(path.join(inject, "spell.js"), "utf8").replace('"/*FREQ*/"', () => JSON.stringify("the which with their don't don then a lot in fact"));
+const spellModule = { exports: {} };
+new Function("module", spellSource)(spellModule);
+const fakeWords = ["the", "which", "with", "wish", "their", "tier", "don't", "don", "dent", "cont", "a", "lot", "allot", "in", "fact", "infect", "Samuel", "sample", "final", "final's"];
+const fakeTypo = {
+  dictionaryTable: new Map(fakeWords.map((w) => [w, null])),
+  replacementTable: [["alot", "a_lot"]],
+  hasFlag: () => false
+};
+const spellOf = (word) => spellModule.exports.suggest(word, fakeTypo);
+check("spell: dont -> don't first", spellOf("dont")[0] === "don't");
+check("spell: teh -> the first", spellOf("teh")[0] === "the");
+check("spell: thier -> their first", spellOf("thier")[0] === "their");
+check("spell: wich -> which first (sounds the same)", spellOf("wich")[0] === "which");
+check("spell: alot -> a lot first (the dictionary's own list)", spellOf("alot")[0] === "a lot");
+check("spell: sampel -> sample before the name Samuel", spellOf("sampel")[0] === "sample");
+check("spell: finaly -> final before final's", spellOf("finaly").indexOf("final") < spellOf("finaly").indexOf("final's") || spellOf("finaly").indexOf("final's") < 0);
+check("spell: Dont -> Don't (capital kept)", spellOf("Dont")[0] === "Don't");
+check("spell: at most 5", spellOf("tha").length <= 5);
 check("hooks: patch.apply puts them in a Quarto that has these lines, and remove takes them out", (() => {
   fs.writeFileSync(files.js, quartoLines);
   const done = patch.apply(old, inject, options);

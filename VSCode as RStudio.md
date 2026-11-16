@@ -934,14 +934,28 @@ saving from the page in the bench and comparing the file):
   (`addSpellingHook` in `patch.js`, between `/*wp+*/` and `/*wp-*/` like the
   others) makes it look at the spot under the mouse (`posAtCoords`). A word
   without a red line still gets VS Code's normal menu (Cut, Copy, Paste).
-  **Fast** (16 Nov 2026, "very slow"): Quarto's spelling (Typo.js) built
-  every word one change away, then every word two changes away (about a
-  million dictionary checks): 0.6 to 1.9 s before the menu came (measured
-  with en_GB in VS Code's node). A fifth hook (`addSuggestHook`) keeps the
-  real words one change away and does the slow second round only when there
-  is none: 1 to 12 ms (receive, government, municipality, Norwegian,
-  definitely: the right word first or second); a word with nothing close
-  still takes about 0.3 s.
+  **Our own suggestions** (16 Nov 2026: first "very slow", then "make sure
+  the spelling fixes are of the highest quality, Grammarly type quality").
+  Quarto's suggestions (Typo.js) took 0.6 to 1.9 s and did not know which
+  words are common ("dont" got "cont" and "dent", "teh" never got "the").
+  A fifth hook (`addSuggestHook`) hands the request to `inject/spell.js`,
+  which keeps Quarto's dictionary (it still decides the red lines) and
+  only picks and orders the suggestions: every dictionary word one or two
+  small changes away, the dictionary's own confusion list ("alot" → "a lot")
+  and two words run together; score = how common the word is (place in the
+  50,000 most used English words, `inject/en-frequency.txt`, from
+  FrequencyWords by Hermit Dave, MIT licence) minus how unlikely the mistake
+  is (a missing apostrophe in a contraction, a doubled letter, two letters
+  swapped, a vowel for a vowel and a key next to the right one are cheap),
+  plus a bonus when it sounds the same ("wich" → "which"), minus a bit for
+  a name offered for a small-letter word ("sampel" → not "Samuel").
+  Measured on Wikipedia's list of common misspellings (3,923 pairs whose
+  right word is in en_GB): the right word first **90.1%** (Quarto's 78.4%),
+  among the five 97.8% (Quarto's 92.4%), about 0.15 s a word (at most 0.6 s
+  for a very long word). The weights were tried on one half of that list
+  and checked on the other half. Spelling only: grammar (Grammarly's other
+  half) is not checked; that would need a grammar engine such as Harper,
+  which runs locally.
 - Spell check on the page is British English since 12 Nov 2026:
   `"quarto.visualEditor.spellingDictionary": "en_GB"` in settings.json. The
   default is American and marked "neighbours" as wrong. Quarto has en_AU,
