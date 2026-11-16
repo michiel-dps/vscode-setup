@@ -1157,6 +1157,17 @@ saving from the page in the bench and comparing the file):
     every paragraph from then on. Claude edits are not affected. Not tried
     in the bench (needs real suggestions from Claude); same storage as the
     per-card Decline.
+    Same evening, asked again ("still getting grammarly suggestions i
+    already turned down a minute ago"), the saved answers showed why: Claude
+    flip-flops (after "come from" → "comes from" was accepted it proposed
+    "comes from" → "come from"), it repeats a proposal with other
+    punctuation, and declines made before the memory existed were kept by
+    id only. Now `changeKey` ignores punctuation, an Accept also remembers
+    the way back (`blockWayBack`), and a suggestion declined the old way is
+    added to the memory when it shows again (`assistFind`). Checked: the
+    page's storage survives closing and opening the page (bench: same
+    origin, value still there). Offline check of the keys on his real
+    examples: flip-flop blocked, comma ignored, other changes not blocked.
   - **A click on a line no longer throws you out** (16 Nov 2026, asked: "if i
     click on the grammarly stuff it sometimes clicks me out of it and moves
     my cursor to another place"). The card was chosen at the click (button

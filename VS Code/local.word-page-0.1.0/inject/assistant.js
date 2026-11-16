@@ -74,20 +74,37 @@
   // proposal again if i declined it once"). Its id holds the whole paragraph, so after any other
   // change in the paragraph Claude's same proposal had a new id and showed again. So the page also
   // remembers the change itself (old words -> new words) and hides it in every paragraph.
+  // Also (16 Nov 2026, asked again: "still getting grammarly suggestions i already turned down a
+  // minute ago"): punctuation does not count (Claude repeats a proposal with another comma), an
+  // Accept blocks the way back (after "come" -> "comes" Claude proposed "comes" -> "come"), and a
+  // suggestion declined before this memory existed (only its id was kept) is added to it as soon
+  // as it is seen again (assistFind).
   function changeKey(s) {
-    return (s.original + "\u0000" + (s.replacement || "")).toLowerCase().replace(/\s+/g, " ").trim();
+    var plainText = function (t) { return (t || "").toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim(); };
+    return plainText(s.original) + "\u0000" + plainText(s.replacement);
   }
   function declinedKeysList() {
     try { return JSON.parse(localStorage.getItem("wp-assistant-declined") || "[]"); } catch (err) { return []; }
   }
   var declinedKeys = declinedKeysList();
+  function rememberKey(key) {
+    if (declinedKeys.indexOf(key) >= 0) { return; }
+    declinedKeys.push(key);
+    if (declinedKeys.length > 2000) { declinedKeys = declinedKeys.slice(-2000); }
+    try { localStorage.setItem("wp-assistant-declined", JSON.stringify(declinedKeys)); } catch (err) { /* only for this session then */ }
+  }
+  function declined(s) {
+    return s.kind !== "edit" && declinedKeys.indexOf(changeKey(s)) >= 0;
+  }
   function decline(s) {
     dismiss(s.id);
     if (s.kind === "edit") { return; }          // Claude's edits: only this mark
-    var key = changeKey(s);
-    if (declinedKeys.indexOf(key) < 0) { declinedKeys.push(key); }
-    if (declinedKeys.length > 2000) { declinedKeys = declinedKeys.slice(-2000); }
-    try { localStorage.setItem("wp-assistant-declined", JSON.stringify(declinedKeys)); } catch (err) { /* only for this session then */ }
+    rememberKey(changeKey(s));
+  }
+  // after an Accept, the opposite change is never proposed again
+  function blockWayBack(s) {
+    if (s.kind === "edit" || !s.replacement) { return; }
+    rememberKey(changeKey({ original: s.replacement, replacement: s.original }));
   }
 
   // Accept all of Claude's edits in one chapter (16 Nov 2026, asked: "accept all claude edit in
@@ -330,8 +347,10 @@
     for (var i = 0; i < all.length; i++) {
       var s = all[i];
       // accepted a moment ago: hidden until the add-on's new list has come (after Ctrl+Z it is back)
+      // declined the old way (by id only): its change goes into the memory too
+      if (dismissed.indexOf(s.id) >= 0 && s.kind !== "edit" && !declined(s)) { rememberKey(changeKey(s)); }
       if (dismissed.indexOf(s.id) >= 0 || (assist.gone[s.id] && Date.now() - assist.gone[s.id] < 6000)) { continue; }
-      if (s.kind !== "edit" && declinedKeys.indexOf(changeKey(s)) >= 0) { continue; }   // declined before
+      if (declined(s)) { continue; }   // declined before, in this or another paragraph
       var range = assistRange(s, page);
       if (range) { found.push({ s: s, range: range, edit: s.kind === "edit" }); }
     }
@@ -464,6 +483,7 @@
 
   // Accept: select the old words and type the new ones, as if he typed them
   function accept(found) {
+    blockWayBack(found.s);
     var editor = document.querySelector(".ProseMirror");
     var range = found.range;
     var fresh = assistFind().filter(function (f) { return f.s.id === found.s.id; })[0];
