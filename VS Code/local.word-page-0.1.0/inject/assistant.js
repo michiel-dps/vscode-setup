@@ -166,9 +166,9 @@
       "#wp-assist-layer .wp-line.wp-active { height: 100%; opacity: .14; border-radius: 2px; }",
       "#wp-assist-layer .wp-line.wp-edit { background: rgba(217, 119, 6, .10); border-radius: 2px; }",
       ".wp-assist-card .wp-when, .wp-assist-panel .wp-when { color: #8a8f98; font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 6px; }",
-      ".wp-assist-panel .wp-head .wp-pair { display: flex; align-items: center; gap: 6px; font-weight: 400; font-size: 12px; }",
-      ".wp-assist-panel .wp-head .wp-pair + .wp-pair { margin-left: 4px; }",
-      ".wp-assist-panel .wp-head .wp-title { font-weight: 600; margin-right: 2px; }",
+      // the two switches under each other (16 Nov 2026, asked), each with its count on the right
+      ".wp-assist-panel .wp-head .wp-pair { display: flex; align-items: center; gap: 8px; font-weight: 400; font-size: 12px; }",
+      ".wp-assist-panel .wp-head .wp-pair .wp-count { margin-left: auto; }",
       ".wp-assist-card { position: fixed; z-index: 60; width: 330px; max-width: calc(100vw - 24px); background: #fff; color: #1f2328;",
       "  border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.22), 0 0 0 1px rgba(0,0,0,.06); padding: 12px 14px;",
       "  font: 13px/1.45 'Segoe UI', system-ui, sans-serif; }",
@@ -182,7 +182,7 @@
       ".wp-assist-panel { position: fixed; z-index: 50; right: 12px; top: 12px; width: 330px; max-height: calc(100vh - 24px); display: flex; flex-direction: column;",
       "  background: #fff; color: #1f2328; border-radius: 10px; box-shadow: 0 4px 18px rgba(0,0,0,.16), 0 0 0 1px rgba(0,0,0,.06); font: 13px/1.4 'Segoe UI', system-ui, sans-serif; }",
       ".wp-assist-panel.wp-folded { width: auto; }",
-      ".wp-assist-panel .wp-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 9px 12px; cursor: pointer; font-weight: 600; user-select: none; }",
+      ".wp-assist-panel .wp-head { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 9px 12px; cursor: pointer; font-weight: 600; user-select: none; }",
       ".wp-assist-panel .wp-head .wp-count { min-width: 20px; text-align: center; border-radius: 10px; padding: 0 6px; background: #d1343b; color: #fff; font-size: 12px; }",
       ".wp-assist-panel .wp-head .wp-count.wp-zero { background: #1f7a4d; }",
       ".wp-assist-panel .wp-state { padding: 0 12px 8px; color: #57606a; font-size: 12px; }",
@@ -496,9 +496,10 @@
         changeHtml(f.s) + (f.s.reason ? '<div class="wp-why">' + escapeHtml(f.s.reason) + "</div>" : "") +
         buttonsHtml(f.s, ' data-i="' + i + '"') + "</div>";
     }).join("");
-    var html = '<div class="wp-head"><span class="wp-title">Claude</span>' +
-      (data.on ? switchHtml("suggestions", linesShown, "Suggestions", suggestionCount, data.busy) : "") +
-      switchHtml("edits", editsShown, "Claude's edits", editCount, 0) + "</div>" +
+    var html = '<div class="wp-head">' +
+      // the names he chose (16 Nov 2026): Grammarly = the suggestions, Claude = Claude's edits
+      (data.on ? switchHtml("suggestions", linesShown, "Grammarly", suggestionCount, data.busy) : "") +
+      switchHtml("edits", editsShown, "Claude", editCount, 0) + "</div>" +
       (state ? '<div class="wp-state">' + escapeHtml(state) + "</div>" : "") +
       '<div class="wp-list">' + items + "</div>";
     if (assistPanel.innerHTML !== html) {

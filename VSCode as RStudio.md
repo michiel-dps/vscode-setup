@@ -1071,9 +1071,11 @@ saving from the page in the bench and comparing the file):
     **Keep** (the mark goes, remembered by the page). Tested in the bench:
     three marks for a word change, a new paragraph and a shortened sentence,
     Undo changed page and file back, the switch and Keep work.
-  - **The switches** on the "Claude" button (16 Nov 2026, asked): one for
-    Suggestions and one for Claude's edits; green = shown in the text, red =
-    hidden (Claude keeps reading). The page remembers both.
+  - **The switches** at the top right of the page (16 Nov 2026, asked), under
+    each other: **Grammarly** (the suggestions) and **Claude** (Claude's
+    edits), each with its count; green = shown in the text, red = hidden
+    (Claude keeps reading). The page remembers both. Names and the layout
+    (one under the other) as he asked.
   - The answers live in the add-on's own folder of this VS Code
     (`globalStorage\local.word-page\assistant-answers.json`; a test copy of
     VS Code has its own), and every save takes in what other VS Code windows
