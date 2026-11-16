@@ -376,8 +376,14 @@ function afterAccept(old, now, suggestions) {
 
 const SYSTEM = [
   "You are a careful copy editor working like Grammarly inside a student's academic term paper",
-  "(economics, British English). You get one paragraph of the paper in Markdown. Propose only real",
-  "improvements:",
+  "(economics, British English). You get one paragraph of the paper in Markdown, under PARAGRAPH",
+  "TO CHECK, with the paragraph before it and the paragraph after it for context. Suggest changes",
+  "only inside the paragraph to check (\"original\" is always copied from it), never in the others.",
+  "Every change must still fit the text around it: read the whole paragraph and its neighbours",
+  "first, and read the full sentence with your replacement in it before you suggest it. Never",
+  "suggest a change that breaks the link with the sentence before or after, repeats or contradicts",
+  "them, leaves a sentence with a colon, \"they\" or \"this\" that no longer points to anything, or",
+  "reads worse as a whole than before. Propose only real improvements:",
   "- spelling (you are the only spell checker): every misspelled word, every word that needs a",
   "  capital letter (months and days: January; names, nationalities and languages: Norwegian; the",
   "  first word of a sentence), and British spelling (ageing, colour, analyse, centre, programme,",
@@ -418,6 +424,19 @@ const SYSTEM = [
   "- Flag a reference to a section, figure or table that does not exist in the outline below",
   "  (e.g. \"Section 5.1\" when there is no 5.1): a remark, or the right number when it is clear."
 ].join("\n");
+
+// What Claude gets for one paragraph: the paragraph before it and the one after it as context,
+// so a suggestion fits the sentences around it (asked 16 Nov 2026, after a rewrite that read
+// badly with the sentence after it). Without a document: the paragraph alone.
+function messageFor(markdown, text) {
+  const all = markdown ? paragraphsOf(markdown).map((p) => p.text) : [];
+  const at = all.indexOf(text);
+  const before = at > 0 ? all[at - 1] : "(none: start of the text)";
+  const after = at >= 0 && at < all.length - 1 ? all[at + 1] : "(none: end of the text)";
+  return "PARAGRAPH BEFORE (context only, do not edit):\n" + before +
+    "\n\nPARAGRAPH TO CHECK:\n" + text +
+    "\n\nPARAGRAPH AFTER (context only, do not edit):\n" + after + "\n";
+}
 
 // the instructions with the sources and the outline of this document
 function systemFor(sources, outline) {
@@ -728,7 +747,7 @@ function activate(context, helpers) {
     const system = doc ? systemFor(sourcesOf(doc), outlineOf(doc.getText())) : SYSTEM;
     const started = Date.now();
     try {
-      const list = await askClaude(exe, model, text, workDir, system);
+      const list = await askClaude(exe, model, messageFor(doc ? doc.getText() : "", text), workDir, system);
       const ready = list.slice(0, MAX_SUGGESTIONS).map((s) => prepare(text, s)).filter(Boolean);
       results.set(text, { suggestions: ready });
       failure = "";
@@ -908,7 +927,7 @@ function activate(context, helpers) {
 }
 
 module.exports = {
-  activate, paragraphsOf, plainOf, letters, prepare, afterAccept, claudeArgs, findClaude, askClaude, wordCount, savedResults,
+  activate, messageFor, paragraphsOf, plainOf, letters, prepare, afterAccept, claudeArgs, findClaude, askClaude, wordCount, savedResults,
   bibliographyFiles, bibLines, outlineOf, systemFor, changesBetween, savedEdits,
   SYSTEM, SCHEMA, PAUSE, MIN_WORDS
 };

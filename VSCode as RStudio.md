@@ -1025,6 +1025,15 @@ saving from the page in the bench and comparing the file):
     it, the file is saved as always. After an Accept the other suggestions
     of that paragraph stay and it is not sent again. Dismiss is remembered by
     the page (localStorage). Each paragraph text is asked about once.
+  - **The text around it** (16 Nov 2026, after a rewrite that read badly with
+    the sentence after it: "you always need to take into consideration how
+    your changes affect the sentences around them"). Claude gets the
+    paragraph to check between the paragraph before and the one after it
+    (`messageFor` in `assistant.js`), as context only: suggestions stay
+    inside the paragraph to check, and the instructions say every change
+    must fit the sentences around it (no broken links, no colon or "they"
+    left pointing at nothing). A saved answer is not asked again when only
+    a neighbour changes. Tests: `test.js`, "paragraph before and after".
   - **Sources and references** (16 Nov 2026, asked: "also if I mess up typing
     sources or inline references"). Every request also gets the document's
     sources (the `.bib` file(s) of its header, one line each: key | author

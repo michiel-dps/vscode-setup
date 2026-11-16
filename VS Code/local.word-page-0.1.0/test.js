@@ -370,6 +370,15 @@ check("assistant: a list gives one paragraph per item, without the marker",
   paras.includes("First item of a list with enough words in it") && paras.includes("Second item of the list, also long enough"));
 check("assistant: text inside a div is a paragraph, the ::: lines are not", paras.includes("Text inside a div that is long enough to count here."));
 check("assistant: a footnote is a paragraph without its [^1]: mark", paras.includes("A footnote with enough words to be checked by Claude."));
+const message = assistant.messageFor(paperText, "First item of a list with enough words in it");
+check("assistant: Claude gets the paragraph before and after it as context, and is told to fit them",
+  message.includes("PARAGRAPH BEFORE (context only, do not edit):\nThe results shows") &&
+  message.includes("PARAGRAPH TO CHECK:\nFirst item of a list") &&
+  message.includes("PARAGRAPH AFTER (context only, do not edit):\nSecond item of the list") &&
+  assistant.SYSTEM.includes("must still fit the text around it"));
+check("assistant: the first paragraph has no paragraph before it",
+  assistant.messageFor(paperText, paras[0]).includes("(none: start of the text)") &&
+  assistant.messageFor("", "Alone.").includes("PARAGRAPH TO CHECK:\nAlone."));
 check("assistant: short paragraphs are left to the caller (word count)", assistant.wordCount("Short.") < assistant.MIN_WORDS);
 check("assistant: plain text drops citations, references and maths",
   assistant.plainOf("A *big* effect [@Hoydahl_2023] in @fig-map with $x^2$ and [a link](https://x.y).") === "A big effect in with and a link.");
