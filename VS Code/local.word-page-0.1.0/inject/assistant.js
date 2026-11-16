@@ -92,6 +92,50 @@
     assistSchedule(true);
   }
 
+  // Accept all of Claude's edits in the selected text (16 Nov 2026, asked: "if I select a part of
+  // the text i can get a button saying accept all in selected area"). A green button under the
+  // selection, only when the selection touches a Claude edit; the marks go, the text stays.
+  var selectionButton = null;
+  function editsInSelection() {
+    var selection = window.getSelection();
+    if (!selection || !selection.rangeCount || selection.isCollapsed) { return []; }
+    var chosen = selection.getRangeAt(0);
+    return assist.found.filter(function (f) {
+      // they overlap: the selection ends after the mark starts, and starts before the mark ends
+      return f.edit && visible(f) &&
+        chosen.compareBoundaryPoints(Range.START_TO_END, f.range) > 0 &&
+        chosen.compareBoundaryPoints(Range.END_TO_START, f.range) < 0;
+    });
+  }
+  function showSelectionButton() {
+    var inside = editsInSelection();
+    if (!inside.length) {
+      if (selectionButton) { selectionButton.style.display = "none"; }
+      return;
+    }
+    if (!selectionButton) {
+      selectionButton = document.createElement("button");
+      selectionButton.className = "wp-selection-accept";
+      // keep the selection when the button is pressed
+      selectionButton.addEventListener("mousedown", function (event) { event.preventDefault(); });
+      selectionButton.addEventListener("click", function () {
+        editsInSelection().forEach(function (f) { dismiss(f.s.id); });
+        selectionButton.style.display = "none";
+        closeCard();
+        assistSchedule(true);
+      });
+      document.body.appendChild(selectionButton);
+    }
+    selectionButton.textContent = "Accept all " + inside.length + " Claude edit" + (inside.length === 1 ? "" : "s") + " in selection";
+    var rect = window.getSelection().getRangeAt(0).getBoundingClientRect();
+    var top = Math.min(rect.bottom + 8, window.innerHeight - 40);
+    var left = Math.min(Math.max(8, rect.left), window.innerWidth - 300);
+    selectionButton.style.top = top + "px";
+    selectionButton.style.left = left + "px";
+    selectionButton.style.display = "block";
+  }
+  document.addEventListener("selectionchange", function () { showSelectionButton(); });
+
   function loadAssistData() {
     if (!ASSIST_URL || document.visibilityState === "hidden") { return; }
     var link = document.createElement("link");
@@ -200,6 +244,8 @@
       ".wp-assist-card .wp-new { font-weight: 600; background: #e7f6ec; border-radius: 3px; padding: 0 3px; }",
       ".wp-assist-card .wp-why { color: #57606a; margin-bottom: 10px; }",
       ".wp-assist-card .wp-all { margin-top: 8px; padding-top: 8px; border-top: 1px solid #eaeef2; }",
+      ".wp-selection-accept { position: fixed; z-index: 61; display: none; font: 600 12px 'Segoe UI', system-ui, sans-serif; border-radius: 6px; padding: 6px 12px; cursor: pointer;",
+      "  background: #1f7a4d; border: 1px solid #1f7a4d; color: #fff; box-shadow: 0 4px 14px rgba(0,0,0,.2); }",
       ".wp-assist-card button, .wp-assist-panel button { font: 600 12px 'Segoe UI', system-ui, sans-serif; border-radius: 6px; padding: 5px 12px; cursor: pointer; border: 1px solid #d0d7de; background: #f6f8fa; color: #24292f; }",
       ".wp-assist-card button.wp-green, .wp-assist-panel button.wp-green { background: #1f7a4d; border-color: #1f7a4d; color: #fff; margin-right: 6px; }",
       ".wp-assist-panel { position: fixed; z-index: 50; right: 12px; top: 12px; width: 330px; max-height: calc(100vh - 24px); display: flex; flex-direction: column;",
@@ -313,6 +359,7 @@
       if (still) { assist.open = still; placeCard(); } else { closeCard(); }
     }
     drawPanel();
+    showSelectionButton();   // follows the selection when the page scrolls
   }
 
   // ---- the card ----

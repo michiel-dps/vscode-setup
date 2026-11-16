@@ -1029,8 +1029,19 @@ saving from the page in the bench and comparing the file):
     Quarto's editor. Accept selects the old words and types the new ones
     (`execCommand("insertText")`), so Quarto takes it as typing: Ctrl+Z undoes
     it, the file is saved as always. After an Accept the other suggestions
-    of that paragraph stay and it is not sent again. Decline is remembered by
-    the page (localStorage). Each paragraph text is asked about once.
+    of that paragraph stay on the page at once (saved with `carried`), and
+    the new text is still sent to Claude after the pause, so what the Accept
+    brought in is checked too (16 Nov 2026, asked "make sure it rechecks"
+    after an Accept had typed "30--39"; `results.answered()` = a real answer,
+    `has()` = also the carried ones). Decline is remembered by the page
+    (localStorage); after the recheck a declined suggestion can come back
+    once, because its paragraph text changed. Each paragraph text is asked
+    about once.
+  - **Real dashes** (16 Nov 2026): "--" is Markdown for a dash, but typed on
+    the page it stays two hyphens. SYSTEM asks for – and — (never "--" or
+    "---"), and `prepare` turns "--"/"---" in the new words into – and —
+    anyway (unless the old words had "--" themselves). Tests: `test.js`,
+    "real en dash".
   - **The text around it** (16 Nov 2026, after a rewrite that read badly with
     the sentence after it: "you always need to take into consideration how
     your changes affect the sentences around them"). Claude gets the
