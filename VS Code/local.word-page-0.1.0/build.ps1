@@ -14,7 +14,7 @@ $pkg = Get-Content -LiteralPath "$root\package.json" -Raw | ConvertFrom-Json
 $vsix = Join-Path $env:TEMP 'word-page.vsix'   # not in this folder: the folder is copied to GitHub
 $files = @('package.json', 'extension.js', 'patch.js', 'mention.js', 'typing.js', 'merge.js', 'assistant.js', 'test.js', 'pdfpages.py', 'inject/assistant.js',
            'inject/word-page.template.js', 'inject/word-page.css', 'inject/light-theme.json',
-           'inject/pdf-look.css', 'inject/fonts/README.txt', 'inject/spell.js', 'inject/en-frequency.txt')
+           'inject/pdf-look.css', 'inject/fonts/README.txt')
 # the fonts of the PDF look
 $files += Get-ChildItem -LiteralPath "$root\inject\fonts" -Filter '*.otf' | Sort-Object Name | ForEach-Object { "inject/fonts/$($_.Name)" }
 

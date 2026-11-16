@@ -26,8 +26,8 @@ const PAUSE = 4000;          // ms without typing before a changed paragraph is 
 const MIN_WORDS = 6;         // shorter paragraphs (headings, captions, labels) are not checked
 const AT_ONCE = 2;           // requests to Claude at the same time
 const TIME_LIMIT = 120000;   // ms: a request that takes longer is stopped
-const MAX_SUGGESTIONS = 6;   // per paragraph
-const KINDS = ["grammar", "punctuation", "clarity", "concise", "wording", "source"];
+const MAX_SUGGESTIONS = 12;  // per paragraph (every spelling mistake counts on its own)
+const KINDS = ["spelling", "grammar", "punctuation", "clarity", "concise", "wording", "source"];
 const NO_MARKUP = /[*_`$@\[\]#^\\{}<>|~]/;   // an "original" with these is not plain text on the page
 // a citation: [@key], [see @key, p. 5], [@a; @b], or @key in the running text
 const CITATION = /\[[^\]]*@[^\]]*\]|-?@[\w:.&-]+/g;
@@ -238,6 +238,13 @@ const SYSTEM = [
   "You are a careful copy editor working like Grammarly inside a student's academic term paper",
   "(economics, British English). You get one paragraph of the paper in Markdown. Propose only real",
   "improvements:",
+  "- spelling (you are the only spell checker): every misspelled word, every word that needs a",
+  "  capital letter (months and days: January; names, nationalities and languages: Norwegian; the",
+  "  first word of a sentence), and British spelling (ageing, colour, analyse, centre, programme,",
+  "  modelling). Each misspelled word is its own suggestion of kind \"spelling\", with the word and",
+  "  as few words around it as needed to make it unique. Spelling mistakes always count, also when",
+  "  there are many. Not mistakes: Norwegian names and terms (innsatssone, Lånekassen, kommune,",
+  "  Trøndelag), names of people and places, R names, file names, table names and code.",
   "- correctness: grammar, agreement, tense, articles, wrong or missing words, punctuation;",
   "- clarity: sentences that are hard to follow;",
   "- conciseness: wordy phrases (\"in order to\" -> \"to\");",
@@ -251,8 +258,8 @@ const SYSTEM = [
   "- Never change numbers, maths, code or URLs.",
   "- \"replacement\" replaces exactly the \"original\" text.",
   "- \"reason\": at most 12 plain words, written for a student.",
-  "- \"kind\": grammar, punctuation, clarity, concise, wording or source.",
-  "- At most " + MAX_SUGGESTIONS + " suggestions, the most important first. If the paragraph is fine, return an",
+  "- \"kind\": spelling, grammar, punctuation, clarity, concise, wording or source.",
+  "- At most " + MAX_SUGGESTIONS + " suggestions: spelling first, then the most important. If the paragraph is fine, return an",
   "  empty list. Do not suggest a change you would not insist on.",
   "Sources and references (kind \"source\"):",
   "- Citations are written [@key], [@key, p. 5], [@a; @b] or @key. The keys that exist are in the list",
@@ -361,8 +368,8 @@ function askClaude(exe, model, paragraph, workDir, system) {
 // SHA-1 of the text, in answers.json; the newest KEEP answers stay. Works like a Map of texts.
 const KEEP = 5000;
 // Raise this when a saved answer would no longer fit the page (new fields): older answers are
-// then asked again. 2: note and citation (16 Nov 2026).
-const ANSWER_VERSION = 2;
+// then asked again. 2: note and citation (16 Nov 2026). 3: Claude also checks spelling.
+const ANSWER_VERSION = 3;
 
 function textKey(text) {
   return crypto.createHash("sha1").update(text).digest("hex").slice(0, 24);

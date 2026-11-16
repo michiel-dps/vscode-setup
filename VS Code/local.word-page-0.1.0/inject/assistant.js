@@ -15,6 +15,7 @@
   var assist = { raw: null, data: { on: true, busy: 0, error: "", suggestions: [] }, found: [], open: null, panelOpen: null, gone: {} };
   var assistLink = null;
   var KIND = {
+    spelling: { label: "Spelling", colour: "#d1343b" },
     grammar: { label: "Correctness", colour: "#d1343b" },
     punctuation: { label: "Correctness", colour: "#d1343b" },
     clarity: { label: "Clarity", colour: "#2b63d9" },

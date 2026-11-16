@@ -146,8 +146,8 @@
     "chat.viewSessions.orientation": "stacked",
     "chat.editing.revealNextChangeOnResolve": false,
     "explorer.confirmDelete": false,
-    // Spell check on the page of a .qmd file: British English ("neighbours", "colour")
-    "quarto.visualEditor.spellingDictionary": "en_GB",
+    // Quarto's own spell check off: Claude checks spelling on the page (Word Page add-on, 16 Nov 2026)
+    "quarto.visualEditor.spelling": false,
     // Word Page: no dashed "page 2, page 3" lines where the pages of the PDF start (16 Nov 2026)
     "wordPage.pageEnds": false,
     "editor.largeFileOptimizations": false,

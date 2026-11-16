@@ -1044,40 +1044,21 @@ saving from the page in the bench and comparing the file):
     Ctrl+Z, Dismiss. Finding the words again after each keystroke takes
     about 5 ms on the whole paper. Log lines `assistant: ...` in
     `%TEMP%\word-page.log` (times in UTC).
-- **Right-click on a word with a red line** gives Quarto's own menu: up to 5
-  suggestions, "Ignore All", "Add to Dictionary" (16 Nov 2026, he got VS
-  Code's normal menu). Quarto looked for the misspelled word at the start of
-  the element under the mouse (`posAtDOM(target, 0)`), usually the start of
-  the paragraph, so it found nothing. A fourth hook in Quarto's `index.js`
-  (`addSpellingHook` in `patch.js`, between `/*wp+*/` and `/*wp-*/` like the
-  others) makes it look at the spot under the mouse (`posAtCoords`). A word
-  without a red line still gets VS Code's normal menu (Cut, Copy, Paste).
-  **Our own suggestions** (16 Nov 2026: first "very slow", then "make sure
-  the spelling fixes are of the highest quality, Grammarly type quality").
-  Quarto's suggestions (Typo.js) took 0.6 to 1.9 s and did not know which
-  words are common ("dont" got "cont" and "dent", "teh" never got "the").
-  A fifth hook (`addSuggestHook`) hands the request to `inject/spell.js`,
-  which keeps Quarto's dictionary (it still decides the red lines) and
-  only picks and orders the suggestions: every dictionary word one or two
-  small changes away, the dictionary's own confusion list ("alot" → "a lot")
-  and two words run together; score = how common the word is (place in the
-  50,000 most used English words, `inject/en-frequency.txt`, from
-  FrequencyWords by Hermit Dave, MIT licence) minus how unlikely the mistake
-  is (a missing apostrophe in a contraction, a doubled letter, two letters
-  swapped, a vowel for a vowel and a key next to the right one are cheap),
-  plus a bonus when it sounds the same ("wich" → "which"), minus a bit for
-  a name offered for a small-letter word ("sampel" → not "Samuel").
-  Measured on Wikipedia's list of common misspellings (3,923 pairs whose
-  right word is in en_GB): the right word first **90.1%** (Quarto's 78.4%),
-  among the five 97.8% (Quarto's 92.4%), about 0.15 s a word (at most 0.6 s
-  for a very long word). The weights were tried on one half of that list
-  and checked on the other half. Spelling only: grammar (Grammarly's other
-  half) is not checked; that would need a grammar engine such as Harper,
-  which runs locally.
-- Spell check on the page is British English since 12 Nov 2026:
-  `"quarto.visualEditor.spellingDictionary": "en_GB"` in settings.json. The
-  default is American and marked "neighbours" as wrong. Quarto has en_AU,
-  en_CA, en_GB, en_US, es_ES, fr_FR, de_DE and ru_RU: no Norwegian.
+- **Spelling: Claude, not Quarto** (16 Nov 2026, asked: "january should be
+  January, aging should be ageing ... turn off the spell checker and let
+  Claude take over"). `"quarto.visualEditor.spelling": false` in
+  settings.json switches Quarto's own spell check (thin red lines, its
+  dictionary) off; Claude's suggestions (above) check every word, capital
+  letters and British spelling, kind "Spelling" (red), each word on its own,
+  Norwegian names and terms left alone. Saved answers from before were
+  asked again (`ANSWER_VERSION` 3).
+  Earlier the same day, for Quarto's spell check, the add-on had a
+  right-click fix and its own suggestion ranker (`inject/spell.js` with a
+  list of 50,000 English words, 90% right first time against Quarto's 78%
+  on Wikipedia's list of common misspellings); both were taken out when
+  Quarto's spell check went off. To turn Quarto's spell check back on: set
+  `quarto.visualEditor.spelling` to true (British: `spellingDictionary`
+  `en_GB`; Quarto has no Norwegian).
 - No word count in this editor. The length of a paper is read from the PDF
   (Ctrl+Shift+K).
 - What works on the page, checked in the bench on 12 Nov 2026 with the term
