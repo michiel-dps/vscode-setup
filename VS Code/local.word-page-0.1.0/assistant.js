@@ -27,10 +27,12 @@ const MIN_WORDS = 6;         // shorter paragraphs (headings, captions, labels) 
 const AT_ONCE = 2;           // requests to Claude at the same time
 const TIME_LIMIT = 120000;   // ms: a request that takes longer is stopped
 const MAX_SUGGESTIONS = 12;  // per paragraph (every spelling mistake counts on its own)
-const KINDS = ["spelling", "grammar", "punctuation", "clarity", "concise", "wording", "source"];
+const KINDS = ["spelling", "grammar", "punctuation", "clarity", "concise", "wording", "source", "notation"];
 const NO_MARKUP = /[*_`$@\[\]#^\\{}<>|~]/;   // an "original" with these is not plain text on the page
 // a citation: [@key], [see @key, p. 5], [@a; @b], or @key in the running text
 const CITATION = /\[[^\]]*@[^\]]*\]|-?@[\w:.&-]+/g;
+// inline maths: $y_{it}$
+const INLINE_MATHS = /\$[^$\n]+\$/g;
 
 // ---- the paragraphs of a Markdown document ----
 
@@ -123,17 +125,19 @@ function count(text, part) {
 // A suggestion from Claude, checked and made ready for the page, or null when it is not usable:
 // the words must be in the paragraph exactly once and be plain text (no Markdown), the new words
 // must differ. before/after: up to 40 letters of the text around it, to find the right place.
-// Plain text, or plain text with citations in it: anything else (bold, maths, code) is left alone.
-function plainEnough(text) {
-  return !NO_MARKUP.test(text.replace(CITATION, ""));
+// Plain text, or plain text with citations in it (and, for new words, inline maths): anything else
+// (bold, code, maths in the old words) is left alone.
+function plainEnough(text, mathsToo) {
+  const rest = text.replace(CITATION, "");
+  return !NO_MARKUP.test(mathsToo ? rest.replace(INLINE_MATHS, "") : rest);
 }
 
 // A suggestion from Claude, checked and made ready for the page, or null when it is not usable:
 // the old words must be in the paragraph exactly once, and old and new words may only hold plain
 // text and citations. before/after: up to 40 letters around it, to find the right place.
 // note: a source problem without a fix from the list (new words = old words): only a remark.
-// citation: old or new words hold a citation; typing cannot make a citation, so the page lets
-// Quarto's own editor put the new words in (inject/assistant.js, acceptWithQuarto).
+// rich: old or new words hold a citation or maths; typing cannot make those (Quarto keeps them as
+// text), so the page builds them as Quarto does (inject/assistant.js, acceptWithQuarto).
 function prepare(paragraph, s) {
   if (!s || typeof s.original !== "string" || typeof s.replacement !== "string") { return null; }
   const original = s.original;
@@ -141,15 +145,15 @@ function prepare(paragraph, s) {
   const kind = KINDS.includes(s.kind) ? s.kind : "clarity";
   const note = original === replacement;
   if (!original.trim() || original.length > 400 || (note && kind !== "source")) { return null; }
-  if (!plainEnough(original) || !plainEnough(replacement)) { return null; }
+  if (!plainEnough(original, false) || !plainEnough(replacement, true)) { return null; }
   if (count(paragraph, original) !== 1 || !letters(original)) { return null; }
   const at = paragraph.indexOf(original);
   const before = letters(plainOf(paragraph.slice(0, at))).slice(-40);
   const after = letters(plainOf(paragraph.slice(at + original.length))).slice(0, 40);
   const reason = String(s.reason || "").replace(/\s+/g, " ").trim().slice(0, 160);
   const id = crypto.createHash("sha1").update(paragraph + "\u0000" + original + "\u0000" + replacement).digest("hex").slice(0, 16);
-  const citation = !note && /[\[\]@]/.test(original + replacement);
-  return { id, original, replacement, kind, reason, before, after, note, citation };
+  const rich = !note && /[\[\]@$]/.test(original + replacement);
+  return { id, original, replacement, kind, reason, before, after, note, rich };
 }
 
 // ---- what Claude gets to know about the document ----
@@ -211,7 +215,10 @@ function outlineOf(markdown) {
   }
   const figures = Array.from(new Set((markdown.match(/\*\*Figure ([A-Z]?\d+)\.\*\*/g) || []).map((x) => x.replace(/\*|\./g, ""))));
   const tables = Array.from(new Set((markdown.match(/\*\*Table ([A-Z]?\d+)\.\*\*/g) || []).map((x) => x.replace(/\*|\./g, ""))));
-  return "Sections: " + sections.join("; ") + "\nFigures: " + (figures.join(", ") || "none") + "\nTables: " + (tables.join(", ") || "none");
+  // the equations ($$ ... $$), so Claude knows how the symbols of the model are written
+  const equations = (markdown.replace(/\r\n/g, "\n").match(/\$\$([\s\S]*?)\$\$/g) || []).map((x) => x.replace(/\s+/g, " ").trim().slice(0, 300));
+  return "Sections: " + sections.join("; ") + "\nFigures: " + (figures.join(", ") || "none") + "\nTables: " + (tables.join(", ") || "none") +
+    "\nEquations: " + (equations.join("\n") || "none");
 }
 
 // The paragraph changed from `old` to `now`. When the change is exactly one of its suggestions
@@ -255,10 +262,15 @@ const SYSTEM = [
   "- \"original\" is copied character for character from the paragraph, as short as possible",
   "  (usually 1 to 8 words), appears exactly once in the paragraph, and contains no Markdown or",
   "  LaTeX characters: none of * _ ` $ # ^ \\ { } outside a citation. A citation may be part of it.",
-  "- Never change numbers, maths, code or URLs.",
+  "- Never change numbers, existing maths, code or URLs.",
   "- \"replacement\" replaces exactly the \"original\" text.",
   "- \"reason\": at most 12 plain words, written for a student.",
-  "- \"kind\": spelling, grammar, punctuation, clarity, concise, wording or source.",
+  "- \"kind\": spelling, grammar, punctuation, clarity, concise, wording, source or notation.",
+  "Notation (kind \"notation\"): a symbol of the model typed as plain letters in the text (yit, Ti,",
+  "  beta1, alpha i, a lone i or t that stands for the index) is written as inline maths, the same way",
+  "  as in the document's equations (listed below): \"yit\" -> \"$y_{it}$\", \"Ti\" -> \"$T_i$\",",
+  "  \"beta1\" -> \"$\\beta_1$\". The original is the plain letters (with a neighbouring word when needed",
+  "  to make it unique); the replacement keeps that neighbouring word and puts the symbol in $...$.",
   "- At most " + MAX_SUGGESTIONS + " suggestions: spelling first, then the most important. If the paragraph is fine, return an",
   "  empty list. Do not suggest a change you would not insist on.",
   "Sources and references (kind \"source\"):",
@@ -369,7 +381,8 @@ function askClaude(exe, model, paragraph, workDir, system) {
 const KEEP = 5000;
 // Raise this when a saved answer would no longer fit the page (new fields): older answers are
 // then asked again. 2: note and citation (16 Nov 2026). 3: Claude also checks spelling.
-const ANSWER_VERSION = 3;
+// 4: notation (symbols as inline maths), "rich" instead of "citation".
+const ANSWER_VERSION = 4;
 
 function textKey(text) {
   return crypto.createHash("sha1").update(text).digest("hex").slice(0, 24);

@@ -383,12 +383,16 @@ check("assistant: a spelling mistake is a kind of its own, and Claude is told to
   assistant.prepare(para, { original: "shows", replacement: "show", kind: "spelling", reason: "" }).kind === "spelling" &&
   assistant.SYSTEM.includes("you are the only spell checker") && assistant.SYSTEM.includes("ageing"));
 check("assistant: a citation in the old words is fine, and is put in by Quarto's editor",
-  assistant.prepare(para, { original: "[@Hoydahl_2023]", replacement: "[@Hoydahl_2017]", kind: "source", reason: "" }).citation === true);
-check("assistant: other Markdown (bold, maths, code) in the old or new words is dropped",
+  assistant.prepare(para, { original: "[@Hoydahl_2023]", replacement: "[@Hoydahl_2017]", kind: "source", reason: "" }).rich === true);
+const symbol = assistant.prepare("Here yit is the number of people and Ti is 1 for treated.", { original: "yit is", replacement: "$y_{it}$ is", kind: "notation", reason: "" });
+check("assistant: a symbol as inline maths in the new words is fine, and is put in by Quarto's editor", symbol && symbol.rich === true && symbol.kind === "notation");
+check("assistant: maths in the old words is left alone", assistant.prepare("The value $x$ is high here today.", { original: "$x$", replacement: "x", kind: "notation", reason: "" }) === null);
+check("assistant: the outline lists the equations", assistant.outlineOf("# A\n\n$$\ny_{it} = \\alpha_i\n$$\n").includes("Equations: $$ y_{it} = \\alpha_i $$"));
+check("assistant: other Markdown (bold, code) in the old or new words is dropped",
   assistant.prepare("A *big* effect here and more", { original: "*big*", replacement: "large", kind: "wording", reason: "" }) === null &&
-  assistant.prepare(para, { original: "positive", replacement: "$x$", kind: "wording", reason: "" }) === null);
+  assistant.prepare(para, { original: "positive", replacement: "`x`", kind: "wording", reason: "" }) === null);
 const remark = assistant.prepare("It is clear (source) that this holds.", { original: "(source)", replacement: "(source)", kind: "source", reason: "No source in your list." });
-check("assistant: a source remark without a fix is kept as a note, without Accept", remark && remark.note === true && remark.citation === false);
+check("assistant: a source remark without a fix is kept as a note, without Accept", remark && remark.note === true && remark.rich === false);
 check("assistant: the same old and new words are only a note for sources", assistant.prepare(para, { original: "positive", replacement: "positive", kind: "wording", reason: "" }) === null);
 check("assistant: the bibliography file is found in the header (one file or a list)",
   assistant.bibliographyFiles("---\ntitle: x\nbibliography: references.bib\n---\n", "C:\\paper")[0] === path.resolve("C:\\paper", "references.bib") &&

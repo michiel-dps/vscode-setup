@@ -1026,6 +1026,15 @@ saving from the page in the bench and comparing the file):
     `sync.core`). `window.wordPageAssistLog` says why such an Accept did not
     happen. Saved answers carry a version (`ANSWER_VERSION`), so answers of
     an older version are asked again.
+  - **Notation** (16 Nov 2026, asked: "yit ... propose the proper way to type
+    it so that it shows as the outcome of the model"): the outline also
+    holds the document's equations (`$$ ... $$`), and a symbol typed as
+    plain letters in the text (yit, Ti, a lone i or t) gets a suggestion to
+    write it as inline maths the way the equations do (`$y_{it}$`, `$T_i$`,
+    `$i$`), kind "Notation" (teal). Accept builds real inline maths as
+    Quarto's maths button does: the text `$...$` with the mark `math` of type
+    `InlineMath`, put in by Quarto's editor like a citation (both are
+    "rich" suggestions; tested in the bench: the file then has `$y_{it}$`).
   - **The switch** on the "Claude" button (16 Nov 2026, asked): green = the
     suggestions are shown in the text, red = all lines and the list are
     hidden (Claude keeps reading). The page remembers it.

@@ -21,7 +21,8 @@
     clarity: { label: "Clarity", colour: "#2b63d9" },
     concise: { label: "Conciseness", colour: "#2b63d9" },
     wording: { label: "Word choice", colour: "#16915a" },
-    source: { label: "Source", colour: "#8250df" }
+    source: { label: "Source", colour: "#8250df" },
+    notation: { label: "Notation", colour: "#0f7b8a" }
   };
 
   // the switch on the "Claude" button: show or hide all suggestions in the text (Claude keeps
@@ -306,7 +307,7 @@
     selection.removeAllRanges();
     selection.addRange(range);
     closeCard();
-    if (found.s.citation) {
+    if (found.s.rich) {
       acceptWithQuarto(found.s, range).then(function (done) {
         if (done) { assist.gone[found.s.id] = Date.now(); }
         setTimeout(function () { assistSchedule(true); }, 50);
@@ -321,21 +322,25 @@
     setTimeout(function () { assistSchedule(true); }, 50);
   }
 
-  // New words with a citation: typed, Quarto keeps "[@key]" as plain text ("\[\@key\]" in the
-  // file). A citation on the page is text with two marks: "cite" on the whole [...] and "cite_id"
-  // on each @key (that is how Quarto's own Insert > Citation builds it). So the new words are
-  // built that way and put over the old words in one step in Quarto's editor: a real citation,
-  // and Ctrl+Z undoes it. sync.core is Quarto's editor (handed over by the hook in its setMarkdown).
-  function citationNodes(schema, text) {
+  // New words with a citation or maths: typed, Quarto keeps "[@key]" and "$y_{it}$" as plain text
+  // ("\[\@key\]" in the file). On the page a citation is text with two marks: "cite" on the whole
+  // [...] and "cite_id" on each @key (as Quarto's own Insert > Citation builds it), and inline
+  // maths is the text "$...$" with the mark "math" of type InlineMath (as Quarto's own maths
+  // button builds it). So the new words are built that way and put over the old words in one step
+  // in Quarto's editor: a real citation or real maths, and Ctrl+Z undoes it. sync.core is
+  // Quarto's editor (handed over by the hook in its setMarkdown).
+  function richNodes(schema, text) {
     var nodes = [];
     var cite = schema.marks.cite.create();
     var plainText = function (t, marks) { if (t) { nodes.push(schema.text(t, marks || [])); } };
-    var all = /\[[^\]]*@[^\]]*\]|-?@[\w:.&-]+/g;
+    var all = /\$[^$\n]+\$|\[[^\]]*@[^\]]*\]|-?@[\w:.&-]+/g;
     var last = 0, m;
     while ((m = all.exec(text))) {
       plainText(text.slice(last, m.index));
       var part = m[0];
-      if (part.charAt(0) === "[") {
+      if (part.charAt(0) === "$") {
+        nodes.push(schema.text(part, [schema.marks.math.create({ type: "InlineMath" })]));
+      } else if (part.charAt(0) === "[") {
         var key = /-?@[\w:.&-]+/g, inside = 0, k;
         while ((k = key.exec(part))) {
           plainText(part.slice(inside, k.index), [cite]);
@@ -356,14 +361,15 @@
   var assistLog = window.wordPageAssistLog = [];
   function acceptWithQuarto(s, range) {
     var view = sync && sync.core && sync.core.view;
-    if (!view || !view.state || !view.state.schema.marks.cite || !view.state.schema.marks.cite_id) {
+    var marks = view && view.state && view.state.schema.marks;
+    if (!marks || !marks.cite || !marks.cite_id || !marks.math) {
       assistLog.push("no editor view (the page has not loaded through Quarto's setMarkdown yet)");
       return Promise.resolve(false);
     }
     try {
       var from = view.posAtDOM(range.startContainer, range.startOffset);
       var to = view.posAtDOM(range.endContainer, range.endOffset);
-      view.dispatch(view.state.tr.replaceWith(from, to, citationNodes(view.state.schema, s.replacement)));
+      view.dispatch(view.state.tr.replaceWith(from, to, richNodes(view.state.schema, s.replacement)));
       try { view.focus(); } catch (err) { /* fine */ }
       return Promise.resolve(true);
     } catch (err) {
