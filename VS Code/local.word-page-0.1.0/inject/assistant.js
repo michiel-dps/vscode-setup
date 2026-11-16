@@ -298,6 +298,8 @@
     var style = document.createElement("style");
     style.id = "word-page-assistant";
     style.textContent = [
+      // the source check notes: grey letters on a light grey background (highlightSourceChecks)
+      "::highlight(wp-source-check) { color: #7a828c; background-color: #eef1f4; }",
       "#wp-assist-layer { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 40; pointer-events: none; }",
       "#wp-assist-layer .wp-line { position: fixed; height: 2px; border-radius: 1px; pointer-events: none; }",
       "#wp-assist-layer .wp-line.wp-active { height: 100%; opacity: .14; border-radius: 2px; }",
@@ -392,6 +394,66 @@
     return found;
   }
 
+  // ---- source check notes in grey (16 Nov 2026, asked: "change the font of the source check
+  // text, it is getting hard to tell the notes from the real text made by me") ----
+  // Each "(SOURCE CHECK: ...)" up to its own closing bracket gets grey letters on a light grey
+  // background, through the browser's highlight feature (CSS.highlights): the text on the page
+  // and in the file stays exactly as it is, only its look on this page changes. The PDF prints
+  // the notes as normal text. A note never runs on into the next paragraph.
+  var SOURCE_NOTE = "(SOURCE CHECK";
+  function highlightSourceChecks() {
+    if (!window.CSS || !CSS.highlights || typeof Highlight === "undefined") { return; }
+    var content = pageContent();
+    if (!content) { CSS.highlights.delete("wp-source-check"); return; }
+    // the text of the page with a line end between paragraphs, and where each text node starts in it
+    var text = "";
+    var pieces = [];
+    var lastBlock = null;
+    var walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (node) {
+        var parent = node.parentElement;
+        return parent && !parent.closest(".pm-code-editor, .wp-face") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      }
+    });
+    while (walker.nextNode()) {
+      var node = walker.currentNode;
+      var block = node.parentElement.closest("p, li, td, th, h1, h2, h3, h4, h5, h6, .pm-node-caption");
+      if (block !== lastBlock) { text += "\n"; lastBlock = block; }
+      pieces.push({ node: node, start: text.length });
+      text += node.nodeValue;
+    }
+    function place(position) {
+      for (var k = pieces.length - 1; k >= 0; k--) {
+        if (pieces[k].start <= position) {
+          return { node: pieces[k].node, offset: Math.min(position - pieces[k].start, pieces[k].node.nodeValue.length) };
+        }
+      }
+      return null;
+    }
+    var ranges = [];
+    var at = text.indexOf(SOURCE_NOTE);
+    while (at >= 0) {
+      // the closing bracket that belongs to "(SOURCE CHECK" (notes have brackets of their own)
+      var depth = 0, end = -1;
+      for (var i = at; i < text.length; i++) {
+        var c = text.charAt(i);
+        if (c === "\n") { end = i; break; }
+        if (c === "(") { depth++; }
+        if (c === ")") { depth--; if (depth === 0) { end = i + 1; break; } }
+      }
+      if (end < 0) { end = text.length; }
+      var from = place(at), to = place(end);
+      if (from && to) {
+        var range = document.createRange();
+        try { range.setStart(from.node, from.offset); range.setEnd(to.node, to.offset); ranges.push(range); } catch (err) { /* skipped this time */ }
+      }
+      at = text.indexOf(SOURCE_NOTE, end);
+    }
+    var highlight = new Highlight();
+    ranges.forEach(function (range) { highlight.add(range); });
+    CSS.highlights.set("wp-source-check", highlight);
+  }
+
   // Finding the words reads the text of the whole page: only after the text or the suggestions
   // changed (find = true). Scrolling only moves the lines.
   var assistTimer = null;
@@ -405,7 +467,11 @@
   function assistDraw() {
     if (!document.body) { return; }
     assistElements();
-    if (needFind) { assist.found = assistFind(); needFind = false; }
+    if (needFind) {
+      assist.found = assistFind();
+      try { highlightSourceChecks(); } catch (err) { /* the notes stay black this time */ }
+      needFind = false;
+    }
     var parts = [];
     var height = window.innerHeight;
     for (var i = 0; i < assist.found.length; i++) {
