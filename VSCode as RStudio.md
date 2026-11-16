@@ -900,6 +900,12 @@ page (the rules and fonts are then not even written into Quarto's file).
   waits 3 seconds before it asks again, because asking while Quarto is
   still busy closes the new text again (found in the bench). The log has a
   line per try (`text: try 1 for draft.qmd ...`).
+- **Reload a page** (16 Nov 2026, asked after a re-run figure still showed
+  the broken picture): a page keeps every picture it loaded when it opened.
+  The round arrow in the page's tab bar (also right-click the tab, or
+  Ctrl+Shift+P > `Word Page: Reload Page (new pictures)`) saves the page,
+  closes it and opens it again in the same place, so every picture is read
+  from disk again. Log: `reload: <file> opened again`.
 - Citing: type `@` and the first letters of an author (a list comes up), or
   Insert > Citation (Ctrl+Shift+F8). The dialog shows the document's `.bib`
   file, **your Zotero library** (read straight from `C:\Users\<you>\Zotero`,
@@ -1003,7 +1009,7 @@ saving from the page in the bench and comparing the file):
   4 seconds, the paragraph you changed goes to Claude first; about 5 seconds later coloured lines
   appear under words on the page (red = correctness, blue = clarity and
   conciseness, green = word choice). Click the words: a card with the new
-  words, a short reason, **Accept** and **Dismiss**. The button "Claude n" at
+  words, a short reason, **Accept** and **Decline**. The button "Claude n" at
   the top right opens the list of all of them (folded when the editor is
   narrow). The status bar shows "Claude n" / "Claude reading"; a click there
   gives: let Claude read the whole document (asks first, uses your Claude
@@ -1023,7 +1029,7 @@ saving from the page in the bench and comparing the file):
     Quarto's editor. Accept selects the old words and types the new ones
     (`execCommand("insertText")`), so Quarto takes it as typing: Ctrl+Z undoes
     it, the file is saved as always. After an Accept the other suggestions
-    of that paragraph stay and it is not sent again. Dismiss is remembered by
+    of that paragraph stay and it is not sent again. Decline is remembered by
     the page (localStorage). Each paragraph text is asked about once.
   - **The text around it** (16 Nov 2026, after a rewrite that read badly with
     the sentence after it: "you always need to take into consideration how
@@ -1041,7 +1047,7 @@ saving from the page in the bench and comparing the file):
     them, figures, tables). Claude then flags (purple, "Source"): a key not
     in the list (with the right key), broken citation syntax, "(source)",
     "(datum)" and hand-typed references (with a `[@key]` when one source
-    clearly fits, else a remark with only Dismiss), and references to a
+    clearly fits, else a remark with only Decline), and references to a
     section, figure or table that does not exist. Accept of new words with a
     citation: typing cannot make one (Quarto keeps typed `[@key]` as text,
     `\[\@key\]` in the file; tried 16 Nov, also one letter at a time and as
@@ -1073,18 +1079,27 @@ saving from the page in the bench and comparing the file):
     (at least 8 letters, else the words around it are taken in). The marks
     are kept 7 days in `globalStorage\local.word-page\assistant-edits.json`
     and shown while their new words are in the document: a light amber
-    background with an amber line, card "Claude changed this · 3 min ago"
-    with the old words struck through → the new words, **Undo** (puts the
-    old words back on the page, like Accept, so Ctrl+Z gives Claude's words
-    back; not offered for bold, code or a key alone inside a citation) and
-    **Keep** (the mark goes, remembered by the page). Tested in the bench:
-    three marks for a word change, a new paragraph and a shortened sentence,
-    Undo changed page and file back, the switch and Keep work.
+    background with an amber line, card "Claude edits · 3 min ago"
+    with the old words struck through → the new words, a green **Accept**
+    (Claude's words stay, the mark goes, remembered by the page) and a white
+    **Decline** (puts the old words back on the page, so Ctrl+Z gives
+    Claude's words back; not offered for bold, code or a key alone inside a
+    citation). Tested in the bench: three marks for a word change, a new
+    paragraph and a shortened sentence, the old Undo (now Decline) changed
+    page and file back, the switch and the old Keep (now Accept) work.
+  - **The same buttons on every card** (16 Nov 2026, asked: Claude's edits had
+    a green Undo and a white Keep, the suggestions a green Accept and a white
+    Dismiss, "which is confusing"). Now every card has a green **Accept** =
+    what Claude proposes or did stays, and a white **Decline** = it goes.
+    Each button says what a click does in `data-do`: "apply" puts the card's
+    words in the text (Accept of a suggestion, Decline of an edit), "close"
+    only takes the mark away (Decline of a suggestion, Accept of an edit).
+    The colour comes from the class `wp-green`, not from what the button does.
   - **The switches** at the top right of the page (16 Nov 2026, asked), under
-    each other: **Grammarly** (the suggestions) and **Claude** (Claude's
-    edits), each with its count; green = shown in the text, red = hidden
-    (Claude keeps reading). The page remembers both. Names and the layout
-    (one under the other) as he asked.
+    each other: **Grammarly** (the suggestions) and **Claude edits** (Claude's
+    edits, named so on 16 Nov), each with its count; green = shown in the
+    text, red = hidden (Claude keeps reading). The page remembers both. Names
+    and the layout (one under the other) as he asked.
   - The answers live in the add-on's own folder of this VS Code
     (`globalStorage\local.word-page\assistant-answers.json`; a test copy of
     VS Code has its own), and every save takes in what other VS Code windows
@@ -1097,7 +1112,7 @@ saving from the page in the bench and comparing the file):
     copy of first_draft.qmd: lines in the right place (justified PDF look,
     across a line break, next to page ends and citations), card, Accept from
     the card and from the list (file on disk changed, citations untouched),
-    Ctrl+Z, Dismiss. Finding the words again after each keystroke takes
+    Ctrl+Z, Decline (then still called Dismiss). Finding the words again after each keystroke takes
     about 5 ms on the whole paper. Log lines `assistant: ...` in
     `%TEMP%\word-page.log` (times in UTC).
 - **Spelling: Claude, not Quarto** (16 Nov 2026, asked: "january should be

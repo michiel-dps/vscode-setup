@@ -3,14 +3,14 @@
   // typing, and writes the answers into word-page-assistant.css next to this script. Every 2 s
   // the page reads that file and draws a coloured line under the words of each suggestion:
   // red = correctness, blue = clarity and conciseness, green = word choice. A click on such
-  // words opens a card with the new words, the reason, Accept and Dismiss. A list of all of them
+  // words opens a card with the new words, the reason, Accept and Decline. A list of all of them
   // is on the right of the page (folded into a small button when the editor is narrow).
   //
   // All of it is drawn in a layer of its own on top of the page (position: fixed), never inside
   // Quarto's editor, so the document is never touched by the drawing. Accept puts the cursor
   // over the old words and types the new ones (document.execCommand "insertText"): Quarto takes
   // that as typing, so Ctrl+Z undoes it and the text goes into the file as always.
-  // Dismiss is remembered in this page (localStorage), per suggestion.
+  // Decline is remembered in this page (localStorage), per suggestion.
   var ASSIST_URL = thisScript ? thisScript.replace(/index\.js(\?.*)?$/, "word-page-assistant.css") : "";
   var assist = { raw: null, data: { on: true, busy: 0, error: "", suggestions: [] }, found: [], open: null, panelOpen: null, gone: {} };
   var assistLink = null;
@@ -23,7 +23,7 @@
     wording: { label: "Word choice", colour: "#16915a" },
     source: { label: "Source", colour: "#8250df" },
     notation: { label: "Notation", colour: "#0f7b8a" },
-    edit: { label: "Claude changed this", colour: "#d97706" }
+    edit: { label: "Claude edits", colour: "#d97706" }
   };
 
   // Claude's own edits of the file (16 Nov 2026, asked: "underline the rows you added or changed,
@@ -31,10 +31,10 @@
   // add-on compares each edit from the disk with the text before (assistant.js, changesBetween)
   // and sends the marks along with the suggestions: { added, removed, before, after, at, undo }.
   // On the page an edit is drawn in amber with a light background, its card shows the old words
-  // struck through and the new words, with Keep (the mark goes) and Undo (the old words come back,
-  // as an edit on the page, so Ctrl+Z brings Claude's words back).
+  // struck through and the new words, with Accept (the mark goes) and Decline (the old words come
+  // back, as an edit on the page, so Ctrl+Z brings Claude's words back).
 
-  // the two switches on the "Claude" button: show or hide all suggestions, and all of Claude's
+  // the two switches in the list on the right ("Grammarly" and "Claude edits"): show or hide all suggestions, and all of Claude's
   // edits, in the text (Claude keeps reading in the background either way); remembered by this page
   var linesShown = true;
   var editsShown = true;
@@ -178,7 +178,7 @@
       ".wp-assist-card .wp-new { font-weight: 600; background: #e7f6ec; border-radius: 3px; padding: 0 3px; }",
       ".wp-assist-card .wp-why { color: #57606a; margin-bottom: 10px; }",
       ".wp-assist-card button, .wp-assist-panel button { font: 600 12px 'Segoe UI', system-ui, sans-serif; border-radius: 6px; padding: 5px 12px; cursor: pointer; border: 1px solid #d0d7de; background: #f6f8fa; color: #24292f; }",
-      ".wp-assist-card button.wp-accept, .wp-assist-panel button.wp-accept { background: #1f7a4d; border-color: #1f7a4d; color: #fff; margin-right: 6px; }",
+      ".wp-assist-card button.wp-green, .wp-assist-panel button.wp-green { background: #1f7a4d; border-color: #1f7a4d; color: #fff; margin-right: 6px; }",
       ".wp-assist-panel { position: fixed; z-index: 50; right: 12px; top: 12px; width: 330px; max-height: calc(100vh - 24px); display: flex; flex-direction: column;",
       "  background: #fff; color: #1f2328; border-radius: 10px; box-shadow: 0 4px 18px rgba(0,0,0,.16), 0 0 0 1px rgba(0,0,0,.06); font: 13px/1.4 'Segoe UI', system-ui, sans-serif; }",
       ".wp-assist-panel.wp-folded { width: auto; }",
@@ -219,7 +219,8 @@
   }
 
   // An edit of Claude as a suggestion of its own kind: the "old words" on the page are the new
-  // words, Undo puts the old ones back (accept with replacement = removed), Keep is Dismiss.
+  // words, Decline puts the old ones back ("apply" with replacement = removed), Accept only takes
+  // the mark away ("close").
   function editAsSuggestion(mark) {
     return {
       id: "edit-" + mark.id, kind: "edit", original: mark.added, replacement: mark.removed, before: mark.before, after: mark.after,
@@ -299,10 +300,10 @@
       assistCard.className = "wp-assist-card";
       assistCard.addEventListener("mousedown", function (event) { event.preventDefault(); });
       assistCard.addEventListener("click", function (event) {
-        var button = event.target.closest("button");
+        var button = event.target.closest("button[data-do]");
         if (!button || !assist.open) { return; }
-        if (button.classList.contains("wp-accept")) { accept(assist.open); }
-        if (button.classList.contains("wp-dismiss")) { dismiss(assist.open.s.id); closeCard(); assistSchedule(true); }
+        if (button.getAttribute("data-do") === "apply") { accept(assist.open); }
+        if (button.getAttribute("data-do") === "close") { dismiss(assist.open.s.id); closeCard(); assistSchedule(true); }
       });
       document.body.appendChild(assistCard);
     }
@@ -317,13 +318,19 @@
     assistDraw();
   }
 
-  // Accept and Dismiss; for Claude's edits Undo and Keep (no Undo when the page cannot put the
-  // old words back, e.g. bold or code: then Ctrl+Z in the text view, Ctrl+Numpad1)
+  // The same two buttons on every card (16 Nov 2026, asked: Claude's edits had a green Undo and a
+  // white Keep, the suggestions a green Accept and a white Dismiss, which was confusing): green
+  // Accept = what Claude proposes or did stays, white Decline = it goes. data-do is what a click
+  // does: "apply" puts the card's words in the text, "close" only takes the mark away.
   function buttonsHtml(s, at) {
+    var green = '<button class="wp-green" data-do="';
+    var white = '<button data-do="';
     if (s.kind === "edit") {
-      return (s.undo ? '<button class="wp-accept"' + at + ">Undo</button>" : "") + '<button class="wp-dismiss"' + at + ">Keep</button>";
+      // Accept keeps Claude's words; Decline puts the old words back (no Decline when the page
+      // cannot do that, e.g. bold or code: then Ctrl+Z in the text view, Ctrl+Numpad1)
+      return green + 'close"' + at + ">Accept</button>" + (s.undo ? white + 'apply"' + at + ">Decline</button>" : "");
     }
-    return (s.note ? "" : '<button class="wp-accept"' + at + ">Accept</button>") + '<button class="wp-dismiss"' + at + ">Dismiss</button>";
+    return (s.note ? "" : green + 'apply"' + at + ">Accept</button>") + white + 'close"' + at + ">Decline</button>";
   }
 
   // old words struck through -> new words; a remark shows only the words it is about;
@@ -497,9 +504,9 @@
         buttonsHtml(f.s, ' data-i="' + i + '"') + "</div>";
     }).join("");
     var html = '<div class="wp-head">' +
-      // the names he chose (16 Nov 2026): Grammarly = the suggestions, Claude = Claude's edits
+      // the names he chose (16 Nov 2026): Grammarly = the suggestions, Claude edits = Claude's edits
       (data.on ? switchHtml("suggestions", linesShown, "Grammarly", suggestionCount, data.busy) : "") +
-      switchHtml("edits", editsShown, "Claude", editCount, 0) + "</div>" +
+      switchHtml("edits", editsShown, "Claude edits", editCount, 0) + "</div>" +
       (state ? '<div class="wp-state">' + escapeHtml(state) + "</div>" : "") +
       '<div class="wp-list">' + items + "</div>";
     if (assistPanel.innerHTML !== html) {
@@ -528,8 +535,9 @@
     if (!holder) { return; }
     var found = assist.found[Number(holder.getAttribute("data-i"))];
     if (!found) { return; }
-    if (event.target.closest(".wp-accept")) { accept(found); return; }
-    if (event.target.closest(".wp-dismiss")) { dismiss(found.s.id); closeCard(); assistSchedule(true); return; }
+    var pressed = event.target.closest("button[data-do]");
+    if (pressed && pressed.getAttribute("data-do") === "apply") { accept(found); return; }
+    if (pressed && pressed.getAttribute("data-do") === "close") { dismiss(found.s.id); closeCard(); assistSchedule(true); return; }
     // a click on the item: show the words in the text, with their card
     var rect = found.range.getBoundingClientRect();
     if (rect.top < 60 || rect.bottom > window.innerHeight - 60) {

@@ -31,6 +31,11 @@
 				"title": "Word Page: Open as Plain Text"
 			},
 			{
+				"command": "wordPage.reloadPage",
+				"title": "Word Page: Reload Page (new pictures)",
+				"icon": "$(refresh)"
+			},
+			{
 				"command": "wordPage.putBack",
 				"title": "Word Page: Put the White Page Back"
 			},
@@ -77,11 +82,23 @@
 					"group": "navigation@31"
 				}
 			],
+			"editor/title": [
+				{
+					"command": "wordPage.reloadPage",
+					"when": "activeCustomEditorId == 'quarto.visualEditor'",
+					"group": "navigation@90"
+				}
+			],
 			"editor/title/context": [
 				{
 					"command": "wordPage.openAsText",
 					"when": "activeCustomEditorId == 'quarto.visualEditor'",
 					"group": "1_open@30"
+				},
+				{
+					"command": "wordPage.reloadPage",
+					"when": "activeCustomEditorId == 'quarto.visualEditor'",
+					"group": "1_open@31"
 				}
 			],
 			"file/newFile": [
@@ -97,7 +114,7 @@
 				"wordPage.assistant": {
 					"type": "boolean",
 					"default": true,
-					"description": "Claude's suggestions on the page, like Grammarly: after a pause in typing, Claude reads the paragraph you changed and its suggestions show as coloured lines under the words, with Accept and Dismiss. Uses the Claude Code program on this laptop (your Claude subscription)."
+					"description": "Claude's suggestions on the page, like Grammarly: after a pause in typing, Claude reads the paragraph you changed and its suggestions show as coloured lines under the words, with Accept and Decline. Uses the Claude Code program on this laptop (your Claude subscription)."
 				},
 				"wordPage.assistantReadAll": {
 					"type": "boolean",

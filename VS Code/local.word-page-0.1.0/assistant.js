@@ -10,7 +10,7 @@
 //    suggestions in a fixed JSON form: the exact words, the new words, the kind and a short reason.
 // 3. The answers go into word-page-assistant.css next to Quarto's page (patch.js); the page reads
 //    it every 2 seconds and draws coloured lines under those words (inject/assistant.js). A click
-//    on a line shows a card with Accept and Dismiss; a list of all of them is on the right.
+//    on a line shows a card with Accept and Decline; a list of all of them is on the right.
 // 4. When he accepts a suggestion the paragraph changes in exactly that way: the other
 //    suggestions of the paragraph stay and it is not sent again. Any other change of a paragraph
 //    sends it again after the next pause. Each paragraph text is asked about only once.

@@ -47,6 +47,7 @@ function activate(context) {
     vscode.commands.registerCommand("wordPage.newDocument", newDocument),
     vscode.commands.registerCommand("wordPage.openAsPage", openAsPage),
     vscode.commands.registerCommand("wordPage.openAsText", openAsText),
+    vscode.commands.registerCommand("wordPage.reloadPage", reloadPage),
     vscode.commands.registerCommand("wordPage.putBack", () => refresh(true)),
     vscode.commands.registerCommand("wordPage.selectionToClaude", selectionToClaude),
     vscode.commands.registerCommand("wordPage.browserToClaude", browserToClaude),
@@ -225,6 +226,39 @@ async function openAsPage(clicked) {
     return;
   }
   await vscode.commands.executeCommand("vscode.openWith", uri, VISUAL_EDITOR);
+}
+
+// Reload the page (16 Nov 2026, asked: "reload the qmd file because i just reran code to fix an
+// image but its still showing the broken one"). A page keeps every picture it loaded when it
+// opened; a page that is opened again reads them all from disk. So: save, close, open again in
+// the same place. The round arrow in the page's tab bar, or "Word Page: Reload Page".
+function pageTabOf(uri) {
+  for (const group of vscode.window.tabGroups.all) {
+    for (const tab of group.tabs) {
+      if (tab.input instanceof vscode.TabInputCustom && tab.input.viewType === VISUAL_EDITOR &&
+          tab.input.uri.toString() === uri.toString()) { return tab; }
+    }
+  }
+  return undefined;
+}
+
+async function reloadPage(clicked) {
+  const active = vscode.window.tabGroups.activeTabGroup.activeTab;
+  const uri = clicked && clicked.fsPath ? clicked : (active && active.input && active.input.uri);
+  if (!uri || !pageTabOf(uri)) {
+    vscode.window.showWarningMessage("Word Page: open the page you want to reload first.");
+    return;
+  }
+  if (pageTabOf(uri).isDirty) { await vscode.workspace.save(uri); }
+  const tab = pageTabOf(uri);                      // the tab as it is after saving
+  if (!tab || tab.isDirty) {
+    vscode.window.showWarningMessage("Word Page: the page could not be saved, so it was not reloaded.");
+    return;
+  }
+  const column = tab.group.viewColumn;
+  await vscode.window.tabGroups.close(tab, true);
+  await vscode.commands.executeCommand("vscode.openWith", uri, VISUAL_EDITOR, { viewColumn: column, preview: false });
+  log("reload: " + path.basename(uri.fsPath) + " opened again (pictures read from disk)");
 }
 
 // The plain markdown text of a page (12 Nov 2026, asked: "the text editor function doesn't
