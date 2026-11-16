@@ -171,6 +171,16 @@ def heading_line(line):
     return line[3] and line[2] > 11.5
 
 
+def list_line(line):
+    """The first line of a bullet point at text size: running text too, so it ends a table
+    (16 Nov 2026: Table 1 followed only by bullets was taken as going on to the next page)."""
+    return 10.5 <= line[2] <= 11.5 and line[1].startswith("•")
+
+
+def text_after_table(line, left):
+    return body_line(line, left) or heading_line(line) or list_line(line)
+
+
 def save(page, rect, folder, name, page_rect):
     """Save a picture of an area of the page. "x" is how far its left edge is from the left
     edge of the column of text (on an upright page), so the page can put it at the same place."""
@@ -220,7 +230,7 @@ def pictures(document, folder, prefix):
                 table_rules = [r for r in rules if block.y0 < r.y0 and r.y1 < next_top and r.x1 > block.x0 - 60 and r.x0 < block.x1 + 60]
                 last_rule = max([r.y1 for r in table_rules], default=block.y1)
                 after = [line for line in lines if line[0].y0 > block.y1 - 1 and line[0].y1 < next_top]
-                ended = bool(table_rules) and any((body_line(line, left) or heading_line(line)) and line[0].y0 > last_rule
+                ended = bool(table_rules) and any(text_after_table(line, left) and line[0].y0 > last_rule
                                                   for line in after)
                 for line in after:
                     if ended and line[0].y0 > last_rule:
@@ -234,7 +244,7 @@ def pictures(document, folder, prefix):
                         nxt = document[follow]
                         nxt_lines, _, _ = page_parts(nxt)
                         if (nxt.rotation != page.rotation or not nxt_lines or captions_on[follow][:1] == [0]
-                                or body_line(nxt_lines[0], left) or heading_line(nxt_lines[0])):
+                                or text_after_table(nxt_lines[0], left)):
                             break
                         more += 1
                         if captions_on[follow]:          # the next table starts lower on that page

@@ -636,7 +636,11 @@ gives:
   in a chunk, `#| fig-cap: !expr name` (the caption kept in a variable by
   another chunk), `\caption{\textbf{Figure 1.} ...}` in raw LaTeX. A table
   that runs over many pages shows its first page and "goes on for 2 more
-  pages". On hover a dashed line and a tag say what made it; a click opens
+  pages". A table ends at its last rule when running text, a heading or a
+  bullet point comes after it (bullets since 16 Nov 2026, asked: "I don't
+  see Table 1": Table 1 had only bullets under it, was taken as going on
+  to the next page, and its picture took in the bullets of two pages; Table
+  2 took in four bullets). On hover a dashed line and a tag say what made it; a click opens
   the code. The pictures are PNG files (150 dpi) in `word-page-pdf\` next to
   Quarto's `index.js`, named after the PDF and its build time; those of an
   older build are taken away.
