@@ -455,8 +455,15 @@ A click or any key stops it at once and goes to VS Code.
   would blow it up more than 1.35 times its real size (blurry): then it is
   shown across the full width, with a soft blurred copy of it above and
   below (6 Nov 2026, for the key art, 1920x650, on the 2560x1600 screen).
-- **How often**: at every start, every Reload Window and every new VS Code
-  window (since 6 Nov 2026; before that at most once every 10 minutes). Setting
+- **How often**: at every start and every new VS Code window (since 6 Nov
+  2026; before that at most once every 10 minutes). **Not after Reload Window**
+  (16 Nov 2026, asked: "dont run the start up screen animation when i reload
+  a window"): a reload keeps the window's log folder
+  (`%APPDATA%\Code\logs\<start>\window<n>`), a new start or window makes a
+  fresh one, so the add-on skips the screen when that folder is older than
+  30 s (`isReload`, log: "skip: Reload Window"). The helper itself only
+  reacts to a new start (a new log folder), so it never showed one on a
+  reload by itself. Setting
   `startupScreen.minutesBetween`: 0 (the default) = every start; a number =
   at most once in that many minutes. Not when the add-on is installed or
   switched on while VS Code is already running.
