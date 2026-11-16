@@ -644,6 +644,20 @@ gives:
   the code. The pictures are PNG files (150 dpi) in `word-page-pdf\` next to
   Quarto's `index.js`, named after the PDF and its build time; those of an
   older build are taken away.
+- **Tables made by an include line** (16 Nov 2026, asked: "I still don't see
+  the tables"): `first_draft.qmd` makes a table with
+  `{{< include ../output/tables/x.md >}}` and a caption line
+  `: **Table 1.** ...` under it. Quarto's page shows those two lines as a
+  definition list (`dl.pm-definition-list`: the include line is the term,
+  the caption its description), not as a box, so the code-box route above
+  never saw them. `drawIncludes` in `word-page.template.js` hides the two
+  lines with style rules (as for the citations, found by `:nth-child`, the
+  last step named `dl.pm-definition-list` so a rule can hit nothing else,
+  checked after every change) and shows the PDF picture of that table in
+  their place (`::before`, a second page part as `::after`). Also inside
+  `::: landscape` (Tables A5, A6). **Cursor in the list** (arrow keys): the
+  two lines show again, to change them. Tested in the bench on a copy of
+  first_draft.qmd: Tables 1, 2, 3, A2, A5, A6, A7.
 - Everything here is **as of the last build** (Ctrl+Shift+K): a table
   changed in R shows the old picture until the PDF is built again.
 - **The look of the PDF itself** (12 Nov 2026 night, asked: "the qmd file in

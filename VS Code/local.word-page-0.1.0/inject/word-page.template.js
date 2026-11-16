@@ -639,6 +639,101 @@
     if (cursorCite() !== citeWithCursor) { drawCites(pageContent()); }
   });
 
+  // ---- tables from an include line (16 Nov 2026, asked: "I still don't see the tables") ----
+  // first_draft.qmd makes a table with "{{< include ../output/tables/x.md >}}" and a caption
+  // line ": **Table 1.** ..." under it. Quarto's page shows those two lines as a definition
+  // list (the include line is the term, the caption its description), not as a box, so
+  // foldBoxes does not see them. Style rules (as for the citations) hide the two lines and
+  // show the picture of the table from the PDF in their place, so nothing in the editor is
+  // changed. With the cursor in the list the two lines show again, to change them. After
+  // every change on the page the places are checked at once, so a rule never lands on
+  // another list.
+  var includeStyle = null;
+  var includeParts = [];       // [{el, path}] of the lists that have a rule now
+  var includeWithCursor = null;
+  var INCLUDE_CAPTION = /^\s*((?:Table|Figure) [A-Z]?\d+)\./;
+
+  function cursorInclude() {
+    var selection = window.getSelection();
+    var node = selection && selection.rangeCount ? selection.focusNode : null;
+    var el = node && (node.nodeType === 1 ? node : node.parentElement);
+    return el && el.closest ? el.closest("dl.pm-definition-list") : null;
+  }
+
+  // "Table 1" for a list of an include line and a caption that starts with "Table 1."
+  function includeLabel(list) {
+    var term = list.querySelector(":scope > dt");
+    var description = list.querySelector(":scope > dd");
+    if (!term || !description || !/\{\{<\s*include\s/.test(term.textContent)) { return null; }
+    var match = INCLUDE_CAPTION.exec(description.textContent);
+    return match ? match[1] : null;
+  }
+
+  // a picture as the face of a ::before or ::after, at the size and place of the PDF
+  function pictureCss(doc, part) {
+    var url = String(PICTURE_BASE + (doc.pictures || "") + part.file).replace(/["\\\n]/g, "");
+    var place = typeof part.x === "number" ? "margin-left: calc(" + Number(part.x) + " * var(--wp-pt));" : "margin-left: auto; margin-right: auto;";
+    return 'content: ""; display: block; width: calc(' + Number(part.w) + " * var(--wp-pt)); height: calc(" + Number(part.h) +
+      ' * var(--wp-pt)); ' + place + ' background: url("' + url + '") no-repeat 0 0 / 100% 100%;';
+  }
+
+  function drawIncludes(content) {
+    if (!includeStyle) {
+      includeStyle = document.createElement("style");
+      includeStyle.id = "word-page-includes";
+      document.head.appendChild(includeStyle);
+    }
+    var doc = currentDoc();
+    var rules = [];
+    var parts = [];
+    includeWithCursor = cursorInclude();
+    if (doc && doc.items && content) {
+      // also inside a block such as "::: landscape" (Tables A5 and A6)
+      var lists = content.querySelectorAll("dl.pm-definition-list");
+      for (var i = 0; i < lists.length; i++) {
+        var list = lists[i];
+        if (list === includeWithCursor || list.closest(".pm-code-editor")) { continue; }
+        var label = includeLabel(list);
+        var item = label ? doc.items[label] : null;
+        if (!item || !item.parts || !item.parts.length) { continue; }   // not in the PDF yet: the lines stay
+        var path = pathOf(list, content);
+        if (!path) { continue; }
+        // the last step names the list itself, so a rule can never hide anything else
+        var at = ROOT + path.replace(/:nth-child\((\d+)\)$/, "dl.pm-definition-list:nth-child($1)");
+        rules.push(at + " > dt, " + at + " > dd { display: none !important; }");
+        rules.push(at + "::before { " + pictureCss(doc, item.parts[0]) + " }");
+        if (item.parts[1]) {
+          rules.push(at + "::after { " + pictureCss(doc, item.parts[1]) + " }");
+        } else if (item.more) {
+          rules.push(at + "::after { content: " + cssText(label + " goes on for " + item.more + (item.more === 1 ? " more page" : " more pages") +
+            " in " + doc.name) + "; display: block; font-size: 0.85em; color: #666666; }");
+        }
+        parts.push({ el: list, path: path });
+      }
+    }
+    includeParts = parts;
+    var css = rules.join("\n");
+    if (includeStyle.textContent !== css) { includeStyle.textContent = css; }
+  }
+
+  // after a change on the page: is every list still in its place? If not, draw them again now
+  function checkIncludes() {
+    if (!includeParts.length) { return; }
+    var content = pageContent();
+    for (var i = 0; i < includeParts.length; i++) {
+      var part = includeParts[i];
+      if (!content || !content.contains(part.el) || pathOf(part.el, content) !== part.path) {
+        drawIncludes(content);
+        return;
+      }
+    }
+  }
+
+  document.addEventListener("selectionchange", function () {
+    if (!FROM_PDF || !includeParts.length && !includeWithCursor) { return; }
+    if (cursorInclude() !== includeWithCursor) { drawIncludes(pageContent()); }
+  });
+
   // A box opens (class wp-open) when the cursor goes into it because of the user: a click
   // on its face, or the arrow keys. When the editor puts the cursor there by itself (it
   // does so in the header when a document opens), the cursor is taken out again: typing
@@ -957,6 +1052,7 @@
     var hidden = active && active.closest ? active.closest(".pm-code-editor.wp-folded:not(.wp-open)") : null;
     if (hidden && active.blur) { active.blur(); }
     try { if (FROM_PDF) { drawCites(content); } } catch (err) { /* citations stay @keys this time */ }
+    try { if (FROM_PDF) { drawIncludes(content); } } catch (err) { /* the include lines stay as text this time */ }
     try { placeSideways(content); } catch (err) { /* the sheets stay centred */ }
     try { drawPageEnds(content); } catch (err) { /* no page ends this time */ }
   }
@@ -964,6 +1060,7 @@
     // checkCites runs straight away (before the screen is drawn again), the rest a moment later
     new MutationObserver(function () {
       try { checkCites(); } catch (err) { /* drawn again with the rest */ }
+      try { checkIncludes(); } catch (err) { /* drawn again with the rest */ }
       try { checkGaps(); } catch (err) { /* drawn again with the rest */ }
       schedule();
     }).observe(document.body, { childList: true, subtree: true, characterData: true });
