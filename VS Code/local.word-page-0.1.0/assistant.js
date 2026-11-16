@@ -261,13 +261,49 @@ function askClaude(exe, model, paragraph, workDir) {
   });
 }
 
+// ---- the answers, kept on the disk ----
+// Claude's answers per paragraph text, also after a restart or Reload Window, so a paragraph is
+// read again only when its text changed (each read uses some of his Claude usage). Kept by the
+// SHA-1 of the text, in answers.json; the newest KEEP answers stay. Works like a Map of texts.
+const KEEP = 5000;
+
+function textKey(text) {
+  return crypto.createHash("sha1").update(text).digest("hex").slice(0, 24);
+}
+
+function savedResults(file) {
+  let store = {};
+  try { store = JSON.parse(fs.readFileSync(file, "utf8")) || {}; } catch (err) { store = {}; }
+  let timer = null;
+  function save() {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      try {
+        const keys = Object.keys(store);
+        if (keys.length > KEEP) {
+          keys.sort((a, b) => (store[a].at || 0) - (store[b].at || 0)).slice(0, keys.length - KEEP).forEach((k) => { delete store[k]; });
+        }
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file + ".tmp", JSON.stringify(store));
+        fs.renameSync(file + ".tmp", file);
+      } catch (err) { /* kept in memory until the next save */ }
+    }, 1000);
+  }
+  return {
+    has: (text) => Object.prototype.hasOwnProperty.call(store, textKey(text)),
+    get: (text) => store[textKey(text)],
+    set: (text, value) => { store[textKey(text)] = { suggestions: value.suggestions, at: Date.now() }; save(); },
+    clear: () => { store = {}; save(); }
+  };
+}
+
 // ---- in VS Code ----
 
 function activate(context, helpers) {
   const vscode = require("vscode");
   const log = helpers.log;
   const workDir = path.join(process.env.LOCALAPPDATA || os.tmpdir(), "word-page", "assistant");
-  const results = new Map();     // paragraph text -> { suggestions: [...] } (asked and answered)
+  const results = savedResults(path.join(workDir, "answers.json"));   // paragraph text -> { suggestions } (kept on disk)
   const asking = new Set();      // paragraph texts being asked about now
   const waiting = [];            // paragraph texts to ask about, oldest first
   const lastText = new Map();    // document -> its text at the last change
@@ -439,8 +475,29 @@ function activate(context, helpers) {
   function remember(doc) {
     if (/\.(qmd|md)$/i.test(doc.uri.fsPath) && !lastText.has(doc.uri.toString())) { lastText.set(doc.uri.toString(), doc.getText()); }
   }
+  // A document that opens as a page: Claude reads all its text that he has no answer for yet,
+  // in the order of the text, behind the paragraphs being typed (setting wordPage.assistantReadAll).
+  const readDocs = new Set();
+  function readOpenPages() {
+    const open = pageDocs();
+    for (const key of Array.from(readDocs)) {
+      if (!open.some((doc) => doc.uri.toString() === key)) { readDocs.delete(key); }
+    }
+    if (!isOn() || !settings().get("assistantReadAll", true)) { return; }
+    for (const doc of open) {
+      const key = doc.uri.toString();
+      if (readDocs.has(key)) { continue; }
+      readDocs.add(key);
+      const todo = paragraphsOf(doc.getText()).map((p) => p.text).filter((text) => checkable(text) && !results.has(text));
+      todo.forEach((text) => queue(text, false));
+      if (todo.length) { log("assistant: " + path.basename(doc.uri.fsPath) + " opened as a page: " + todo.length + " paragraphs to read"); }
+    }
+    next();
+  }
+
   function noteOpenPages() {
     vscode.workspace.textDocuments.forEach(remember);
+    readOpenPages();
     writeSoon();
   }
   context.subscriptions.push(
@@ -451,8 +508,14 @@ function activate(context, helpers) {
   noteOpenPages();
 
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((event) => {
-    if (event.affectsConfiguration("wordPage.assistant")) { next(); }
+    if (event.affectsConfiguration("wordPage.assistant") || event.affectsConfiguration("wordPage.assistantReadAll")) {
+      readDocs.clear();
+      readOpenPages();
+    }
   }));
+  // the text of a page is there a moment after its tab: look again shortly after the start
+  const startTimer = setTimeout(noteOpenPages, 3000);
+  context.subscriptions.push({ dispose: () => clearTimeout(startTimer) });
 
   // ---- the commands ----
   function activePageDoc() {
@@ -490,7 +553,12 @@ function activate(context, helpers) {
     if (!choice) { return; }
     if (choice.id === "all") { checkAll(); }
     if (choice.id === "toggle") { toggle(); }
-    if (choice.id === "forget") { results.clear(); failure = ""; writeSoon(); checkAll(); }
+    if (choice.id === "forget") {
+      results.clear();
+      failure = "";
+      writeSoon();
+      if (settings().get("assistantReadAll", true)) { readDocs.clear(); readOpenPages(); } else { checkAll(); }
+    }
   }
 
   context.subscriptions.push(
@@ -501,6 +569,6 @@ function activate(context, helpers) {
 }
 
 module.exports = {
-  activate, paragraphsOf, plainOf, letters, prepare, afterAccept, claudeArgs, findClaude, askClaude, wordCount,
+  activate, paragraphsOf, plainOf, letters, prepare, afterAccept, claudeArgs, findClaude, askClaude, wordCount, savedResults,
   SYSTEM, SCHEMA, PAUSE, MIN_WORDS
 };

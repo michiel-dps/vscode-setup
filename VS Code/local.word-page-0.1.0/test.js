@@ -432,6 +432,10 @@ const carried = assistant.afterAccept(para, accepted, [good, otherOne]);
 check("assistant: accepting one suggestion keeps the others of the paragraph",
   carried && carried.carried.length === 1 && carried.carried[0].original === "the scheme have");
 check("assistant: another change is not taken for an accept", assistant.afterAccept(para, para + " More.", [good, otherOne]) === null);
+const answersFile = path.join(temp, "answers.json");
+const store = assistant.savedResults(answersFile);
+store.set(para, { suggestions: [good] });
+check("assistant: an answer is there at once", store.has(para) && store.get(para).suggestions[0].id === good.id && !store.has(accepted));
 const args = assistant.claudeArgs("sonnet");
 check("assistant: the request has no tools, no MCP, no saved session, project settings only, JSON answer",
   args.includes("-p") && args[args.indexOf("--tools") + 1] === "" && args.includes("--strict-mcp-config") &&

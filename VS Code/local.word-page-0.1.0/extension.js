@@ -55,7 +55,7 @@ function activate(context) {
     vscode.extensions.onDidChange(() => refresh(false)),
     vscode.workspace.onDidChangeConfiguration((change) => {
       // the assistant's settings do not change the page itself (assistant.js follows them)
-      const assistantOnly = ["wordPage.assistant", "wordPage.assistantModel", "wordPage.claudePath"].some((name) => change.affectsConfiguration(name));
+      const assistantOnly = ["wordPage.assistant", "wordPage.assistantReadAll", "wordPage.assistantModel", "wordPage.claudePath"].some((name) => change.affectsConfiguration(name));
       if (change.affectsConfiguration("wordPage") && !assistantOnly) { refresh(true); }
     }),
     vscode.window.tabGroups.onDidChangeTabs((change) => { openFirstPage(change.opened); })

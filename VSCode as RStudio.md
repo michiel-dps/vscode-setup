@@ -976,8 +976,13 @@ saving from the page in the bench and comparing the file):
 - **Claude's suggestions, like Grammarly** (16 Nov 2026, asked: "me having a
   window open with you and if I'm on some text you can come with proposals
   like Grammarly does ... make sure it works properly in the Quarto visual
-  editor"). What you see: after you stop typing for about 4 seconds, the
-  paragraph you changed goes to Claude; about 5 seconds later coloured lines
+  editor"). What you see: when a document opens as a page, Claude reads
+  the text that is already there in the background, paragraph by paragraph
+  (`wordPage.assistantReadAll`, on since 16 Nov 2026, asked: "existing text
+  can also just be checked"); the answers are kept in
+  `%LOCALAPPDATA%\word-page\assistant\answers.json`, so after a restart
+  only changed paragraphs are read again. After you stop typing for about
+  4 seconds, the paragraph you changed goes to Claude first; about 5 seconds later coloured lines
   appear under words on the page (red = correctness, blue = clarity and
   conciseness, green = word choice). Click the words: a card with the new
   words, a short reason, **Accept** and **Dismiss**. The button "Claude n" at

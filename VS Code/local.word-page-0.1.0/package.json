@@ -99,6 +99,11 @@
 					"default": true,
 					"description": "Claude's suggestions on the page, like Grammarly: after a pause in typing, Claude reads the paragraph you changed and its suggestions show as coloured lines under the words, with Accept and Dismiss. Uses the Claude Code program on this laptop (your Claude subscription)."
 				},
+				"wordPage.assistantReadAll": {
+					"type": "boolean",
+					"default": true,
+					"description": "When a document opens as a page, Claude also reads the text that is already there (every paragraph it has no answer for yet), in the background. Answers are kept on this laptop, so a paragraph is read again only when its text changes. Off: only the paragraphs you change are read."
+				},
 				"wordPage.assistantModel": {
 					"type": "string",
 					"default": "sonnet",
