@@ -7,9 +7,11 @@
 // ours   = the page's text now (with what he typed),
 // theirs = the file's text now (with the chat's change).
 // The result has both changes. It works line by line (a paragraph of the paper is one line);
-// where both sides changed the same line it works letter by letter inside that line. Only
-// where both changed the very same letters does the page's text win ("conflict"); the hook
-// after Claude's edit then sees that the old text is back and tells the chat.
+// where both sides changed the same line it works word by word inside that line. Where both
+// changed the same words the page's text wins ("conflict"); the hook after Claude's edit then
+// sees that the old text is back and tells the chat. (Until 16 Nov 2026 it went letter by
+// letter: his "in a similar" typed while Claude changed ": after" to ". After" two words
+// further on came out as "in into e sa similair Afme direction.ter 2024ion.")
 //
 // No VS Code and no browser in this file: test.js runs it with plain node.
 "use strict";
@@ -202,6 +204,23 @@ function mergeLetters(base, ours, theirs) {
   return mergeSequences(base, ours, theirs, letterConflict).parts.join("");
 }
 
+// A text cut into words, runs of spaces and single other signs; joined again it is the same text.
+function wordsOf(text) {
+  return text.match(/[\p{L}\p{N}]+|\s+|[^\p{L}\p{N}\s]/gu) || [];
+}
+
+// Where both sides changed the same words: see sameInsert when nothing was taken out; else
+// ours (the page) wins.
+function wordConflict(b, o, t) {
+  if (b.length === 0) {
+    var oText = o.join("");
+    var tText = t.join("");
+    var both = sameInsert(oText, tText);
+    return { parts: [both], conflicts: both === oText + tText ? 1 : 0 };
+  }
+  return { parts: o, conflicts: 1 };
+}
+
 // merge3(base, ours, theirs) -> { text, conflicts }
 function merge3(base, ours, theirs) {
   if (ours === theirs || theirs === base) { return { text: ours, conflicts: 0 }; }
@@ -215,8 +234,8 @@ function merge3(base, ours, theirs) {
       if (tText.indexOf(oText) >= 0) { return { parts: t, conflicts: 0 }; }
       return { parts: o.concat(t), conflicts: 0 };
     }
-    // the same lines changed on both sides: letter by letter inside them
-    var text = mergeSequences(b.join("\n"), o.join("\n"), t.join("\n"), letterConflict);
+    // the same lines changed on both sides: word by word inside them
+    var text = mergeSequences(wordsOf(b.join("\n")), wordsOf(o.join("\n")), wordsOf(t.join("\n")), wordConflict);
     return { parts: text.parts.join("").split("\n"), conflicts: text.conflicts };
   });
   return { text: merged.parts.join("\n"), conflicts: merged.conflicts };

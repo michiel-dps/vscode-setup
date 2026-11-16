@@ -258,7 +258,15 @@ check("merge: right next to each other: both stay",
   "about ClaudeEdit01 and anchor01 tok7,");
 check("merge: other paragraphs: both stay", merge.merge3("a\n\nb\n\nc", "a typed\n\nb\n\nc", "a\n\nb\n\nc changed").text === "a typed\n\nb\n\nc changed");
 check("merge: a paragraph taken out by the chat, typing elsewhere", merge.merge3("a\n\nb\n\nc", "a\n\nb\n\nc typed", "a\n\nc").text === "a\n\nc typed");
-check("merge: both put text in at the same place: both stay", merge.merge3("ab", "aXb", "aYb").text === "aXYb");
+check("merge: both put words in at the same place: both stay", merge.merge3("a b", "a X b", "a Y b").text === "a X Y b");
+check("merge: both changed the same word: the page's word, never a mix of letters", merge.merge3("ab", "aXb", "aYb").text === "aXb");
+// 16 Nov 2026: he typed in a sentence while Claude changed its colon; letter by letter gave
+// "point in into e sa similair Afme direction.ter 2024ion."
+check("merge: typing and a Claude edit two words apart in one sentence: both, word for word",
+  merge.merge3("the figures point in the same direction: after 2024 the treated",
+    "the figures point in a similar direction: after 2024 the treated",
+    "the figures point in the same direction. After 2024 the treated").text ===
+  "the figures point in a similar direction. After 2024 the treated");
 check("merge: both put in the same words, one side a few more: no word twice",
   merge.merge3("anchor05, then", "anchor05 tok1 tok2 tok3, then", "anchor05 tok1 tok2, then").text === "anchor05 tok1 tok2 tok3, then" &&
   merge.merge3("anchor05, then", "anchor05 tok1, then", "anchor05 tok1 tok2, then").text === "anchor05 tok1 tok2, then");

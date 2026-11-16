@@ -761,7 +761,12 @@ happen. Six parts:
    works, and the log says so. After a Quarto update the page tab must be
    closed and opened once (the add-on says so).
 2. **The page merges instead of choosing** (`merge.js`, a three-way merge:
-   paragraph by paragraph, letter by letter inside a paragraph both changed).
+   paragraph by paragraph, word by word inside a paragraph both changed,
+   and where both changed the same words your typing wins. Until 16 Nov
+   2026 it went letter by letter: typing "in a similar" while Claude
+   changed ": after" to ". After" two words further on came out as "in
+   into e sa similair Afme direction.ter 2024ion." Tests: `test.js`,
+   "merge: typing and a Claude edit two words apart").
    The script block keeps `file` (what the file holds) and `base` (the file
    text the page's text stands on). When Quarto asks for the text, the page
    gives its own text merged with what changed in the file, so your typing
