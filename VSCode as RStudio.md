@@ -2299,6 +2299,36 @@ fresh at every check, so a change there needs no rebuild; a change to its
 our block at the end of `index.css` (from the "patched by" comment on, or
 let Claude Code update) and take `wrapCodeBlocks()` out of the opener.
 
+### Brackets in the Claude chat box, like in a code editor (18 Nov 2026)
+
+| You type | You get |
+|---|---|
+| `(` | `()` with the cursor in between. Before a word only `(`, like VS Code |
+| `(` with text selected | `(` and `)` around it |
+| `)` just before a `)` | the cursor steps over it, no second `)` |
+| Backspace between `(` and `)` | both go |
+
+The Claude Code add-on has no setting for this. The chat box is an editable
+`div` (`contenteditable="plaintext-only"`, `role="textbox"`), not a VS Code
+editor, so VS Code's own bracket settings do not reach it. The same trick as
+the code boxes: `extension\auto-brackets.js` of the chat opener puts
+`auto-brackets-page.js` at the end of Claude Code's `webview\index.js`, in
+every installed version. `wrap-code.js` calls it, so it runs at every start
+and once a minute, also after a Claude Code update. The script catches the
+key before the chat does and types through the browser's own `insertText`,
+so the chat sees normal typing and Ctrl+Z works.
+
+- A chat panel loads `index.js` when it opens: an open chat gets the
+  brackets after Ctrl+Shift+P → Developer: Restart Extension Host, a new
+  chat tab (Ctrl+Numpad4) at once.
+- Test (real key presses in headless Edge, on a copy of the chat box):
+  `& $code "$HOME\.claude\tools\chat-opener\test-brackets.js" | Out-String`
+  (with `$env:ELECTRON_RUN_AS_NODE = 1` as above). Ends with ALL PASS.
+- Log line in `~/.claude/chat-opener/log.txt`: "auto-brackets: ... patched",
+  or "chat box not found" when Claude Code changed its chat box.
+- Undo: delete our block at the end of `index.js` (from the "auto-brackets
+  by" comment on) and take the auto-brackets part out of `wrap-code.js`.
+
 ### Claude's edits in the chat edit view, like Copilot's (5 Nov 2026)
 
 What you see: section 5. How it works, around every Edit/Write of an R

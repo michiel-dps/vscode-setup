@@ -71,6 +71,17 @@ function apply(log = () => {}, problems = []) {
       log(`wrap-code: ${name}: ${e}`);
     }
   }
+  // the brackets in the chat box (auto-brackets.js, 18 Nov 2026), loaded fresh like this file
+  try {
+    const bracketsFile = require.resolve('./auto-brackets.js')
+    delete require.cache[bracketsFile]
+    for (const name of require(bracketsFile).apply(log, problems)) {
+      if (!patched.includes(name)) patched.push(name)
+    }
+  } catch (e) {
+    problems.push(`auto-brackets: ${e}`)
+    log(`auto-brackets: ${e}`)
+  }
   return patched;
 }
 
