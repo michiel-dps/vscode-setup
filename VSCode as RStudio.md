@@ -224,8 +224,19 @@ own code (1.146) and the Claude Code add-on's (2.1.323):
 | Editor tabs in each window | yes | VS Code default |
 | Claude Code chats opened **as tabs** (Ctrl+Numpad7) | yes, with the conversation | the add-on restores its tabs (`registerWebviewPanelSerializer("claudeVSCodePanel")`); `claudeCode.continueAfterReload` (default on) even finishes a step that was cut off |
 | The Claude Code chat **in the side bar** | no, it opens empty | the add-on starts the side bar without a session. The old chat is in its list of past conversations (or `/chats`). A chat you want back after a restart: open it as a tab |
+| Data viewer and R Plot tabs, also in a floating window | yes, as a stand-in tab with a short note, in the same place (since 18 Nov 2026) | fix 8 of `patch-r-extension.pl` (section 6). Before, the R extension could not bring them back, and a floating window with only those tabs came back empty or not at all. The next Ctrl+click on that name, or the next plot, replaces the stand-in in that place (fix 7) |
+| The R terminal | a fresh one starts by itself (since 18 Nov 2026) | the Enter add-on (v0.5.6) runs `r.createRTerm` at every start of the add-ons in a window with an `.R`, `.Rmd` or `.qmd` file open, and first closes an old "R Interactive" terminal (a leftover that can no longer reach the Workspace panel). The R objects are gone, as after an RStudio restart: run the script again. Log line `fresh R: started` |
 | The Tutor tab (built-in browser, Ctrl+Numpad3) | yes, same web address | the browser tab is saved like any editor tab (its URL) |
 | The Tutor's login and progress | yes | `"workbench.browser.dataStorage": "global"`: one store for the built-in browser, kept across restarts and folders (the default `default` means the same on this computer, but VS Code turns it into a throw-away store in a folder it does not trust; set explicitly so it stays). Progress is also saved to his claude.ai account by the page itself |
+
+**Restart Extension Host instead of Reload Window** (18 Nov 2026, his wish:
+"I don't want to lose my external windows on a reload"). After a change to an
+add-on or a patch, Ctrl+Shift+P → **Developer: Restart Extension Host** loads
+the new code and leaves every window as it is, floating ones too: only the
+add-ons restart. Claude Code chats in tabs come back by themselves, the R
+terminal restarts fresh (row above). Reload Window is only needed for a
+change VS Code itself reads at window start (`settings.json` mostly applies
+at once, `argv.json` needs a full restart).
 
 Closing tip: close VS Code with **File → Exit**. A window closed on its own
 with its X before the last one is not part of the session that gets restored.
@@ -1757,7 +1768,9 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
   terminal: `source(file.path(dirname(Sys.getenv("VSCODE_R_SESS_ATTACH_HELPER")), "profile.R"))`
   and read the message.
 - "Failed to connect to IPC endpoint" = the terminal is a leftover from before
-  a restart. Kill it, Ctrl+Alt+R.
+  a restart. Kill it, Ctrl+Alt+R. Since 18 Nov 2026 the Enter add-on closes
+  such a leftover and starts a fresh R terminal by itself (section 3, the
+  table "Everything comes back after a restart").
 - "object x not found" for a column name, right after Ctrl+Enter: look at the
   line after the `>` prompt. If it starts mid-pipe (`filter(...)`), only part
   of the statement was sent: a selection that did not start at the first
@@ -1777,7 +1790,7 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
   `watch-test.R` (`R\` in this folder, see its header), then re-source
   `watch.R` in the running R terminal (Ctrl+Enter on the `source(...)`
   line of the unit, or Ctrl+Alt+R for a new terminal).
-- Seven things in the R extension are changed by editing its code
+- Eight things in the R extension are changed by editing its code
   (`VS Code\patch-r-extension.pl` in this folder; the originals are kept next
   to them as `extension.js.orig` and `webviews\httpgd\index.js.orig`). The R
   extension overwrites them when it
@@ -1882,6 +1895,17 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
      window. A script that is itself in the second group gets its viewer in a
      third group. An empty window is found by check 4 of
      `scripts\check-vscode.ps1` (section 5c, "Test bench for Claude").
+  8. **Data viewer and R Plot tabs keep their place over a restart** (18 Nov
+     2026). The R extension has no serializer for them, so VS Code dropped
+     them at Reload Window, and a floating window holding only those tabs
+     came back empty or not at all. The patch registers one for `dataview`
+     and `RPlot` at the top of `extension.js` (`__rHolders`): such a tab comes
+     back as a stand-in with its name and a note ("Run your script, then
+     Ctrl+click wwbi again: it opens here"). The R session is new, so there is
+     nothing to show yet. Point 7 counts the stand-in as an R tab, so the
+     next data tab of that name, or the next plot, opens in its group and the
+     stand-in closes 0.3 s later. A stand-in of another name stays until you
+     close it. 11 offline checks with a fake `vscode` module, 18 Nov 2026.
 - Picking a function from the autocomplete popup inserts `f()` as a snippet;
   the Enter extension works inside it too (its activation rule must NOT
   contain `!inSnippetMode`).

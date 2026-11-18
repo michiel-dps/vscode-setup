@@ -1048,7 +1048,32 @@ function stopR() {
   log("stop sent Ctrl+C to " + rTerminal.name);
 }
 
+// A fresh R terminal at every start of the add-ons (18 Nov 2026), as RStudio
+// opens with its console: after Reload Window, after Restart Extension Host
+// and when VS Code starts. Only in a window with an R, Rmd or qmd file open.
+// An "R Interactive" terminal from before is a leftover: its R still talks to
+// the R add-on that was stopped ("Failed to connect to IPC endpoint"), so it
+// is closed first. Objects in it are gone either way: run the script again.
+async function startFreshR() {
+  const win = vscode.window;
+  if (!win.tabGroups || !win.terminals || !vscode.extensions) return;   // offline test
+  const rFile = /\.(r|rmd|qmd)$/i;
+  const tabs = win.tabGroups.all.flatMap((g) => g.tabs);
+  const rOpen = tabs.some((t) => t.input && t.input.uri && rFile.test(t.input.uri.fsPath));
+  if (!rOpen) {
+    log("fresh R: no R file open in this window, not started");
+    return;
+  }
+  const old = win.terminals.filter((t) => t.name === "R Interactive");
+  old.forEach((t) => t.dispose());
+  const rAddOn = vscode.extensions.getExtension("reditorsupport.r");
+  if (rAddOn) await rAddOn.activate();
+  await vscode.commands.executeCommand("r.createRTerm");
+  log("fresh R: started" + (old.length ? ", closed " + old.length + " old R terminal(s)" : ""));
+}
+
 function activate(context) {
+  startFreshR().catch((e) => log("ERR  fresh R | " + (e && e.stack ? e.stack : e)));
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.stopR", stopR));
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.stageChangeStay", stageChangeStay));
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.enter", onEnterLogged));
@@ -1057,9 +1082,9 @@ function activate(context) {
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.ctrlClick", ctrlClickLogged));
   context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(noteMouseClick));
   try { activateClaudeEdits(context); } catch (e) { log("ERR  edits " + (e && e.stack ? e.stack : e)); }
-  log("activated 0.5.5 (Ctrl+click opens a global object in the data viewer, a plot in the R Plot tab, 18 Nov 2026)");
+  log("activated 0.5.6 (a fresh R terminal at every start, 18 Nov 2026)");
 }
 
 function deactivate() {}
 
-module.exports = { activate, deactivate, _test: { blank, unterminatedQuote, statementStart, statementEnd, unfinished, makeSavedEditsSafe, freshSavedEdits, changedBlock, matchingLine, sessionObjectAt } };
+module.exports = { activate, deactivate, _test: { blank, unterminatedQuote, statementStart, statementEnd, unfinished, makeSavedEditsSafe, freshSavedEdits, changedBlock, matchingLine, sessionObjectAt, startFreshR } };

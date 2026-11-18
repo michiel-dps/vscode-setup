@@ -386,6 +386,27 @@ async function pipe(lineText, col) {
     check("Ctrl+click on a leaflet map: printed", ask(5, 36), "viewed by print(map)");
   }
 
+  // ---- a fresh R terminal at every start (18 Nov 2026) ------------------------
+  {
+    const freshR = async (files, terminalNames) => {
+      reset();
+      const closed = [];
+      vscode.window.tabGroups = { all: [{ tabs: files.map((f) => ({ input: { uri: { fsPath: f } } })) }] };
+      vscode.window.terminals = terminalNames.map((name) => ({ name, dispose: () => closed.push(name) }));
+      vscode.extensions = { getExtension: () => ({ activate: async () => {} }) };
+      await ext._test.startFreshR();
+      delete vscode.window.tabGroups;
+      delete vscode.window.terminals;
+      delete vscode.extensions;
+      return { started: state.commands.includes("r.createRTerm"), closed };
+    };
+    check("R file open: R terminal started", await freshR(["C:/a/unit-04.R"], []), { started: true, closed: [] });
+    check("old R terminal closed, then a fresh one", await freshR(["C:/a/unit-04.R"], ["R Interactive", "pwsh"]), { started: true, closed: ["R Interactive"] });
+    check("qmd open: started", await freshR(["C:/paper/paper.qmd"], []), { started: true, closed: [] });
+    check("no R file open: nothing", await freshR(["C:/a/notes.md"], ["R Interactive"]), { started: false, closed: [] });
+    check("a Claude chat tab (no file): nothing", await freshR([], []), { started: false, closed: [] });
+  }
+
   console.log("\n" + passed + " passed, " + failed + " failed");
   process.exitCode = failed ? 1 : 0;
 })();

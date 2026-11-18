@@ -1,6 +1,6 @@
 #!/usr/bin/perl
-# Seven fixes to the VS Code R extension (reditorsupport.r), applied by editing
-# its dist/extension.js (fixes 1-4, 6 and 7) and dist/webviews/httpgd/index.js (fix 5).
+# Eight fixes to the VS Code R extension (reditorsupport.r), applied by editing
+# its dist/extension.js (fixes 1-4 and 6-8) and dist/webviews/httpgd/index.js (fix 5).
 # Re-run after the R extension updates itself (the
 # folder reditorsupport.r-x.y.z gets a new version number). Idempotent: each
 # fix is skipped when it is already in place.
@@ -31,6 +31,9 @@
 #    later), which decides. Other names keep Go to Definition.
 # 7. A new data viewer, R Plot or widget tab opens in the editor group that
 #    already has one of those tabs, also in a floating window (18 Nov 2026).
+# 8. Data viewer and R Plot tabs come back after a restart as a stand-in with
+#    a short note, in the same place, so a floating window keeps them.
+#    The next data tab of that name or the next plot replaces the stand-in.
 use strict; use warnings;
 my $ext = "$ENV{USERPROFILE}/.vscode/extensions";
 opendir(my $dh, $ext) or die "cannot open $ext";
@@ -137,12 +140,14 @@ if ($js =~ /patched: Ctrl\+click on a session object opens the data viewer/) {
 if ($js =~ /patched: an R tab opens where an R tab already is/) {
     print "R tab group fix: already in place\n";
 } else {
-    my $helper = q~function __rPreviewColumn(want,fallback){/* patched: an R tab opens where an R tab already is */try{const v=require("vscode"),ed=v.window.activeTextEditor,own=ed?ed.viewColumn:void 0,R=["dataview","RPlot","r.standardPlot","r.htmlViewer"],kind=tab=>{const x=tab.input;if(!(x instanceof v.TabInputWebview)||typeof x.viewType!="string")return"";return R.find(r=>x.viewType===r||x.viewType.endsWith("-"+r))||""};let best;for(const g of v.window.tabGroups.all){if(g.viewColumn===own)continue;for(const tab of g.tabs){const k=kind(tab);if(!k)continue;const same=want.includes(k);if(!best||same&&!best.same)best={col:g.viewColumn,same:same}}}return best?best.col:fallback}catch(e){return fallback}}~;
+    # title: the new tab's title. A stand-in tab of the same kind (fix 8) with
+    # that title (any title for a plot) closes once the new tab is there.
+    my $helper = q~function __rPreviewColumn(want,fallback,title){/* patched: an R tab opens where an R tab already is */try{const v=require("vscode"),ed=v.window.activeTextEditor,own=ed?ed.viewColumn:void 0,R=["dataview","RPlot","r.standardPlot","r.htmlViewer"],kind=tab=>{const x=tab.input;if(!(x instanceof v.TabInputWebview)||typeof x.viewType!="string")return"";return R.find(r=>x.viewType===r||x.viewType.endsWith("-"+r))||""};let best;for(const g of v.window.tabGroups.all){if(g.viewColumn===own)continue;for(const tab of g.tabs){const k=kind(tab);if(!k)continue;const same=want.includes(k);if(!best||same&&!best.same)best={col:g.viewColumn,same:same}}}if(typeof __rHolders!="undefined")for(const [p,h] of __rHolders)if(want.includes(h.kind)&&(h.kind!=="dataview"||h.title===title))setTimeout(()=>p.dispose(),300);return best?best.col:fallback}catch(e){return fallback}}~;
     die "R tab group fix: file does not start with \"use strict\", patch by hand\n" unless substr($js, 0, 13) eq '"use strict";';
     substr($js, 13, 0) = $helper;   # at the top, so every part of the file sees it
     # data viewer: a table and a list (the same code twice)
     my $dv_old = q~{preserveFocus:!0,viewColumn:Me.ViewColumn[i]},{enableScripts:!0,enableFindWidget:!0,retainContextWhenHidden:!0,localResourceRoots:[Me.Uri.file(Uu)]}~;
-    my $dv_new = q~{preserveFocus:!0,viewColumn:__rPreviewColumn(["dataview"],Me.ViewColumn[i])},{enableScripts:!0,enableFindWidget:!0,retainContextWhenHidden:!0,localResourceRoots:[Me.Uri.file(Uu)]}~;
+    my $dv_new = q~{preserveFocus:!0,viewColumn:__rPreviewColumn(["dataview"],Me.ViewColumn[i],n)},{enableScripts:!0,enableFindWidget:!0,retainContextWhenHidden:!0,localResourceRoots:[Me.Uri.file(Uu)]}~;
     my $n = 0;
     while ((my $i = index($js, $dv_old)) >= 0) { substr($js, $i, length $dv_old) = $dv_new; $n++ }
     die "R tab group fix: data viewer code found $n times, not 2, patch by hand\n" unless $n == 2;
@@ -163,6 +168,22 @@ if ($js =~ /patched: an R tab opens where an R tab already is/) {
         q~viewColumn:__rPreviewColumn(["r.htmlViewer"],lt.ViewColumn[String(e)]??lt.ViewColumn.Two)}~,
         "R tab group fix, widget viewer");
     print "R tab group fix: applied\n"; $changed++;
+}
+
+# ---- 8. data and plot tabs keep their place over a restart ------------------
+# The R extension cannot bring a data viewer or R Plot tab back after Reload
+# Window or a restart (it has no serializer for them), so VS Code dropped them
+# and a floating window with only those tabs came back empty or not at all.
+# Now they come back as a stand-in tab with a short note, in the same place.
+# Fix 7 then puts the new data tab (same name) or the new plot there and
+# closes the stand-in. The R session itself is new: run the script again.
+if ($js =~ /patched: R tabs keep their place over a restart/) {
+    print "R tab restore fix: already in place\n";
+} else {
+    my $holders = q~var __rHolders=new Map();/* patched: R tabs keep their place over a restart */(function(){try{const v=require("vscode"),esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]),page=(t,m)=>`<!doctype html><html><body style="font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);color:var(--vscode-foreground);padding:24px"><h3>${t}</h3><p>${m}</p></body></html>`,notes={dataview:t=>"Was open before the restart. Run your script, then Ctrl+click "+t+" again: it opens here.",RPlot:()=>"Was open before the restart. Make the plot again: it shows here."};for(const kind of Object.keys(notes))v.window.registerWebviewPanelSerializer(kind,{deserializeWebviewPanel:async p=>{__rHolders.set(p,{kind:kind,title:p.title});p.onDidDispose(()=>__rHolders.delete(p));p.webview.html=page(esc(p.title),notes[kind](esc(p.title)))}})}catch(e){}})();~;
+    die "R tab restore fix: file does not start with \"use strict\", patch by hand\n" unless substr($js, 0, 13) eq '"use strict";';
+    substr($js, 13, 0) = $holders;
+    print "R tab restore fix: applied\n"; $changed++;
 }
 
 if ($changed) {
