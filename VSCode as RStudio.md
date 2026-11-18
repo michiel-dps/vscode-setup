@@ -122,7 +122,14 @@ computers left no old user folder or Python path. Then the real SAVE, and
 **The UiO computer (<work-computer>).** Its home drive is the network drive `M:`
 (`HOMEDRIVE`), so git looked for `.gitconfig` there. Fixed with the user
 variable `GIT_CONFIG_GLOBAL` = `C:\Users\<you>\.gitconfig` (publish.ps1
-sets it too when it is missing). Machine policy is RemoteSigned: a `.ps1`
+sets it too when it is missing). That variable only reaches programs started
+after it was set: VS Code, open since the morning, still read `M:\` and a
+commit from the Source Control panel failed with "Author identity unknown"
+(18 Nov 2026, 14:39). Second fix the same day: `M:\.gitconfig` is a pointer
+file with only `[include] path = C:/Users/<you>/.gitconfig`, so git finds
+the name and e-mail in every program, also one that was already open, with
+or without the variable. `install.ps1` (part git) now does both on a
+computer whose home folder is not the user folder. Machine policy is RemoteSigned: a `.ps1`
 on `M:` does not run, even with `-ExecutionPolicy Bypass`. Scripts in this
 Dropbox folder on `C:` run fine. gh is not signed in there. GitHub sign-in
 for git goes through Git Credential Manager instead (signed in once on

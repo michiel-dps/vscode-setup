@@ -412,6 +412,26 @@ if (Want 'git') {
     } else {
         Install-File "$setup\git\.gitconfig" (Join-Path $userHome '.gitconfig') $text
     }
+    # A computer whose home folder is a network drive (the UiO computer: M:) makes git look
+    # for .gitconfig there. Point git at the real one in two ways (18 Nov 2026):
+    # the user variable GIT_CONFIG_GLOBAL (programs started after this see it), and a
+    # pointer file on the network drive (also for programs that were already open).
+    $gitHome = "$env:HOMEDRIVE$env:HOMEPATH".TrimEnd('\')
+    $realGitconfig = (Join-Path $userHome '.gitconfig') -replace '\\', '/'
+    if ($gitHome -and ($gitHome -ne $env:USERPROFILE.TrimEnd('\'))) {
+        Run "GIT_CONFIG_GLOBAL = $realGitconfig" {
+            [Environment]::SetEnvironmentVariable('GIT_CONFIG_GLOBAL', (Join-Path $userHome '.gitconfig'), 'User')
+        }
+        $pointer = Join-Path "$gitHome\" '.gitconfig'
+        if (-not (Test-Path -LiteralPath $pointer)) {
+            Run "pointer file $pointer" {
+                $lines = "# Pointer only. The home folder is on a network drive, so git without`n" +
+                    "# GIT_CONFIG_GLOBAL reads this file. The real settings are in:`n" +
+                    "[include]`n`tpath = $realGitconfig`n"
+                [IO.File]::WriteAllText($pointer, $lines, (New-Object System.Text.UTF8Encoding $false))
+            }
+        }
+    }
 }
 
 
