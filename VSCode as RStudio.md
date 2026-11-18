@@ -1927,6 +1927,18 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
      next data tab of that name, or the next plot, opens in its group and the
      stand-in closes 0.3 s later. A stand-in of another name stays until you
      close it. 11 offline checks with a fake `vscode` module, 18 Nov 2026.
+- **The plot fits the R Plot tab** (18 Nov 2026, his wish: "automatically
+  adjust to how big the editor window is"). `settings.json` sets
+  `"r.plot.defaults.fullWindowMode": true`. The plot then fills the whole tab,
+  width and height, and httpgd redraws it at the new size 100 ms after the
+  tab changes size (dragging the edge between editor groups, moving the tab
+  to the other screen). Without it only the width followed the tab: the
+  height stayed where the drag bar under the plot had put it. Full window
+  mode hides the drag bar and the strip of small earlier plots. The
+  toolbar's full window button switches back for that tab, and the arrows
+  in the toolbar still step through earlier plots. The setting is read when
+  the plot viewer starts, so it applies from the next R terminal. The zoom of
+  fix 5 works in both modes (it only needs `#largePlot`).
 - Picking a function from the autocomplete popup inserts `f()` as a snippet;
   the Enter extension works inside it too (its activation rule must NOT
   contain `!inSnippetMode`).
