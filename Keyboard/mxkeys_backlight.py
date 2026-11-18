@@ -1,5 +1,6 @@
 """MX Keys backlight: force always-on via the hidden HID++ LED-test feature (0x18A1).
 While forced, the battery LED is lit amber (green + red) as the indicator that the mode is on.
+It flickers amber while the keyboard charges, and is steady amber again when full or on battery.
 
 Usage:  python mxkeys_backlight.py on|off|status|watch|restore
   on       force the backlight on, battery LED amber (and remember that choice)
@@ -27,6 +28,13 @@ LED_BATTERY_RED = 0x02
 LED_BACKLIGHT = 0x10
 # Forced state: key backlight on, battery LED green + red at once (amber) as the "always on" indicator.
 FORCED_MASK = bytes([LED_BACKLIGHT | LED_BATTERY_GREEN | LED_BATTERY_RED, 0x00, 0x00])
+# While charging the amber light flickers: FORCED_MASK and this one (backlight only) take turns.
+FLICKER_DARK_MASK = bytes([LED_BACKLIGHT, 0x00, 0x00])
+FLICKER_EVERY = 0.5                          # seconds amber on, then the same off
+BATTERY_EVERY = 5                            # seconds between battery checks (charging or not)
+# Battery status (feature 0x1000): 1 = charging, 2 = almost full, 4 = charging slowly.
+# 0 = on battery and 3 = full keep the amber light steady.
+CHARGING = {1, 2, 4}
 CLEAR = bytes([0x00, 0x00, 0x00])
 CID_BACKLIGHT_DOWN = 0x00E2                  # F6 on the MX Keys
 CID_BACKLIGHT_UP = 0x00E3                    # F7 on the MX Keys
@@ -78,6 +86,7 @@ class Keyboard:
         self.f_hidden, _, _ = self.rx.feature_index(self.idx, 0x1E00)
         self.f_led, _, _ = self.rx.feature_index(self.idx, 0x18A1)
         self.f_keys, _, _ = self.rx.feature_index(self.idx, 0x1B04)
+        self.f_battery, _, _ = self.rx.feature_index(self.idx, 0x1000)   # None: no flicker while charging
         if not (self.f_hidden and self.f_led and self.f_keys):
             raise RuntimeError("required features not present on this keyboard")
         # The keys this keyboard lets us take over (reprogrammable controls v4, getCount + getCidInfo).
@@ -90,10 +99,20 @@ class Keyboard:
 
     # --- backlight ---
     def forced(self):
-        """True if the LED-test mask currently forces the backlight on."""
+        """True if the LED-test mask currently forces the backlight on (amber light on or flickering)."""
         if not self.req(self.f_hidden, 0)[0]:
             return False
-        return self.req(self.f_led, 1)[:3] == FORCED_MASK
+        return bool(self.req(self.f_led, 1)[0] & LED_BACKLIGHT)
+
+    def set_mask(self, mask):
+        """Set the forced LEDs, for the flicker. Only while forced on (hidden features already on)."""
+        self.req(self.f_led, 2, mask)
+
+    def charging(self):
+        """True while the keyboard is charging (not when full or on battery)."""
+        if not self.f_battery:
+            return False
+        return self.req(self.f_battery, 0)[2] in CHARGING
 
     def force_on(self):
         self.req(self.f_hidden, 1, b'\x01')
@@ -184,6 +203,10 @@ def cmd_watch():
     held = set()
     next_check = 0
     repeat_at = None                              # when a held F1/F2 steps again
+    charging = False                              # keyboard on the cable and not full yet
+    next_battery = 0
+    next_flicker = 0
+    amber_lit = True                              # which half of the flicker we are in
     while True:
         try:
             if kb is None:
@@ -205,9 +228,28 @@ def cmd_watch():
                     log("F1/F2 diverted to the watcher (external screens)" if external
                         else "F1/F2 back to Windows (no external screen)")
                 next_check = time.time() + CHECK_EVERY
+            # Charging: the amber light flickers. Full or on battery: steady amber again.
+            if time.time() >= next_battery:
+                now_charging = kb.charging()
+                if now_charging != charging:
+                    charging = now_charging
+                    log("charging: amber light flickers" if charging else "not charging: amber light steady")
+                    if not charging and wanted:
+                        kb.set_mask(FORCED_MASK)
+                        amber_lit = True
+                next_battery = time.time() + BATTERY_EVERY
+            flickering = charging and wanted
+            if flickering and time.time() >= next_flicker:
+                amber_lit = not amber_lit
+                kb.set_mask(FORCED_MASK if amber_lit else FLICKER_DARK_MASK)
+                next_flicker = time.time() + FLICKER_EVERY
             held_brightness = [cid for cid in BRIGHTNESS_KEYS if cid in held]
-            timeout = max(0.0, repeat_at - time.time()) if held_brightness and repeat_at else 0.5
-            report = kb.rx.read_report(timeout=timeout)
+            waits = [0.5]
+            if held_brightness and repeat_at:
+                waits.append(repeat_at - time.time())
+            if flickering:
+                waits.append(next_flicker - time.time())
+            report = kb.rx.read_report(timeout=max(0.0, min(waits)))
             if report is None:
                 if held_brightness and repeat_at and time.time() >= repeat_at:
                     step_screens(held_brightness[0])
@@ -240,6 +282,9 @@ def cmd_watch():
             kb = None
             held = set()
             repeat_at = None
+            charging = False
+            next_battery = 0
+            amber_lit = True
             time.sleep(10)
 
 if __name__ == "__main__":
