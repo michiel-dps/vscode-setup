@@ -2447,5 +2447,12 @@ not see `--user` packages) and starts the watcher.
   `.vbs` in the Startup folder).
 - With Logitech Options+ installed, leave this part out: both would take
   over the same keys.
+- **Lights dark after the keyboard slept** (18 Nov 2026): the keyboard
+  still reports the forced lights as on, but they are dark. So the helper
+  switches them off and on again when the computer is used after 60
+  seconds without mouse or keyboard input (Windows' `GetLastInputInfo`),
+  and when the keyboard connects again. Log line: "lights switched off and
+  on again". Dark lights without that line after a break: the pause was not
+  seen. Then F6 and F7 switch them back by hand.
 - Stop for good: `python mxkeys_backlight.py restore` (normal backlight,
   F1/F2/F6/F7 back to normal), stop the watcher, delete the `.vbs`.
