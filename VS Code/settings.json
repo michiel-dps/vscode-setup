@@ -35,8 +35,8 @@
         // No small colour square before "darkred": Color Highlight paints the word's background instead (18 Nov 2026)
         "editor.colorDecorators": false
     },
-    // Color Highlight add-on (naumovs.color-highlight): colour names and #hex codes get their colour as background, in R files only
-    "color-highlight.markerType": "background",
+    // Color Highlight add-on (naumovs.color-highlight): colour names and #hex codes get a border in their colour, in R files only
+    "color-highlight.markerType": "outline",
     "color-highlight.matchWords": true,
     "color-highlight.languages": [
         "r"

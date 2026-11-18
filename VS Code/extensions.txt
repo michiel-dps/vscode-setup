@@ -10,6 +10,7 @@ ms-python.python                     2026.10.0
 ms-python.vscode-pylance             2026.4.1
 ms-python.vscode-python-envs         1.44.0
 ms-vscode.powershell                 2025.4.0
+naumovs.color-highlight              2.8.0
 quarto.quarto                        1.139.0
 reditorsupport.r                     3.2.2        pinned
 reditorsupport.r-syntax              0.1.5
