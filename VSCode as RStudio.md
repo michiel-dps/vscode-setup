@@ -318,14 +318,16 @@ Colour names in R code (18 Nov 2026): in `scale_fill_gradient(low =
 colour, in place of VS Code's small colour square in front of it. First a
 background block, then (his wish the same evening) `outline`, and then the
 border around the whole `"red"` including the quotes, and only for colour
-words inside quotes (`# a red line` in a comment gets nothing). Color
+words inside quotes in the code. Nothing inside a comment is marked, also not
+`"red"` in quotes in a comment (a `#` inside a string does not count as a
+comment). Patch version 2, 18 Nov 2026. Color
 Highlight 2.8.0 has no option for that (its settings: `enable`, `languages`,
 `matchWords`, `markerType`, a few rgb/hsl switches), so
 `VS Code\patch-color-highlight.ps1` patches its colour-word finder in
 `dist\extension-node.js`: the pattern becomes quote, colour name, the same
 quote (`(["'])(red|...)\1`), and the marked range runs from quote to quote. It
 keeps the original as `extension-node.js.orig`, leaves a patched file alone
-(marker `/*patch-quoted-colour-words*/`), and says WRONG when an update
+(marker `/*patch-quoted-colour-words-2*/`, an older version is replaced from the `.orig`), and says WRONG when an update
 changed the code. **Run it again after every update of Color Highlight**,
 then Developer: Restart Extension Host.
 He asked for this. Two parts: `"editor.colorDecorators": false` in the `[r]`
