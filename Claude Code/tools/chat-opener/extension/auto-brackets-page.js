@@ -1,13 +1,17 @@
-// Brackets in the Claude chat box, like in a code editor (18 Nov 2026).
+// Brackets in the Claude chat box, like in a code editor (18 Nov 2026), for ( ), [ ] and { }.
 // auto-brackets.js puts this at the end of Claude Code's webview/index.js.
 //   (            types () with the cursor in between. Before a word only ( like VS Code.
 //   ( on a selection   puts ( ) around it.
 //   )            just before a ), the cursor steps over it instead of typing another.
 //   Backspace    between ( and ), deletes both.
+// The same for [ ] and { }.
 // The text goes in through the browser's own typing command (insertText), so the chat
 // sees normal typing and Ctrl+Z works as usual.
 void function () {
-  // ( closes itself only when the next character is one of these, or at the end
+  // each opening bracket and its closing one
+  const pairs = { '(': ')', '[': ']', '{': '}' }
+  const closings = Object.values(pairs)
+  // an opening bracket closes itself only when the next character is one of these, or at the end
   const closesBefore = ' \t\n)]},.:=>'
 
   // the chat box: an editable element with role textbox ("Message input")
@@ -42,22 +46,24 @@ void function () {
     if (!box.contains(range.startContainer) || !box.contains(range.endContainer)) return
     const empty = range.collapsed
 
-    if (event.key === '(') {
+    const opening = event.key
+    if (pairs[opening]) {
+      const closing = pairs[opening]
       if (empty) {
         const next = textAfter(box, range).charAt(0)
         if (next !== '' && !closesBefore.includes(next)) return
         event.preventDefault()
-        document.execCommand('insertText', false, '()')
+        document.execCommand('insertText', false, opening + closing)
         selection.modify('move', 'backward', 'character')
       } else {
         const inside = range.toString()
         event.preventDefault()
-        document.execCommand('insertText', false, '(' + inside + ')')
+        document.execCommand('insertText', false, opening + inside + closing)
       }
       return
     }
 
-    if (event.key === ')' && empty && textAfter(box, range).charAt(0) === ')') {
+    if (closings.includes(event.key) && empty && textAfter(box, range).charAt(0) === event.key) {
       event.preventDefault()
       selection.modify('move', 'forward', 'character')
       return
@@ -67,7 +73,7 @@ void function () {
     if (plainBackspace && empty) {
       const before = textBefore(box, range).slice(-1)
       const after = textAfter(box, range).charAt(0)
-      if (before === '(' && after === ')') {
+      if (pairs[before] && pairs[before] === after) {
         event.preventDefault()
         selection.modify('move', 'backward', 'character')
         selection.modify('extend', 'forward', 'character')

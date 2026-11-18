@@ -2308,6 +2308,9 @@ let Claude Code update) and take `wrapCodeBlocks()` out of the opener.
 | `)` just before a `)` | the cursor steps over it, no second `)` |
 | Backspace between `(` and `)` | both go |
 
+The same for `[ ]` and `{ }` (added the same evening). A closing bracket
+only steps over the same kind: `)` before a `]` types a `)`.
+
 The Claude Code add-on has no setting for this. The chat box is an editable
 `div` (`contenteditable="plaintext-only"`, `role="textbox"`), not a VS Code
 editor, so VS Code's own bracket settings do not reach it. The same trick as

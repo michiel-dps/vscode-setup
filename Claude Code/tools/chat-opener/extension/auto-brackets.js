@@ -13,7 +13,7 @@ const path = require('path')
 const os = require('os')
 
 const PREFIX = '/* auto-brackets by local.claude-chat-opener'
-const MARK = `${PREFIX} v1: ( types () in the chat box, ) steps over a ) */`
+const MARK = `${PREFIX} v2: ( [ { type () [] {} in the chat box, ) ] } step over */`
 // what our script looks for in index.js: the chat box is an editable div with role textbox
 const NEEDS = ['contentEditable:"plaintext-only"', 'role:"textbox"']
 

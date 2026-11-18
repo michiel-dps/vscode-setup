@@ -144,6 +144,33 @@ async function run() {
     await key('Backspace')
     check(await state() === 'f|a)', `Backspace after ( with text after deletes only (: ${await state()}`)
 
+    await setBox('df', 2)
+    await type(['[', 'x'])
+    check(await state() === 'df[x|]', `[ types [] with the cursor inside: ${await state()}`)
+    await type([']'])
+    check(await state() === 'df[x]|', `] before a ] steps over it: ${await state()}`)
+
+    await setBox('f', 1)
+    await type(['{', 'x'])
+    check(await state() === 'f{x|}', `{ types {} with the cursor inside: ${await state()}`)
+    await type(['}'])
+    check(await state() === 'f{x}|', `} before a } steps over it: ${await state()}`)
+
+    await setBox('mean(x', 6)
+    await type(['['])
+    check(await state() === 'mean(x[|]', `[ at the end: ${await state()}`)
+    await type([')'])
+    check(await state() === 'mean(x[)|]', `) before a ] types a ) (no step over a different bracket): ${await state()}`)
+
+    await setBox('a', 1)
+    await type(['{'])
+    await key('Backspace')
+    check(await state() === 'a|', `Backspace between { and } deletes both: ${await state()}`)
+
+    await setBox('a b', 2, 3)
+    await type(['['])
+    check(await state() === 'a [b]|', `[ on a selection puts [ ] around it: ${await state()}`)
+
     await setBox('', 0)
     await type(['('])
     await js("document.execCommand('undo')")
