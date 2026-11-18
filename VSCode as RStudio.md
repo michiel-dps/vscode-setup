@@ -2397,14 +2397,14 @@ through the Unifying receiver (HID++) and starts hidden at every logon.
 | F1 / F2 | external screens darker / brighter, 10 of 100 per press, hold to keep going |
 | F7 / F6 | key backlight always on (battery light amber) / the keyboard's normal backlight |
 
-**While charging the forced mode pauses** (18 Nov 2026): the keyboard
-shows its own charging light and its normal backlight. When it is full, or
-the cable is out, forced amber comes back by itself. The helper asks the
-keyboard every 5 seconds (battery feature 0x1000: status 1, 2 and 4 =
-charging, 3 = full, 0 = on battery). A first try that flickered the forced
-amber while charging gave odd mixed colours: the keyboard's own charging
-light mixes in with the forced one. F7 while charging is remembered and
-applied once charging is done.
+**While charging the amber light is off** (18 Nov 2026): the key backlight
+stays forced on (mask 0x10 in place of 0x13), only the amber battery light
+goes off. When the keyboard is full, or the cable is out, the amber comes
+back by itself. The helper asks the keyboard every 5 seconds (battery
+feature 0x1000: status 1, 2 and 4 = charging, 3 = full, 0 = on battery).
+Tried first and rejected: flickering the amber while charging, and pausing
+the whole forced mode. The keyboard's own charging light mixes with forced
+amber into odd colours, and he wants the backlight on while charging.
 
 **Why F1/F2 needed it.** Windows sends the brightness keys only to a
 computer's own screen. The computer drives two Dell P2412H screens, so the keys

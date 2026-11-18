@@ -1,7 +1,7 @@
 """MX Keys backlight: force always-on via the hidden HID++ LED-test feature (0x18A1).
 While forced, the battery LED is lit amber (green + red) as the indicator that the mode is on.
-While the keyboard charges, the forced mode pauses and the keyboard shows its own charging light.
-Full or on battery: forced again.
+While the keyboard charges, the backlight stays forced on but the amber light is off.
+Full or on battery: amber again.
 
 Usage:  python mxkeys_backlight.py on|off|status|watch|restore
   on       force the backlight on, battery LED amber (and remember that choice)
@@ -29,11 +29,12 @@ LED_BATTERY_RED = 0x02
 LED_BACKLIGHT = 0x10
 # Forced state: key backlight on, battery LED green + red at once (amber) as the "always on" indicator.
 FORCED_MASK = bytes([LED_BACKLIGHT | LED_BATTERY_GREEN | LED_BATTERY_RED, 0x00, 0x00])
-# While charging the forced mode pauses, so the keyboard shows its own charging light
-# (forced amber on top of it gave odd mixed colours, 18 Nov 2026). Full or on battery: forced again.
+# While charging: key backlight still forced on, but the amber light off, so the keyboard's own
+# charging light is not mixed with it (that gave odd colours, 18 Nov 2026). Full or on battery: amber again.
+CHARGING_MASK = bytes([LED_BACKLIGHT, 0x00, 0x00])
 BATTERY_EVERY = 5                            # seconds between battery checks (charging or not)
 # Battery status (feature 0x1000): 1 = charging, 2 = almost full, 4 = charging slowly.
-# 0 = on battery and 3 = full: forced mode as chosen.
+# 0 = on battery and 3 = full: amber light on.
 CHARGING = {1, 2, 4}
 CLEAR = bytes([0x00, 0x00, 0x00])
 CID_BACKLIGHT_DOWN = 0x00E2                  # F6 on the MX Keys
@@ -86,7 +87,7 @@ class Keyboard:
         self.f_hidden, _, _ = self.rx.feature_index(self.idx, 0x1E00)
         self.f_led, _, _ = self.rx.feature_index(self.idx, 0x18A1)
         self.f_keys, _, _ = self.rx.feature_index(self.idx, 0x1B04)
-        self.f_battery, _, _ = self.rx.feature_index(self.idx, 0x1000)   # None: no pause while charging
+        self.f_battery, _, _ = self.rx.feature_index(self.idx, 0x1000)   # None: amber stays on while charging
         if not (self.f_hidden and self.f_led and self.f_keys):
             raise RuntimeError("required features not present on this keyboard")
         # The keys this keyboard lets us take over (reprogrammable controls v4, getCount + getCidInfo).
@@ -110,19 +111,28 @@ class Keyboard:
             return False
         return self.req(self.f_battery, 0)[2] in CHARGING
 
-    def force_on(self):
+    def force_on(self, mask=FORCED_MASK):
         self.req(self.f_hidden, 1, b'\x01')
-        self.req(self.f_led, 2, FORCED_MASK)
-        return self.req(self.f_led, 1)[:3] == FORCED_MASK
+        self.req(self.f_led, 2, mask)
+        return self.req(self.f_led, 1)[:3] == mask
 
     def normal(self):
         self.req(self.f_hidden, 1, b'\x01')
         self.req(self.f_led, 2, CLEAR)
         self.req(self.f_hidden, 1, b'\x00')
 
-    def apply(self, forced):
+    def is_set(self, forced, charging=False):
+        """True if the keyboard already shows what forced/charging ask for."""
+        if not forced:
+            return not self.forced()
+        if not self.req(self.f_hidden, 0)[0]:
+            return False
+        return self.req(self.f_led, 1)[:3] == (CHARGING_MASK if charging else FORCED_MASK)
+
+    def apply(self, forced, charging=False):
+        """Forced: backlight on, plus the amber light unless charging. Not forced: normal behaviour."""
         if forced:
-            return self.force_on()
+            return self.force_on(CHARGING_MASK if charging else FORCED_MASK)
         self.normal()
         return True
 
@@ -210,19 +220,20 @@ def cmd_watch():
                 if missing:
                     log(f"F1/F2 keys {missing} not on this keyboard. It has: {[f'{c:#06x}' for c in sorted(kb.cids)]}")
                 next_check = 0
-            # Charging pauses the forced mode. Full or on battery: back to the choice.
+            # Charging turns the amber light off (backlight stays). Full or on battery: amber again.
             if time.time() >= next_battery:
                 now_charging = kb.charging()
                 if now_charging != charging:
                     charging = now_charging
-                    log("charging: forced mode paused" if charging else "not charging: forced mode as chosen")
+                    log("charging: amber light off" if charging else "not charging: amber light on")
                     next_check = 0                # apply it right away
                 next_battery = time.time() + BATTERY_EVERY
             if time.time() >= next_check:
                 wanted = load_wanted()            # the on/off commands may have changed it
-                if kb.forced() != (wanted and not charging):
-                    ok = kb.apply(wanted and not charging)
-                    log(f"applied {'forced on' if wanted and not charging else 'normal'} (ok={ok})")
+                if not kb.is_set(wanted, charging):
+                    ok = kb.apply(wanted, charging)
+                    shown = "normal" if not wanted else ("forced on, no amber (charging)" if charging else "forced on")
+                    log(f"applied {shown} (ok={ok})")
                 if kb.ensure_diverted(True):
                     log("F6/F7 diverted to the watcher")
                 external = len(screens.brightness()) > 0
@@ -252,10 +263,7 @@ def cmd_watch():
             if CID_BACKLIGHT_UP in newly and not wanted:
                 wanted = True
                 save_wanted(True)
-                if charging:
-                    log("F7 pressed: forced on once charging is done")
-                else:
-                    log(f"F7 pressed: forced on (ok={kb.apply(True)})")
+                log(f"F7 pressed: forced on (ok={kb.apply(True, charging)})")
             elif CID_BACKLIGHT_DOWN in newly and wanted:
                 wanted = False
                 save_wanted(False)
