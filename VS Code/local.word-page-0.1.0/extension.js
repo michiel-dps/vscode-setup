@@ -884,7 +884,11 @@ async function checkClash(uri) {
 // text) leaves the change out (bench, 13 Nov 2026: 3 of 11 quick outside writes lost). So
 // after a change from disk, the next write from the page is checked: when it lacks that
 // change, the change is merged back in, and the page hears of the result.
-const fromDisk = new Map();     // file -> { base, disk }const savingSince = new Map();  // file -> when VS Code began saving it (until the save is done)
+// (18 Nov 2026: the line break before savingSince had gone, so savingSince was never made and
+// every change from the page stopped here with "savingSince is not defined", 1,142 times
+// since 17 Nov 00:28 in exthost.log: this whole check was off.)
+const fromDisk = new Map();     // file -> { base, disk }
+const savingSince = new Map();  // file -> when VS Code began saving it (until the save is done)
 
 function documentChanged(change) {
   const doc = change.document;
@@ -917,6 +921,14 @@ function documentChanged(change) {
   fromDisk.delete(key);
   const merged = merge.merge3(known.base, text, known.disk).text;
   if (merged === text) { return; }                      // the page had it: all well
+  // Exactly the text from before Claude's change: Decline on every mark (or Ctrl+Z). A page
+  // that missed the change writes nothing until he types, and then its text holds his typing
+  // too, so it is never exactly the old text. Merging back here brought declined Claude edits
+  // back (18 Nov 2026, asked: "edits I had already declined came back").
+  if (text === known.base) {
+    log("keep: " + path.basename(doc.uri.fsPath) + ": the page put all old words back (Decline or Ctrl+Z); left as it is");
+    return;
+  }
   if (require("./assistant").onlyDeclined(known.base, text, known.disk)) {
     log("keep: " + path.basename(doc.uri.fsPath) + ": the page put old words back with Decline; left as it is");
     return;

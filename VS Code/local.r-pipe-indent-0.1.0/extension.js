@@ -742,6 +742,32 @@ function stayAfterKeep(event) {
   }, STAY_DELAY_MS);
 }
 
+// ---- Keep / Undo also clears the git marks in the gutter (18 Nov 2026) ----
+// Asked: "I saw changes being proposed, or the red and green lines, that I had already
+// accepted before". Two layers marked Claude's edits and did not know of each other: this
+// chat edit view (Keep / Undo) and the older git layer (review.py stages the file just before
+// a Claude edit, so the gutter and Ctrl+Numpad2 show Claude's change against the git index).
+// A Keep here never reached git, so the gutter kept marking the change as new until the next
+// Claude edit of that file or a commit. Now every Keep or Undo (one change, or a whole file)
+// stages the file in git too, so the gutter only marks what came after the last decision.
+// Outside a git folder nothing happens.
+const childProcess = require("child_process");
+const STAGE_DELAY_MS = 800;   // after an Undo, auto save (100 ms) writes the file first
+
+function stageAfterReview(event) {
+  const action = event && event.action;
+  if (!action || !action.uri || action.uri.scheme !== "file") return;
+  if (action.kind !== "chatEditingHunkAction" && action.kind !== "chatEditingSessionAction") return;
+  if (action.outcome !== 1 && action.outcome !== 2) return;     // 1 = Keep, 2 = Undo (3 = only saved)
+  const file = action.uri.fsPath;
+  setTimeout(() => {
+    childProcess.execFile("git", ["-C", path.dirname(file), "add", "--", file], { windowsHide: true }, (err) => {
+      if (!err) log("git: staged " + path.basename(file) + " after " + (action.outcome === 1 ? "Keep" : "Undo"));
+      else if (!/not a git repository/i.test(String(err.message))) log("ERR  git stage " + path.basename(file) + ": " + err.message);
+    });
+  }, STAGE_DELAY_MS);
+}
+
 // ---- Keep on one change: select the kept lines (10 Nov 2026) ----
 // VS Code keeps a hidden copy of each file as it was before Claude's edits
 // (scheme chat-editing-text-model, query names our session claude-edits).
@@ -868,6 +894,7 @@ function activateClaudeEdits(context) {
   // Keep / Undo on one change: stay where you are (see stayAfterKeep)
   if (participant.onDidPerformAction) {
     context.subscriptions.push(participant.onDidPerformAction(stayAfterKeep));
+    context.subscriptions.push(participant.onDidPerformAction(stageAfterReview));   // the git gutter too
     context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection((e) => recordView(e.textEditor)));
     context.subscriptions.push(vscode.window.onDidChangeTextEditorVisibleRanges((e) => recordView(e.textEditor)));
     vscode.window.visibleTextEditors.forEach(recordView);
@@ -940,7 +967,7 @@ function activate(context) {
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.runStatement", runStatementLogged));
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.insertPipe", insertPipe));
   try { activateClaudeEdits(context); } catch (e) { log("ERR  edits " + (e && e.stack ? e.stack : e)); }
-  log("activated 0.5.2 (stop button for the R terminal, 18 Nov 2026)");
+  log("activated 0.5.3 (Keep / Undo also stages in git, 18 Nov 2026)");
 }
 
 function deactivate() {}

@@ -60,14 +60,29 @@
     return Math.round(hours / 24) + " days ago";
   }
 
-  function dismissedList() {
-    try { return JSON.parse(localStorage.getItem("wp-assistant-dismissed") || "[]"); } catch (err) { return []; }
+  // The memory of Accept and Decline is shared by every open page (one localStorage for all of
+  // Quarto's pages, in every window). Each page used to read it once when it opened and then
+  // write its own whole list back, so with two pages (two tabs, two windows, a page reopened
+  // with Ctrl+Numpad1) the last one to write wiped the decisions made in the other, and those
+  // suggestions came back (18 Nov 2026, asked: "proposals I had already declined or accepted
+  // came back"). Now every write first takes in what is stored, adds the new item and writes
+  // the union, and a page hears of another page's decisions at once (the "storage" event).
+  var MEMORY_MAX = 5000;
+  function storedList(name) {
+    try { var list = JSON.parse(localStorage.getItem(name) || "[]"); return Array.isArray(list) ? list : []; } catch (err) { return []; }
   }
-  var dismissed = dismissedList();
+  // what is stored + what this page knows + the new item, written back and given back
+  function addToStored(name, mine, item) {
+    var list = storedList(name);
+    mine.forEach(function (x) { if (list.indexOf(x) < 0) { list.push(x); } });
+    if (list.indexOf(item) < 0) { list.push(item); }
+    if (list.length > MEMORY_MAX) { list = list.slice(-MEMORY_MAX); }
+    try { localStorage.setItem(name, JSON.stringify(list)); } catch (err) { /* only for this session then */ }
+    return list;
+  }
+  var dismissed = storedList("wp-assistant-dismissed");
   function dismiss(id) {
-    if (dismissed.indexOf(id) < 0) { dismissed.push(id); }
-    if (dismissed.length > 2000) { dismissed = dismissed.slice(-2000); }
-    try { localStorage.setItem("wp-assistant-dismissed", JSON.stringify(dismissed)); } catch (err) { /* only for this session then */ }
+    dismissed = addToStored("wp-assistant-dismissed", dismissed, id);
   }
 
   // A declined suggestion never comes back (16 Nov 2026, asked: "dont want to see the same
@@ -83,15 +98,10 @@
     var plainText = function (t) { return (t || "").toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim(); };
     return plainText(s.original) + "\u0000" + plainText(s.replacement);
   }
-  function declinedKeysList() {
-    try { return JSON.parse(localStorage.getItem("wp-assistant-declined") || "[]"); } catch (err) { return []; }
-  }
-  var declinedKeys = declinedKeysList();
+  var declinedKeys = storedList("wp-assistant-declined");
   function rememberKey(key) {
     if (declinedKeys.indexOf(key) >= 0) { return; }
-    declinedKeys.push(key);
-    if (declinedKeys.length > 2000) { declinedKeys = declinedKeys.slice(-2000); }
-    try { localStorage.setItem("wp-assistant-declined", JSON.stringify(declinedKeys)); } catch (err) { /* only for this session then */ }
+    declinedKeys = addToStored("wp-assistant-declined", declinedKeys, key);
   }
   // Declined words (16 Nov 2026, "i just declined this proposal dont show it again"): after the
   // paragraph is read again Claude can come back with other new words for the same old words
@@ -102,17 +112,20 @@
   function plainWords(t) {
     return (t || "").toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim();
   }
-  function declinedWordsList() {
-    try { return JSON.parse(localStorage.getItem("wp-assistant-declined-words") || "[]"); } catch (err) { return []; }
-  }
-  var declinedWords = declinedWordsList();
+  var declinedWords = storedList("wp-assistant-declined-words");
   function rememberWords(original) {
     var w = plainWords(original);
     if (!w || declinedWords.indexOf(w) >= 0) { return; }
-    declinedWords.push(w);
-    if (declinedWords.length > 2000) { declinedWords = declinedWords.slice(-2000); }
-    try { localStorage.setItem("wp-assistant-declined-words", JSON.stringify(declinedWords)); } catch (err) { /* only for this session then */ }
+    declinedWords = addToStored("wp-assistant-declined-words", declinedWords, w);
   }
+  // another page (another tab or window) remembered a decision: take it in now
+  window.addEventListener("storage", function (event) {
+    if (event.key === "wp-assistant-dismissed") { dismissed = storedList(event.key); }
+    else if (event.key === "wp-assistant-declined") { declinedKeys = storedList(event.key); }
+    else if (event.key === "wp-assistant-declined-words") { declinedWords = storedList(event.key); }
+    else { return; }
+    assistSchedule(true);
+  });
   function wordsDeclined(original) {
     var w = plainWords(original);
     if (!w) { return false; }
@@ -596,7 +609,7 @@
     closeCard();
     if (found.s.rich) {
       acceptWithQuarto(found.s, range).then(function (done) {
-        if (done) { assist.gone[found.s.id] = Date.now(); }
+        if (done) { dismiss(found.s.id); }
         setTimeout(function () { assistSchedule(true); }, 50);
       });
       return;
@@ -605,7 +618,10 @@
     try {
       done = found.s.replacement ? document.execCommand("insertText", false, found.s.replacement) : document.execCommand("delete", false);
     } catch (err) { done = false; }
-    if (done) { assist.gone[found.s.id] = Date.now(); }
+    // An accepted suggestion is remembered for good, like a declined one. It used to be hidden
+    // for 6 s only (so Ctrl+Z would bring it back), and when the add-on's list still had it
+    // after those 6 s it came back although he had accepted it (18 Nov 2026).
+    if (done) { dismiss(found.s.id); }
     setTimeout(function () { assistSchedule(true); }, 50);
   }
 

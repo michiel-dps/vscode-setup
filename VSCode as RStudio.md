@@ -18,7 +18,7 @@ computer, `SAVE.cmd` copies this computer's setup into the folder.
 | `VS Code\extensions.txt` | every VS Code add-on on the computer, written by SAVE from `%USERPROFILE%\.vscode\extensions\extensions.json`. Marketplace add-ons first (id, version; `pinned` = installed at that exact version), which INSTALL installs. Then, since 10 Nov 2026, the own add-ons as `#` lines (id, version, where it comes from), so INSTALL skips them there: `local.r-pipe-indent` (INSTALL copies it), `local.claude-chat-opener` (INSTALL runs its `build.ps1`), `local.startup-screen` (personal: run its `build.ps1` by hand, section 5b), `local.word-page` (INSTALL runs its `build.ps1`, section 5c). Check against VS Code itself: `code --list-extensions --show-versions` |
 | `VS Code\patch-r-extension.pl` | five fixes to the R extension: data viewer columns sized to content, the column-name popup after `, ` instead of right after the comma, a knitted PDF opening in the editor to the right, a new plot bringing the R Plot tab to the front, and Ctrl+wheel zoom on plots like a PDF (run again after every R extension update, section 6) |
 | `VS Code\patch-pdf-viewer.pl` | two fixes to the PDF viewer add-on `tomoki1207.pdf` (10 Nov 2026; zoom version 3 on 11 Nov 2026): Ctrl+wheel and touchpad pinch zoom smoothly in on the spot under the mouse (a pinch follows the fingers, the wheel glides); and a clean reload after each knit (run again after every update of that add-on, section 6b) |
-| `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.2); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; a stop button for R (18 Nov 2026); shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo; Keep selects the kept lines), section 5 |
+| `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.3); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; a stop button for R (18 Nov 2026); shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo; Keep selects the kept lines), section 5 |
 | `VS Code\local.startup-screen-0.1.0\` | the startup screen (6 Nov 2026): a short loading screen with a picture, a tip and the loading steps when VS Code starts; personal, left out of the GitHub copy; section 5b |
 | `VS Code\local.word-page-0.1.0\` | Word Page (11 Nov 2026): write like in Word or Google Docs inside VS Code. Quarto's visual editor as a white page with black text under any colour theme, "Word Page: New Document", citations from a `.bib` file and from Zotero; the file underneath is markdown (`.qmd`). Since 11 Nov 2026 the page looks like the PDF of a paper (LaTeX font, A4 margins, PDF heading sizes; setting `wordPage.look`). Its `bench\` is a test VS Code for Claude on its own, invisible Windows desktop; section 5c |
 | `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `awake\awake.py` (computer stays awake while Claude works, section 9), `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\` (the /chats add-on, which also makes code blocks in the Claude chat wrap, section 9), `memory\` (one folder per project) |
@@ -1234,6 +1234,17 @@ saving from the page in the bench and comparing the file):
     Decline, left as it is"). When every mark of a change is declined, it
     cannot be told from a missed change, so it is merged back as before:
     then use Ctrl+Z, or ask Claude. Tests: `test.js`, "keep: a Decline".
+    **18 Nov 2026** (asked: "claude edits or grammarly proposals I had
+    already declined or accepted came back"): when the page's text is
+    exactly the text from before Claude's change, it is now also left alone
+    (log: "keep: ... put all old words back (Decline or Ctrl+Z); left as it
+    is"). A page that missed the change writes nothing until you type, and
+    then its text has your typing in it, so it is never exactly the old text.
+    Found at the same time: since 17 Nov 00:28 the line break before
+    `const savingSince` in `extension.js` was gone, so `savingSince` did not
+    exist and every change from the page stopped with "ReferenceError:
+    savingSince is not defined" (1,142 times in exthost.log). The whole keep
+    check was off. Fixed, and checked on the bench: no error after typing.
   - **The same buttons on every card** (16 Nov 2026, asked: Claude's edits had
     a green Undo and a white Keep, the suggestions a green Accept and a white
     Dismiss, "which is confusing"). Now every card has a green **Accept** =
@@ -1280,6 +1291,20 @@ saving from the page in the bench and comparing the file):
     page's storage survives closing and opening the page (bench: same
     origin, value still there). Offline check of the keys on his real
     examples: flip-flop blocked, comma ignored, other changes not blocked.
+  - **Decisions are no longer lost between pages** (18 Nov 2026, asked:
+    proposals "already declined or accepted ... came back"). All of
+    Quarto's pages share one localStorage (VS Code gives a custom editor
+    one fixed origin, the same in every window). Each page read the lists
+    once when it opened and then wrote its own whole copy back, so with two
+    pages open (two tabs, two windows, a page reopened with Ctrl+Numpad1)
+    the page that wrote last wiped the other's decisions. Now
+    `addToStored` reads what is stored, adds the new item and writes the
+    union, and a page takes in another page's decisions at once (the
+    `storage` event). The lists keep the last 5000. **An Accept is
+    remembered for good too** (`dismiss`): before, it was hidden for 6 s
+    only, and when the add-on's list still had it after that, it came back.
+    Bench, two pages open: a decision stored by page A was still there
+    after an Accept on page B (with the old code it was wiped).
   - **A click on a line no longer throws you out** (16 Nov 2026, asked: "if i
     click on the grammarly stuff it sometimes clicks me out of it and moves
     my cursor to another place"). The card was chosen at the click (button
@@ -2032,6 +2057,23 @@ git view, which needs nothing from Claude:
   then stages, so the view stays where it was. VS Code's own key, Alt+F3, does not work on
   this PC: the NVIDIA app takes it for Game Filters. Alt+F5 (Go to Next
   Change) only moves the cursor.
+- **Keep / Undo in the chat edit view also clears these marks** (18 Nov
+  2026, Enter add-on v0.5.3, asked: "I saw changes being proposed, or the
+  red and green lines, that I had already accepted before"). The two layers
+  did not know of each other: a Keep in the chat edit view never reached
+  git, so the gutter and Ctrl+Numpad2 still showed the kept change as new
+  until the next Claude edit of that file or a commit. Now every Keep or
+  Undo (one change or a whole file) runs `git add` on that file 0.8 s later
+  (`stageAfterReview`). Log: `git: staged 01_analysis.R after Keep`. The
+  gutter then marks only what changed after your last decision. Outside a
+  git folder nothing happens. Offline check: a throwaway git folder, one
+  Keep, gutter diff empty afterwards.
+- **Keep / Undo can still come back after a crash.** VS Code saves the chat
+  edit view's state (which changes are kept) about once a minute and when
+  it closes normally. When the window crashes (it ran out of memory twice
+  on 16 Nov 2026) the Keeps of the last minute are lost, and those changes
+  show red/green again after the restart. Keep them again. A git commit is
+  not the cause: it does not touch the chat edit view.
 - The whole file as one diff: Source Control (Ctrl+Shift+G), click the file.
   `diffEditor.renderSideBySide: false` makes that view inline too.
 - Hooks are read when a session starts: new hooks need a new chat.
