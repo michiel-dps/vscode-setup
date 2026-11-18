@@ -1690,10 +1690,17 @@ was removed; the real VS Code writes a new one when a folder is opened.
 `launch.ps1` also removes that list at every start and `-Stop` when it names
 the bench copy (`Restore-TaskbarList`). **If a window ever behaves strangely
 again (Claude does not open, empty logs), run `scripts\check-vscode.ps1`
-first** (`-Fix` repairs). It checks three things: the `vscode://` links
-start the real VS Code, the taskbar list starts the real VS Code, and no
+first** (`-Fix` repairs). It checks four things: the `vscode://` links
+start the real VS Code, the taskbar list starts the real VS Code, no
 copy of VS Code runs with your own settings (a copy without its own
-`--user-data-dir`). The rule for every test copy of VS Code, also a future
+`--user-data-dir`), and (since 18 Nov 2026) no VS Code window is empty. For
+the last one it draws each window into a picture (works also on a locked
+screen) and an empty window has at most two colours. `-Fix` closes an empty
+window only when another VS Code window still shows content; Claude chats
+that were in it stay saved and `/chats` opens them again. Cause that day: a
+floating window (Claude chats dragged out or "Open in New Window") came
+back empty after Reload Window, a VS Code fault. Section 6, point 7 of the
+R extension list says why the data viewer had landed in it. The rule for every test copy of VS Code, also a future
 one: its own `--user-data-dir` and its own names in `product.json`. This is
 also written in `~/.claude/CLAUDE.md` and in `/personalsettings`.
 **16 Nov 2026: he had to sign in to GitHub in VS Code again and again.**
@@ -1792,8 +1799,9 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
      one place where "open it beside" can go; `openOutputFile` would open
      it in the same editor window as the `.Rmd`.
   4. Plots (11 Nov 2026): a new plot (`print(p)`, `plot(x)`) brings the
-     **R Plot** tab to the front in its editor window (the second one, setting
-     `r.session.viewers.viewColumn` → `plot`, default `Two`), also when a PDF
+     **R Plot** tab to the front in its editor window (the one beside the
+     script, setting `r.session.viewers.viewColumn` → `plot` = `Beside` since
+     18 Nov 2026, see point 7), also when a PDF
      or a data tab was in front there. The cursor stays in the script. The R
      extension itself only did this when the tab was closed: an open tab
      behind another one got the new plot without coming forward. Only a plot
@@ -1818,8 +1826,9 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
      list, a function: everything the Workspace panel lists). It runs the
      panel's own eye-button command (`r.workspaceViewer.view`), so it is the
      same `View(get("rent", ...), title = "rent")` line in the R terminal and
-     the same place: the second editor window (`r.session.viewers.viewColumn`
-     → `view`, default `Two`), made if it is not open, and an open tab of that
+     the same place: the editor window beside the script
+     (`r.session.viewers.viewColumn` → `view` = `Beside`, point 7), made if it
+     is not open, and an open tab of that
      object comes to the front. `watch.R` keeps the tab live as before. Other
      names (`filter`, `mutate`, a column after `$`, `dplyr::n`, words in a
      string or comment) keep Go to Definition from the language server.
@@ -1841,6 +1850,19 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
      that makes it first); without one, Ctrl+click works as before. The log
      gets a `view rent (Ctrl+click)` line, or an `ERR  view` / `ERR  ctrlClick`
      line. 19 offline checks in the add-on's `test.js`.
+  7. **The R tabs open beside the script, never in a floating window** (18
+     Nov 2026). `settings.json` sets `r.session.viewers.viewColumn` to
+     `Beside` for `plot`, `view`, `viewer` and `helpPanel` (`browser` and
+     `pageViewer` stay `Active`, the R extension's default). The default `Two`
+     means "the second editor group", and VS Code counts the groups of a
+     floating window too: with one group in the main window, group 2 was the
+     floating window on the right screen. That day a Reload Window brought a
+     floating window with two Claude chats back empty (grey, no tabs), and a
+     Ctrl+click on `wwbi` put the data viewer in it, out of reach. `Beside`
+     is worked out from the script's own group, so it is always in the main
+     window. A script that is itself in the second group gets its viewer in a
+     third group. An empty window is found by check 4 of
+     `scripts\check-vscode.ps1` (section 5c, "Test bench for Claude").
 - Picking a function from the autocomplete popup inserts `f()` as a snippet;
   the Enter extension works inside it too (its activation rule must NOT
   contain `!inSnippetMode`).

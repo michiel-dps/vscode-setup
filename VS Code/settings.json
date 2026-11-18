@@ -34,6 +34,17 @@
     "r.bracketedPaste": true,
     "r.sessionWatcher": true,
     "r.plot.backend": "httpgd",
+    // Data viewer, R Plot, R Help and the htmlwidget viewer open beside the script, in this
+    // window. The default "Two" counts the groups of a floating window too, so with one
+    // group here they landed in a floating window (18 Nov 2026).
+    "r.session.viewers.viewColumn": {
+        "plot": "Beside",
+        "browser": "Active",
+        "viewer": "Beside",
+        "pageViewer": "Active",
+        "view": "Beside",
+        "helpPanel": "Beside"
+    },
     "workbench.editorAssociations": {
         "*.copilotmd": "vscode.markdown.preview.editor",
         "*.md": "vscode.markdown.preview.editor",
