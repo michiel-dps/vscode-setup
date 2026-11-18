@@ -15,11 +15,28 @@ Usage:  python mxkeys_backlight.py on|off|status|watch|restore
   restore  full cleanup: normal backlight, F1/F2/F6/F7 back to their native function, hidden features off.
            Use this when you stop using the watcher for good.
 """
-import sys, time, datetime, os, json
+import sys, time, datetime, os, json, ctypes
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from hidpp import Receiver
 import screens
+
+# After the keyboard sleeps it still reports the forced LEDs, but they are dark (18 Nov 2026).
+# So the lights are switched off and on again when the computer is used after a pause,
+# and when the keyboard (re)connects.
+IDLE_PAUSE = 60                              # seconds without mouse or keyboard input = a pause
+
+
+class LASTINPUTINFO(ctypes.Structure):
+    _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]
+
+
+def idle_seconds():
+    """Seconds since the last mouse or keyboard input in Windows."""
+    info = LASTINPUTINFO()
+    info.cbSize = ctypes.sizeof(info)
+    ctypes.windll.user32.GetLastInputInfo(ctypes.byref(info))
+    return ((ctypes.windll.kernel32.GetTickCount() - info.dwTime) & 0xFFFFFFFF) / 1000
 
 DEVICE_NAME = "MX Keys"
 # LED-test mask, byte 0: bit0 battery LED green, bit1 battery LED red, bit3 caps lock, bit4 key backlight.
@@ -129,6 +146,11 @@ class Keyboard:
             return False
         return self.req(self.f_led, 1)[:3] == (CHARGING_MASK if charging else FORCED_MASK)
 
+    def refresh(self, charging=False):
+        """Switch the forced LEDs off and on again: after sleep they are dark but still reported as on."""
+        self.normal()
+        return self.force_on(CHARGING_MASK if charging else FORCED_MASK)
+
     def apply(self, forced, charging=False):
         """Forced: backlight on, plus the amber light unless charging. Not forced: normal behaviour."""
         if forced:
@@ -211,6 +233,8 @@ def cmd_watch():
     repeat_at = None                              # when a held F1/F2 steps again
     charging = False                              # keyboard on the cable and not full yet
     next_battery = 0
+    need_refresh = False                          # switch the lights off and on again
+    was_paused = False                            # no input for IDLE_PAUSE seconds
     while True:
         try:
             if kb is None:
@@ -220,6 +244,12 @@ def cmd_watch():
                 if missing:
                     log(f"F1/F2 keys {missing} not on this keyboard. It has: {[f'{c:#06x}' for c in sorted(kb.cids)]}")
                 next_check = 0
+                need_refresh = True
+            # Back at the computer after a pause: the keyboard may have slept and lost its lights
+            idle = idle_seconds()
+            if was_paused and idle < 2:
+                need_refresh = True
+            was_paused = idle >= IDLE_PAUSE
             # Charging turns the amber light off (backlight stays). Full or on battery: amber again.
             if time.time() >= next_battery:
                 now_charging = kb.charging()
@@ -228,6 +258,10 @@ def cmd_watch():
                     log("charging: amber light off" if charging else "not charging: amber light on")
                     next_check = 0                # apply it right away
                 next_battery = time.time() + BATTERY_EVERY
+            if need_refresh:
+                need_refresh = False
+                if load_wanted():
+                    log(f"lights switched off and on again (ok={kb.refresh(charging)})")
             if time.time() >= next_check:
                 wanted = load_wanted()            # the on/off commands may have changed it
                 if not kb.is_set(wanted, charging):
@@ -248,6 +282,11 @@ def cmd_watch():
                 if held_brightness and repeat_at and time.time() >= repeat_at:
                     step_screens(held_brightness[0])
                     repeat_at = time.time() + HOLD_REPEAT
+                continue
+            # The receiver says the keyboard connected again (HID++ 1.0 notification 0x41)
+            if len(report) > 2 and report[1] == kb.idx and report[2] == 0x41:
+                log("keyboard reconnected to the receiver")
+                need_refresh = True
                 continue
             keys = kb.pressed_keys(report)
             if keys is None:
@@ -278,6 +317,7 @@ def cmd_watch():
             repeat_at = None
             charging = False
             next_battery = 0
+            need_refresh = False
             time.sleep(10)
 
 if __name__ == "__main__":
