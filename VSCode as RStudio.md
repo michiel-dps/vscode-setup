@@ -313,15 +313,21 @@ first the same day: too bright, "not the same shade as my tabs". He confirmed
 line between editor groups, not the edge of the side windows or the bottom panel.
 
 Colour names in R code (18 Nov 2026): in `scale_fill_gradient(low =
-"lightyellow", high = "darkred")` the word itself gets its colour as a
-background block, in place of VS Code's small colour square in front of it.
+"lightyellow", high = "darkred")` the word itself gets a border in its
+colour, in place of VS Code's small colour square in front of it. First a
+background block, then (his wish the same evening) `outline`. Still open, his
+wish: the border around the whole `"red"` including the quotes, and only for
+words inside quotes. Color Highlight 2.8.0 has no option for either (its
+settings: `enable`, `languages`, `matchWords`, `markerType`, a few rgb/hsl
+switches), so that needs a patch of the add-on, planned after unit 4.7.
 He asked for this. Two parts: `"editor.colorDecorators": false` in the `[r]`
 block (the square comes from the R language server, VS Code cannot draw it as
 a background), and the add-on Color Highlight (`naumovs.color-highlight`) with
-`color-highlight.markerType` = `background`, `matchWords` = true (colour words
+`color-highlight.markerType` = `outline`, `matchWords` = true (colour words
 like `darkred`, not only `#hex`) and `languages` = `["r"]` (so a word like
 "red" in his paper or a note is not painted). The add-on had to be installed
-by hand (Claude's install was blocked). Square back: delete the
+by hand (Claude's install was blocked twice, he installed 2.8.0 himself on
+18 Nov 2026). Square back: delete the
 `editor.colorDecorators` line.
 
 ## 4. Keybindings (`%APPDATA%\Code\User\keybindings.json`)
