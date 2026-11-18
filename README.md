@@ -96,6 +96,8 @@ Ask Claude to "publish the setup", or run
 - `Claude Code` : Claude's rules (CLAUDE.md), settings and hooks,
   /chats /handoff /takeon, Claude's memory
 - `git` : name, e-mail, GitHub login
+- `Keyboard` : the Logitech MX Keys helper. F1/F2 dim and brighten external
+  screens, F6/F7 the key backlight (note, section 10)
 - `scripts` : the programs behind INSTALL and SAVE, and `check-vscode.ps1`:
   run it when Claude does not open in a window (it checks that every window
   is run by the real VS Code, not by a test copy; `-Fix` repairs)

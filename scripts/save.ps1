@@ -1,4 +1,4 @@
-# save.ps1 -- copies this computer's setup (VS Code, R, Claude Code, git) into
+# save.ps1 -- copies this computer's setup (VS Code, R, Claude Code, git, keyboard) into
 # the folder "VS Code setup", so that INSTALL.cmd can put it on another computer.
 #
 # Run by SAVE.cmd (double-click), and by Claude Code in the background at the
@@ -167,6 +167,11 @@ Copy-Files $userHome "$setup\git" @('.gitconfig')
 
 # --- The startup screen's pictures (18 Nov 2026) ---
 Copy-Folder "$userHome\Pictures\VS Code startup" "$setup\VS Code\startup-pictures"
+
+
+# --- Keyboard: the Logitech MX Keys helper, F1/F2 screen brightness and F6/F7 backlight (18 Nov 2026) ---
+# Its logon launcher (Startup folder) is not saved: install.ps1 writes it with that computer's Python.
+Copy-Files "$userHome\Tools\mxkeys" "$setup\Keyboard" @('hidpp.py', 'mxkeys_backlight.py', 'screens.py')
 
 
 # --- Claude Code: rules, settings, hook script, slash commands, chat opener ---

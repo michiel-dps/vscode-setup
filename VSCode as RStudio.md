@@ -24,6 +24,7 @@ computer, `SAVE.cmd` copies this computer's setup into the folder.
 | `VS Code\local.word-page-0.1.0\` | Word Page (11 Nov 2026): write like in Word or Google Docs inside VS Code. Quarto's visual editor as a white page with black text under any colour theme, "Word Page: New Document", citations from a `.bib` file and from Zotero; the file underneath is markdown (`.qmd`). Since 11 Nov 2026 the page looks like the PDF of a paper (LaTeX font, A4 margins, PDF heading sizes; setting `wordPage.look`). Its `bench\` is a test VS Code for Claude on its own, invisible Windows desktop; section 5c |
 | `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `awake\awake.py` (computer stays awake while Claude works, section 9), `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\` (the /chats add-on, which also makes code blocks in the Claude chat wrap, section 9), `memory\` (one folder per project) |
 | `git\.gitconfig` | name, e-mail, GitHub login through `gh` |
+| `Keyboard\` | the Logitech MX Keys helper (18 Nov 2026): F1/F2 dim and brighten the external screens, F6/F7 the key backlight. Copies of `C:\Users\<you>\Tools\mxkeys\`, section 10 |
 
 Since 30 Oct 2026 nothing is per project any more: a new R folder works
 without copying anything into it. `%APPDATA%` = `C:\Users\<you>\AppData\Roaming`.
@@ -2383,3 +2384,55 @@ git view, which needs nothing from Claude:
 - Why not the extension's own Accept/Reject diff: its prompt blocks the chat
   box. Why not `code --diff` from Claude: Claude's shell cannot reach the
   screen.
+
+---
+
+## 10. Keyboard: the Logitech MX Keys helper (18 Nov 2026)
+
+A small Python program, without Logitech Options+. It talks to the keyboard
+through the Unifying receiver (HID++) and starts hidden at every logon.
+
+| Key | What it does |
+|---|---|
+| F1 / F2 | external screens darker / brighter, 10 of 100 per press, hold to keep going |
+| F7 / F6 | key backlight always on (battery light amber) / the keyboard's normal backlight |
+
+**Why F1/F2 needed it.** Windows sends the brightness keys only to a
+computer's own screen. The computer drives two Dell P2412H screens, so the keys
+did nothing. The helper takes the two keys over (HID++ "divert", key codes
+0xC7 and 0xC8) and sets the brightness of every screen that answers over
+the cable (DDC/CI, `screens.py` through Windows' `dxva2.dll`). Each screen
+moves from its own level, so a difference between them stays. With the
+computer screen alone (no screen answers), F1/F2 go back to Windows within
+15 seconds.
+
+**Files.**
+
+| Where | What |
+|---|---|
+| `Keyboard\` in this folder | copies, written by SAVE |
+| `C:\Users\<you>\Tools\mxkeys\` | the real files: `mxkeys_backlight.py` (the watcher), `hidpp.py` (talks to the receiver), `screens.py` (DDC/CI), plus `state.json` (backlight choice) and `watch.log` |
+| Startup folder (`Win+R` → `shell:startup`) | `MX Keys Backlight Always On.vbs`, starts the watcher with `pythonw` (no window). Not saved here: INSTALL writes it with the new computer's Python |
+
+INSTALL part `keyboard` copies the files, installs the Python package
+`hidapi` when it is missing (the watcher runs Python with `-I`, which does
+not see `--user` packages) and starts the watcher.
+
+**Gotchas.**
+
+- F1 opens VS Code's command palette instead: the keyboard's Fn lock is on
+  plain F-keys. Press Fn+Esc once.
+- Right after waking the keyboard, the first press can do nothing: the
+  watcher connects again within about 10 seconds.
+- Nothing at all: read `watch.log`. "not responding on the receiver" =
+  keyboard asleep or on another Easy-Switch channel or Bluetooth. "F1/F2
+  keys ... not on this keyboard" lists the key codes the keyboard does have.
+- Test the screens without the keyboard: `python screens.py` shows each
+  screen's brightness, `python screens.py -10` makes them darker.
+- After changing a `.py` file: restart the watcher (stop the `pythonw`
+  process with `mxkeys_backlight.py` in its command line, double-click the
+  `.vbs` in the Startup folder).
+- With Logitech Options+ installed, leave this part out: both would take
+  over the same keys.
+- Stop for good: `python mxkeys_backlight.py restore` (normal backlight,
+  F1/F2/F6/F7 back to normal), stop the watcher, delete the `.vbs`.

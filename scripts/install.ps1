@@ -9,6 +9,7 @@
 #   claude    Claude Code: rules (CLAUDE.md), settings and hooks, slash commands,
 #             chat opener, keep-awake helper
 #   memory    Claude's memory notes (not in the GitHub copy)
+#   keyboard  Logitech MX Keys helper: F1/F2 dim external screens (DDC/CI), F6/F7 backlight
 #
 # Run by INSTALL.cmd (double-click): every part. Safe to run again: add-ons and
 # packages that are already there are skipped. Every file it replaces is first
@@ -56,7 +57,7 @@ $utf8       = New-Object Text.UTF8Encoding $false
 function Split-List($list) {
     return @($list | ForEach-Object { $_ -split '[,\s]+' } | Where-Object { $_ } | ForEach-Object { $_.Trim().ToLower() })
 }
-$allParts   = @('addons', 'enter', 'settings', 'r', 'wordpage', 'git', 'claude', 'memory')
+$allParts   = @('addons', 'enter', 'settings', 'r', 'wordpage', 'git', 'claude', 'memory', 'keyboard')
 $Parts      = Split-List $Parts
 $SkipAddons = Split-List $SkipAddons
 if ($Parts.Count -eq 0) { $Parts = $allParts }
@@ -144,7 +145,7 @@ $programs = [ordered]@{
     'R'          = @{ have = [bool]$rFolder; get = 'winget install -e --id RProject.R';                 size = 'about 90 MB';  parts = @('r') }
     'Git'        = @{ have = [bool]$git;     get = 'winget install -e --id Git.Git';                    size = 'about 65 MB';  parts = @('r', 'git') }
     'GitHub CLI' = @{ have = [bool]$gh;      get = 'winget install -e --id GitHub.cli';                 size = 'about 15 MB';  parts = @('git') }
-    'Python'     = @{ have = [bool]$python;  get = 'winget install -e --id Python.Python.3.12';         size = 'about 30 MB';  parts = @('wordpage', 'claude') }
+    'Python'     = @{ have = [bool]$python;  get = 'winget install -e --id Python.Python.3.12';         size = 'about 30 MB';  parts = @('wordpage', 'claude', 'keyboard') }
 }
 function Needed($program) { return @($programs[$program].parts | Where-Object { Want $_ }).Count -gt 0 }
 
@@ -192,6 +193,10 @@ if ($Plan) {
                       does = $(if (Test-Path -LiteralPath "$setup\Claude Code\memory") { 'copies the notes; newer notes on this computer are kept' } else { 'not in this copy: nothing to do' })
                       downloads = 'nothing'
                       files = @() }
+        keyboard = @{ title = 'Logitech MX Keys helper (only useful with that keyboard)'
+                      does = 'a small Python program that starts at every logon: F1/F2 dim and brighten external screens over the cable (DDC/CI), F6/F7 keep the key backlight always on or normal. Leave it out with Logitech Options+.'
+                      downloads = 'the Python package hidapi, if it is not there yet (under 1 MB)'
+                      files = @((Join-Path $appData 'Microsoft\Windows\Start Menu\Programs\Startup\MX Keys Backlight Always On.vbs')) }
     }
     Write-Host ''
     Write-Host 'PLAN: nothing is changed. Parts:' -ForegroundColor Cyan
@@ -467,6 +472,40 @@ if ((Want 'memory') -and (Test-Path -LiteralPath "$setup\Claude Code\memory")) {
 }
 
 
+# --- 9b. Keyboard: the Logitech MX Keys helper (18 Nov 2026, note section 10) ---
+if (Want 'keyboard') {
+    Say 'Keyboard helper (Logitech MX Keys)'
+    $tools = Join-Path $userHome 'Tools\mxkeys'
+    Install-Folder "$setup\Keyboard" $tools
+
+    # The helper runs Python with -I, which does not see packages installed with --user
+    Run 'Python package hidapi (talks to the keyboard)' {
+        & $python -I -c "import hid" 2>$null
+        if ($LASTEXITCODE -ne 0) { & $python -m pip install --quiet hidapi }
+    }
+
+    # The logon launcher, with this computer's Python (pythonw: no window)
+    $pythonw  = Join-Path (Split-Path $python) 'pythonw.exe'
+    $launcher = Join-Path $appData 'Microsoft\Windows\Start Menu\Programs\Startup\MX Keys Backlight Always On.vbs'
+    $script   = Join-Path $tools 'mxkeys_backlight.py'
+    $text = @(
+        "' Starts the MX Keys helper hidden at logon: F1/F2 screen brightness, F6/F7 backlight.",
+        "' Written by install.ps1 of the setup folder (note section 10).",
+        'Set sh = CreateObject("WScript.Shell")',
+        "sh.Run """"""$pythonw"""" -I """"$script"""" watch"", 0, False"
+    ) -join "`r`n"
+    Install-File $null $launcher ($text + "`r`n")
+
+    # Start it now (again), so the new files are used without a logon
+    Run 'start the keyboard helper' {
+        Get-CimInstance Win32_Process -Filter "Name = 'pythonw.exe'" |
+            Where-Object { $_.CommandLine -match 'mxkeys_backlight' } |
+            ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+        Start-Process wscript.exe -ArgumentList "`"$launcher`""
+    }
+}
+
+
 # --- 10. What is left to do by hand (only for the chosen parts) ---
 Say 'Done. Now do these by hand, once:'
 $steps = @('Close every VS Code window and start VS Code again.')
@@ -475,6 +514,7 @@ if (Want 'git')      { $steps += 'For pushing to GitHub, run once in PowerShell:
 if (Want 'enter')    { $steps += 'Right-click a line number in any file > Diff Decorations > untick "Git Local Changes (Index)".' }
 if (Want 'claude')   { $steps += 'Ctrl+Shift+P > "Workspaces: Manage Workspace Trust" > Add Folder > the folder with your projects.' }
 if (Want 'r')        { $steps += 'Ctrl+Alt+R opens an R terminal. If it asks to install "sess", say yes. It should print: Viewer tabs now follow changes (watch.R).' }
+if (Want 'keyboard') { $steps += 'Press F1 on the MX Keys: external screens get darker (F2 brighter). If F1 opens a menu instead, press Fn+Esc once.' }
 for ($i = 0; $i -lt $steps.Count; $i++) { Write-Host ("   {0}. {1}" -f ($i + 1), $steps[$i]) }
 if (Test-Path -LiteralPath $backup) {
     Write-Host ''

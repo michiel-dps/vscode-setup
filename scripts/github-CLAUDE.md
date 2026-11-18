@@ -76,6 +76,7 @@ tick the parts. Parts:
 | `r` | R like RStudio: startup file, viewer tabs that follow changes, about 300 R packages, fixes to the R add-on |
 | `wordpage` | Write a paper like in Word in Quarto's visual editor |
 | `git` | git name, e-mail and GitHub login helper |
+| `keyboard` | Only with a Logitech MX Keys (and no Logitech Options+): F1/F2 dim external screens, F6/F7 key backlight |
 | `claude` | Claude Code rules (CLAUDE.md), hooks, slash commands, keep-awake helper |
 
 Point out, before they choose:
