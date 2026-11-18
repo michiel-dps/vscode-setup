@@ -34,6 +34,9 @@
     "r.bracketedPaste": true,
     "r.sessionWatcher": true,
     "r.plot.backend": "httpgd",
+    // The plot fills the whole R Plot tab and is redrawn when the tab changes size (18 Nov 2026).
+    // The strip of small earlier plots is hidden then: the toolbar's full window button shows it.
+    "r.plot.defaults.fullWindowMode": true,
     // Data viewer, R Plot, R Help and the htmlwidget viewer open beside the script, in this
     // window. The default "Two" counts the groups of a floating window too, so with one
     // group here they landed in a floating window (18 Nov 2026). Fix 7 of patch-r-extension.pl
