@@ -3,9 +3,13 @@
 	email = you@example.com
 [core]
 	longpaths = true
+# GitHub sign-in: gh first (signed in on the home computer), then Git Credential
+# Manager (signed in on the UiO computer, 18 Nov 2026). Git uses the first that answers.
 [credential "https://github.com"]
-	helper = 
+	helper =
 	helper = !'C:\\Program Files\\GitHub CLI\\gh.exe' auth git-credential
+	helper = manager
 [credential "https://gist.github.com"]
-	helper = 
+	helper =
 	helper = !'C:\\Program Files\\GitHub CLI\\gh.exe' auth git-credential
+	helper = manager

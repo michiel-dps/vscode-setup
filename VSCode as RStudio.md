@@ -124,9 +124,21 @@ computers left no old user folder or Python path. Then the real SAVE, and
 variable `GIT_CONFIG_GLOBAL` = `C:\Users\<you>\.gitconfig` (publish.ps1
 sets it too when it is missing). Machine policy is RemoteSigned: a `.ps1`
 on `M:` does not run, even with `-ExecutionPolicy Bypass`. Scripts in this
-Dropbox folder on `C:` run fine. gh is not signed in there. VS Code is
-signed in to GitHub as <github-user>, so publish.ps1 is run in VS Code's own
-terminal (View > Terminal), where git uses that sign-in.
+Dropbox folder on `C:` run fine. gh is not signed in there. GitHub sign-in
+for git goes through Git Credential Manager instead (signed in once on
+18 Nov 2026 with `& "C:\Program Files\Git\ucrt64\bin\git-credential-manager.exe"
+github login`, kept in Windows Credential Manager), so publish.ps1 runs from
+any terminal and from Claude's shell. Before that only VS Code's own terminal
+could push (it lends git VS Code's GitHub sign-in), and Claude's push failed
+with "could not read Username ... terminal prompts disabled". The catch was
+`.gitconfig`: `gh auth setup-git` (done on the home computer) writes
+`helper =` (empty, which switches off all other helpers) and then gh for
+github.com, so git never asked Credential Manager. Since 18 Nov 2026
+`.gitconfig` lists `helper = manager` after gh: on the home computer gh
+answers first, on the UiO computer gh has no login and Credential Manager
+answers. If a push fails again with that message, check
+`git credential-manager github list` (it should show the GitHub user) and
+`git config --show-origin --get-all credential.https://github.com.helper`.
 
 ## 2. Startup file: watch.R in every R terminal
 
