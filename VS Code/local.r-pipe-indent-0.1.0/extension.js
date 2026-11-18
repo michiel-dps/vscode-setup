@@ -55,6 +55,22 @@ function scan(text) {
 }
 
 function blank(text) { return scan(text).text; }
+
+// where the comment starts on a line (the first # outside a string), or -1
+function commentStart(text) {
+  let quote = null;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quote) {
+      if (c === "\\") { i++; continue; }
+      if (c === quote) quote = null;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") { quote = c; continue; }
+    if (c === "#") return i;
+  }
+  return -1;
+}
 function unterminatedQuote(text) { return scan(text).quote; }
 function isBlank(text) { return text.trim() === ""; }
 function isComment(text) { return /^\s*#/.test(text); }
@@ -979,7 +995,11 @@ function sessionObjectAt(doc, pos, session) {
   const range = doc.getWordRangeAtPosition(pos, /[A-Za-z.][A-Za-z0-9._]*/);
   if (!range) return null;
   const line = doc.lineAt(pos.line).text;
-  if (blank(line)[range.start.character] === " ") return null;   // inside a string or comment
+  // inside a string: not an object. Inside a comment it is (18 Nov 2026, his
+  // wish: the names in a unit's task text, "from norad_clean", open on Ctrl+click)
+  const hash = commentStart(line);
+  const inComment = hash >= 0 && range.start.character > hash;
+  if (!inComment && blank(line)[range.start.character] === " ") return null;
   const before = line.slice(0, range.start.character).trimEnd();
   if (/(\$|@|::)$/.test(before)) return null;   // x$name, dplyr::name: not the global object
   const name = doc.getText(range);

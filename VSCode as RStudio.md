@@ -1898,7 +1898,11 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
      is not open, and an open tab of that
      object comes to the front. `watch.R` keeps the tab live as before. Other
      names (`filter`, `mutate`, a column after `$`, `dplyr::n`, words in a
-     string or comment) keep Go to Definition from the language server.
+     string) keep Go to Definition from the language server. **Names inside a
+     comment work too** (18 Nov 2026, his wish): the task text of a unit says
+     `# 6  disb_2024: from norad_clean, ...`, and Ctrl+click on `norad_clean`
+     there opens that table. Helper `commentStart()` finds the first `#` outside
+     a string. Words in a comment that are not objects in R do nothing.
      **A plot object** (class `gg`/`ggplot`, `recordedplot`, `trellis`,
      `patchwork`, `tmap`, or an `htmlwidget` such as leaflet or plotly) is
      not sent to `View()` but printed: `print(p)` goes to the R terminal

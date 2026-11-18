@@ -362,7 +362,7 @@ async function pipe(lineText, col) {
     mouseClick(2, 5);
     check("rent before $: viewer", ask(2, 5), "viewed rent");
     mouseClick(2, 24);
-    check("rent in a comment: language server", ask(2, 24), "language server");
+    check("rent in a comment: viewer (task text names open too, 18 Nov 2026)", ask(2, 24), "viewed rent");
     mouseClick(3, 7);
     check("rent in a string: language server", ask(3, 7), "language server");
     mouseClick(4, 12);
