@@ -360,6 +360,7 @@ line between editor groups, not the edge of the side windows or the bottom panel
 | Key | Does |
 |---|---|
 | Ctrl+Alt+R | new R terminal |
+| Ctrl+1 | in a script: jump to the terminal. In the terminal: back to the script (18 Nov 2026, his wish). Two entries with `"when": "editorTextFocus"` (`workbench.action.terminal.focus`) and `"when": "terminalFocus"` (`workbench.action.focusActiveEditorGroup`). That second command is in `terminal.integrated.commandsToSkipShell` in settings.json, otherwise the terminal would send Ctrl+1 to R. It jumps to the terminal used last: with several terminals open, that may not be the R one |
 | Ctrl+Shift+M | types ` %>%` (RStudio's pipe shortcut); right after a space just `%>%`, so no double spaces |
 | Ctrl+M | disabled (it toggled "Tab moves focus" by accident) |
 | Ctrl+Enter | run the statement at the cursor, or the selection widened to whole statements; refuses an unfinished statement with a yellow warning (section 5) |
