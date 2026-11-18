@@ -8,21 +8,6 @@ local({
   }
   source(file.path(here, "watch.R"))
 
-  # every error in the R terminal also goes to a log file, so Claude can read
-  # it when he says "check" (18 Nov 2026)
-  error_log <- file.path(Sys.getenv("TEMP"), "r-terminal-errors.log")
-  options(error = function() {
-    if (file.exists(error_log) && file.size(error_log) > 200000) {
-      file.remove(error_log)
-    }
-    cat(
-      format(Sys.time(), "%Y-%m-%d %H:%M:%S"), " ",
-      geterrmessage(), "\n",
-      file = error_log,
-      append = TRUE,
-      sep = ""
-    )
-  })
-  cat(format(Sys.time(), "%Y-%m-%d %H:%M:%S"), " fresh R terminal started\n",
-      file = error_log, append = TRUE, sep = "")
+  # copy of everything the terminal shows, for Claude (18 Nov 2026)
+  source(file.path(here, "terminal-log.R"))
 })

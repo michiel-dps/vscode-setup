@@ -11,7 +11,8 @@ computer, `SAVE.cmd` copies this computer's setup into the folder.
 | `VSCode as RStudio.md` | this note |
 | `R\watch.R` | viewer tabs refresh by themselves when the object they show changes: tables and values (a number, a text, a vector, a list) alike, since 2 Nov 2026 |
 | `R\watch-test.R` | 30 offline checks for `watch.R`; run after every change to it or R extension update (section 6) |
-| `R\Rprofile.R` | loads `watch.R` in every VS Code R terminal and logs every R error to `%TEMP%\r-terminal-errors.log` for Claude (section 2) |
+| `R\Rprofile.R` | loads `watch.R` and `terminal-log.R` in every VS Code R terminal (section 2) |
+| `R\terminal-log.R` | copies everything the R terminal shows (output, warnings, errors, commands) to `%TEMP%\r-terminal.log` for Claude (section 2) |
 | `R\.lintr` | no warnings about trailing spaces / indentation / commented code / "use |> instead of %>%" (copy of `C:\Users\<you>\.lintr`) |
 | `R\packages.txt` | the R packages on the computer (written by SAVE, installed by INSTALL) |
 | `VS Code\settings.json`, `keybindings.json` | copies of `%APPDATA%\Code\User\` (sections 3 and 4) |
@@ -164,14 +165,25 @@ it does nothing) and sources `watch.R` from its own folder. It must be UTF-8
 every `Rscript` run dies with "1:1: unexpected input". Done on this PC on
 30 Oct 2026; moved to `VS Code setup\R` on 4 Nov 2026.
 
-**Error log for Claude** (18 Nov 2026, his wish: "check the error codes in the
-terminal, each time I ask you to check"). Claude cannot read the R terminal, so
-`Rprofile.R` also sets `options(error = ...)`: every error in a VS Code R
-terminal is appended, with the time, to `%TEMP%\r-terminal-errors.log`, and each
-new R terminal writes a line `fresh R terminal started`. The file is emptied
-when it passes 200 KB. On "check" Claude reads the end of this log and also
-runs the exercise's lines in a fresh `Rscript`. Only errors are logged, not
-warnings or normal output. Needs a fresh R terminal (Ctrl+Alt+R) to take effect.
+**Terminal log for Claude** (18 Nov 2026, his wish: "you need to be looking at
+my R terminal when I'm running code"). Claude cannot read the R terminal, so
+`Rprofile.R` also sources `R\terminal-log.R`, which copies everything the
+terminal shows to `%TEMP%\r-terminal.log`:
+- normal output, through `sink(..., split = TRUE)` (still shown on screen)
+- errors, through `options(error = ...)`, as `!!!! hh:mm:ss Error in ...`
+- warnings and messages, through `globalCallingHandlers()`, as `Warning:` / `Message:`
+- after each command that worked: `---- hh:mm:ss ran: <the command>`
+- each new R terminal: `==== <date time> fresh R terminal started`
+
+The file is emptied when it passes 2 MB. Two connections to the same file (one
+for the screen copy, one for the notes): a note written through the sink
+connection would also show on screen. `globalCallingHandlers()` only works at
+startup, not inside `tryCatch()` or a task callback ("should not be called with
+handlers on the stack"). The R add-on sources the profile with a plain
+`source()` (its `R\profile.R`, read in 3.2.2), so that works. Tested in an
+interactive `Rterm --ess` with a test TEMP. On "check" Claude reads the end of
+this log and also runs the exercise's lines in a fresh `Rscript`. Needs a fresh
+R terminal (Ctrl+Alt+R) to take effect.
 
 Then close and reopen VS Code. Every new R terminal prints
 "Viewer tabs now follow changes (watch.R)." Check with `watched()`.
