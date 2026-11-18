@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"C:/Users/<you>/AppData/Local/Programs/Python/Python312/python.exe\" -I \"C:/Users/<you>/.claude/awake/awake.py\""
+            "command": "\"C:/Users/<you>/AppData/Local/Python/pythoncore-3.14-64/python.exe\" -I \"C:/Users/<you>/.claude/awake/awake.py\""
           }
         ]
       }
@@ -40,7 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"C:/Users/<you>/AppData/Local/Programs/Python/Python312/python.exe\" -I \"C:/Users/<you>/.claude/awake/awake.py\""
+            "command": "\"C:/Users/<you>/AppData/Local/Python/pythoncore-3.14-64/python.exe\" -I \"C:/Users/<you>/.claude/awake/awake.py\""
           }
         ]
       }
@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"C:/Users/<you>/AppData/Local/Programs/Python/Python312/python.exe\" -I \"C:/Users/<you>/.claude/review/review.py\" pre",
+            "command": "\"C:/Users/<you>/AppData/Local/Python/pythoncore-3.14-64/python.exe\" -I \"C:/Users/<you>/.claude/review/review.py\" pre",
             "timeout": 150
           }
         ]
@@ -63,7 +63,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"C:/Users/<you>/AppData/Local/Programs/Python/Python312/python.exe\" -I \"C:/Users/<you>/.claude/review/review.py\" post"
+            "command": "\"C:/Users/<you>/AppData/Local/Python/pythoncore-3.14-64/python.exe\" -I \"C:/Users/<you>/.claude/review/review.py\" post"
           }
         ]
       }
@@ -74,7 +74,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"C:/Users/<you>/AppData/Local/Programs/Python/Python312/python.exe\" -I \"C:/Users/<you>/.claude/review/review.py\" failed"
+            "command": "\"C:/Users/<you>/AppData/Local/Python/pythoncore-3.14-64/python.exe\" -I \"C:/Users/<you>/.claude/review/review.py\" failed"
           }
         ]
       }
@@ -84,7 +84,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"C:/Users/<you>/AppData/Local/Programs/Python/Python312/python.exe\" -I \"C:/Users/<you>/.claude/review/review.py\" stop"
+            "command": "\"C:/Users/<you>/AppData/Local/Python/pythoncore-3.14-64/python.exe\" -I \"C:/Users/<you>/.claude/review/review.py\" stop"
           }
         ]
       }
@@ -104,7 +104,7 @@
       "effortLevel": "high"
     },
     "claude-fable-5-2": {
-      "effortLevel": "xhigh"
+      "effortLevel": "high"
     }
   },
   "autoUpdatesChannel": "latest",

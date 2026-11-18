@@ -260,6 +260,20 @@ Add-Swap $saved['Home folder'] $userHome
 Add-Swap $saved['R folder']    $rFolder.FullName
 Add-Swap $saved['Python']      $python
 
+# Every computer that saved here (computers.txt, written by save.ps1 since 18 Nov 2026).
+# The files in this folder can come from different computers, so the paths of
+# each computer become this computer's paths, not only those of the last one.
+$computersFile = Join-Path $setup 'computers.txt'
+if (Test-Path -LiteralPath $computersFile) {
+    foreach ($line in [IO.File]::ReadAllLines($computersFile)) {
+        if (-not $line -or $line.StartsWith('#')) { continue }
+        $otherName, $otherHome, $otherR, $otherPython = $line -split '\s*\|\s*'
+        Add-Swap $otherHome $userHome
+        Add-Swap $otherR $rFolder.FullName
+        Add-Swap $otherPython $python
+    }
+}
+
 # Longest path first, so the Dropbox folder wins over the home folder it is in
 $pattern = ($swap.Keys | Sort-Object Length -Descending | ForEach-Object { [regex]::Escape($_) }) -join '|'
 

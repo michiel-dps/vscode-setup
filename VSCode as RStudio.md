@@ -16,9 +16,9 @@ computer, `SAVE.cmd` copies this computer's setup into the folder.
 | `R\packages.txt` | the R packages on the computer (written by SAVE, installed by INSTALL) |
 | `VS Code\settings.json`, `keybindings.json` | copies of `%APPDATA%\Code\User\` (sections 3 and 4) |
 | `VS Code\extensions.txt` | every VS Code add-on on the computer, written by SAVE from `%USERPROFILE%\.vscode\extensions\extensions.json`. Marketplace add-ons first (id, version; `pinned` = installed at that exact version), which INSTALL installs. Then, since 10 Nov 2026, the own add-ons as `#` lines (id, version, where it comes from), so INSTALL skips them there: `local.r-pipe-indent` (INSTALL copies it), `local.claude-chat-opener` (INSTALL runs its `build.ps1`), `local.startup-screen` (personal: run its `build.ps1` by hand, section 5b), `local.word-page` (INSTALL runs its `build.ps1`, section 5c). Check against VS Code itself: `code --list-extensions --show-versions` |
-| `VS Code\patch-r-extension.pl` | five fixes to the R extension: data viewer columns sized to content, the column-name popup after `, ` instead of right after the comma, a knitted PDF opening in the editor to the right, a new plot bringing the R Plot tab to the front, and Ctrl+wheel zoom on plots like a PDF (run again after every R extension update, section 6) |
+| `VS Code\patch-r-extension.pl` | six fixes to the R extension: data viewer columns sized to content, the column-name popup after `, ` (and after `= `, `== `, `%in% `, since 18 Nov 2026) instead of right after the comma, a knitted PDF opening in the editor to the right, a new plot bringing the R Plot tab to the front, Ctrl+wheel zoom on plots like a PDF, and Ctrl+click on a table or value opening it in the data viewer (18 Nov 2026, with the Enter add-on) (run again after every R extension update, section 6) |
 | `VS Code\patch-pdf-viewer.pl` | two fixes to the PDF viewer add-on `tomoki1207.pdf` (10 Nov 2026; zoom version 3 on 11 Nov 2026): Ctrl+wheel and touchpad pinch zoom smoothly in on the spot under the mouse (a pinch follows the fingers, the wheel glides); and a clean reload after each knit (run again after every update of that add-on, section 6b) |
-| `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.3); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; a stop button for R (18 Nov 2026); shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo; Keep selects the kept lines), section 5 |
+| `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.4); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; a stop button for R (18 Nov 2026); Ctrl+click on a table or value opens it in the data viewer (18 Nov 2026, with fix 6 of `patch-r-extension.pl`, section 6); shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo; Keep selects the kept lines), section 5 |
 | `VS Code\local.startup-screen-0.1.0\` | the startup screen (6 Nov 2026): a short loading screen with a picture, a tip and the loading steps when VS Code starts; personal, left out of the GitHub copy; section 5b |
 | `VS Code\local.word-page-0.1.0\` | Word Page (11 Nov 2026): write like in Word or Google Docs inside VS Code. Quarto's visual editor as a white page with black text under any colour theme, "Word Page: New Document", citations from a `.bib` file and from Zotero; the file underneath is markdown (`.qmd`). Since 11 Nov 2026 the page looks like the PDF of a paper (LaTeX font, A4 margins, PDF heading sizes; setting `wordPage.look`). Its `bench\` is a test VS Code for Claude on its own, invisible Windows desktop; section 5c |
 | `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `awake\awake.py` (computer stays awake while Claude works, section 9), `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\` (the /chats add-on, which also makes code blocks in the Claude chat wrap, section 9), `memory\` (one folder per project) |
@@ -85,6 +85,49 @@ publish.ps1 also swaps this machine's own name, which is a plain word since
 17 Nov 2026 (`$computerSwaps` there says which). Before that fix its check
 stopped every publish after 16 Nov.
 
+**Two computers (18 Nov 2026, asked: "make save safe for two computers").** The
+old computer and the UiO computer (<work-computer>, user <you>) both save into this
+folder. Before, SAVE copied every file over the folder's copy, so the last
+computer to save won, and it removed files that only the other computer had.
+Now:
+- SAVE copies a file only when it is newer on this computer than in the folder
+  (robocopy `/XO`). The newest change wins, per file. If both computers change
+  the same file between two saves, the older change is lost. So bring a
+  computer up to date before you change something on it: SAVE.cmd, then
+  INSTALL.cmd.
+- SAVE deletes nothing in the folder (`/E` instead of `/MIR`). A slash
+  command, memory note or picture removed on one computer stays here. Delete
+  it here by hand too.
+- `R\packages.txt` and `VS Code\extensions.txt` are added to, not replaced.
+  An add-on line is replaced only by the same or a newer version. To drop a
+  package or add-on for good, take its line out by hand. Needed because the
+  UiO computer has about 870 packages in R's own library and only 19 in the
+  user library that SAVE reads: the list would have shrunk from 314 to 19.
+- `computers.txt` (new, written by SAVE) has one line per computer: name, user
+  folder, R folder, Python. INSTALL changes the paths of every computer in it
+  to the new computer's paths, so a folder with files from both computers
+  installs cleanly. publish.ps1 swaps every user name in it for `<you>` and
+  leaves the file out of the GitHub copy.
+- SAVE records the real Python. On the UiO computer `python` is only the
+  Microsoft Store stub, so SAVE then asks `py`, as INSTALL does.
+- publish.ps1 first fetches GitHub's latest, so either computer can publish.
+  It also leaves out `__pycache__` folders.
+
+Tested 18 Nov on a copy of this folder with file times kept: the 314
+packages stayed, the add-on list merged, and a newer file from the other
+computer was kept. INSTALL `-TestRoot` from a folder with files from both
+computers left no old user folder or Python path. Then the real SAVE, and
+`publish.ps1 -DryRun` (87 files, no personal words).
+
+**The UiO computer (<work-computer>).** Its home drive is the network drive `M:`
+(`HOMEDRIVE`), so git looked for `.gitconfig` there. Fixed with the user
+variable `GIT_CONFIG_GLOBAL` = `C:\Users\<you>\.gitconfig` (publish.ps1
+sets it too when it is missing). Machine policy is RemoteSigned: a `.ps1`
+on `M:` does not run, even with `-ExecutionPolicy Bypass`. Scripts in this
+Dropbox folder on `C:` run fine. gh is not signed in there. VS Code is
+signed in to GitHub as <github-user>, so publish.ps1 is run in VS Code's own
+terminal (View > Terminal), where git uses that sign-in.
+
 ## 2. Startup file: watch.R in every R terminal
 
 R reads the file named in the Windows user variable `R_PROFILE_USER` at
@@ -129,7 +172,12 @@ viewer ("invalid multibyte string"). Convert once with
 "editor.bracketPairColorization.enabled": false,
 "editor.inlayHints.enabled": "offUnlessPressed",
 "editor.minimap.enabled": false,
-"[r]": { "editor.inlineSuggest.enabled": false },
+"[r]": {
+    "editor.inlineSuggest.enabled": false,
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true,
+    "editor.detectIndentation": false
+},
 "terminal.integrated.enablePersistentSessions": false,
 "files.autoSave": "afterDelay",
 "files.autoSaveDelay": 100
@@ -143,6 +191,7 @@ viewer ("invalid multibyte string"). Convert once with
 | `fontLigatures: false` | plain characters (no merged `<-` glyphs) |
 | `minimap.enabled: false` | no small copy of the script down the right edge (turned off 4 Nov 2026, in every file type) |
 | `[r] inlineSuggest: false` | no grey AI "ghost text" while typing R (other languages keep it) |
+| `[r] tabSize: 2`, `insertSpaces: true`, `detectIndentation: false` | 2 spaces per indent level in every R file, as RStudio's defaults (Tools → Global Options → Code: tab width 2, insert spaces, auto-detect off, checked in RStudio's preference list on 18 Nov 2026). Before that VS Code used its own 4. Tab, Enter after `%>%` and the Enter add-on (section 5) all take their width from here. Files written before 18 Nov 2026 are still in 4 spaces: new lines in them now come out at 2, so convert such a file before working in it (Claude asks first, see the R code style in `CLAUDE.md`). The full list of RStudio layouts (pipe, ggplot, long call, braces, function definition) is in that same `CLAUDE.md` section |
 | `acceptSuggestionOnEnter` left at `on` | Enter on a completion popup accepts it and stays on the line, as in RStudio. `smart` was tried on 1 Nov 2026 and reverted on 2 Nov: with `smart`, a popup that only repeats the word already typed makes Enter insert a new line, which felt like the editor jumping away |
 | `enablePersistentSessions: false` | restart gives a fresh R terminal that attaches to the Workspace panel (a restored old terminal never does) |
 
@@ -272,10 +321,10 @@ this entry to `C:\Users\<you>\.vscode\extensions\extensions.json`:
 Restart VS Code. Behaviour:
 
 ```
-x <- d %>%⏎                → one level in
-    # keep only USA⏎       → comment line inside the statement: VS Code's Enter (same level)
-    filter(a) %>%⏎         → same level (the comment above no longer confuses it, since 1 Nov 2026)
-    select(b)⏎             → back to the statement's indent
+x <- d %>%⏎                → one level in (a level = 2 spaces, `editor.tabSize` of R files, section 3, since 18 Nov 2026)
+  # keep only USA⏎         → comment line inside the statement: VS Code's Enter (same level)
+  filter(a) %>%⏎           → same level (the comment above no longer confuses it, since 1 Nov 2026)
+  select(b)⏎               → back to the statement's indent
 p <- ggplot(d) +⏎          → one level in (any operator at the end of a line, since 1 Nov 2026)
 cor(a, b,⏎                 → under a (first argument)
 mutate(a = 1, |) %>%⏎      → under a; the ") %>%" after the cursor moves down (since 2 Nov 2026)
@@ -1627,7 +1676,7 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
   `watch-test.R` (`R\` in this folder, see its header), then re-source
   `watch.R` in the running R terminal (Ctrl+Enter on the `source(...)`
   line of the unit, or Ctrl+Alt+R for a new terminal).
-- Five things in the R extension are changed by editing its code
+- Six things in the R extension are changed by editing its code
   (`VS Code\patch-r-extension.pl` in this folder; the originals are kept next
   to them as `extension.js.orig` and `webviews\httpgd\index.js.orig`). The R
   extension overwrites them when it
@@ -1641,7 +1690,13 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
   2. The session completion popup with column names (inside a pipe, e.g.
      `rename(look = lookout, |)`) came right after the comma, so the space
      he types next closed it again. Patched 2 Nov 2026: it comes after
-     `, ` (comma space) instead. The popups after `(`, `[`, `$` and `@`
+     `, ` (comma space) instead. Since 18 Nov 2026 also after `= `, `== `,
+     `< `, `> `, `& `, `| ` and `%in% `, so `mutate(x = |)` and
+     `filter(year == |)` list the columns of the data frame the pipe starts
+     from (the R extension finds that name itself, also on a new line inside
+     `mutate(`, and in `ggplot(aes(x = |))` after a pipe. Tested offline on
+     18 Nov 2026). It needs a running R terminal that knows the data frame
+     (run the line that makes it first). The popups after `(`, `[`, `$` and `@`
      are unchanged; so is the language server (its popups come after `.`
      and `::`, and while typing a word).
   3. Knit: a knitted PDF opens in the editor to the right of the `.Rmd`,
@@ -1671,6 +1726,27 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
      mouse kept, edges, pan, double-click, new plot, drag bar under the plot
      still works); the original code fails 11 of them. A plot tab reads the
      patched page when it opens: close the R Plot tab and plot again.
+  6. **Ctrl+click on a name opens it in the data viewer** (18 Nov 2026), when
+     the name is an object in R's global environment (a table, a value, a
+     list, a function: everything the Workspace panel lists). It runs the
+     panel's own eye-button command (`r.workspaceViewer.view`), so it is the
+     same `View(get("rent", ...), title = "rent")` line in the R terminal and
+     the same place: the second editor window (`r.session.viewers.viewColumn`
+     → `view`, default `Two`), made if it is not open, and an open tab of that
+     object comes to the front. `watch.R` keeps the tab live as before. Other
+     names (`filter`, `mutate`, a column after `$`, `dplyr::n`, words in a
+     string or comment) keep Go to Definition from the language server.
+     Ctrl+hover still underlines the name, but no longer shows where it was
+     made. How: the patch makes the R extension ask the Enter add-on (section
+     5, command `rPipeIndent.ctrlClick`, v0.5.4) before its language server
+     answers a definition request. VS Code asks twice, on Ctrl+hover and on
+     the click. Only the click moves the cursor first, so a request within
+     800 ms of a mouse click on the same name counts as the click: the add-on
+     opens the viewer and answers "nothing" (VS Code then stays put, no
+     message). Needs a running R terminal that knows the object (run the line
+     that makes it first); without one, Ctrl+click works as before. The log
+     gets a `view rent (Ctrl+click)` line, or an `ERR  view` / `ERR  ctrlClick`
+     line. 15 offline checks in the add-on's `test.js`.
 - Picking a function from the autocomplete popup inserts `f()` as a snippet;
   the Enter extension works inside it too (its activation rule must NOT
   contain `!inSnippetMode`).

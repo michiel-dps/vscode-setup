@@ -184,7 +184,7 @@ function unfinished(doc, first, last) {
 function unit(editor) {
   const o = editor.options;
   if (o.insertSpaces === false) return "\t";
-  const n = typeof o.tabSize === "number" ? o.tabSize : 4;
+  const n = typeof o.tabSize === "number" ? o.tabSize : 2;   // RStudio's default width
   return " ".repeat(n);
 }
 
@@ -944,6 +944,73 @@ async function stageChangeStay(uri, changes, index) {
   }
 }
 
+// Ctrl+click on a name that is in R's global environment (a table, a value, a
+// list, a function) opens it in the data viewer, exactly as the eye button in
+// the Workspace panel does: same command, so the same place (the second editor
+// window, made if it is not open). Other names keep Go to Definition. (18 Nov 2026)
+//
+// The R extension asks us first, before its language server answers a
+// definition request (patch-r-extension.pl, fix 6). VS Code sends such a
+// request twice: when Ctrl+hover underlines the name, and on the click itself.
+// Only the click moves the cursor first (a mouse selection change), so a
+// request right after a mouse click on the same name is the click.
+// Our answers: undefined = let the language server answer as before,
+// the name's own place = underline it (hover), [] = do nothing more (click).
+const CLICK_WINDOW_MS = 800;   // mouse down to the click's request is about 100-200 ms
+let lastMouseClick = null;     // { file, position, time, used }
+
+function noteMouseClick(event) {
+  if (event.kind !== vscode.TextEditorSelectionChangeKind.Mouse) return;
+  if (event.selections.length !== 1 || !event.selections[0].isEmpty) return;
+  lastMouseClick = {
+    file: event.textEditor.document.uri.toString(),
+    position: event.selections[0].active,
+    time: Date.now(),
+    used: false
+  };
+}
+
+// the global object under the cursor, or null
+function sessionObjectAt(doc, pos, session) {
+  const data = session && !session.workspaceUnavailable && session.workspaceData;
+  if (!data || !data.globalenv) return null;
+  const range = doc.getWordRangeAtPosition(pos, /[A-Za-z.][A-Za-z0-9._]*/);
+  if (!range) return null;
+  const line = doc.lineAt(pos.line).text;
+  if (blank(line)[range.start.character] === " ") return null;   // inside a string or comment
+  const before = line.slice(0, range.start.character).trimEnd();
+  if (/(\$|@|::)$/.test(before)) return null;   // x$name, dplyr::name: not the global object
+  const name = doc.getText(range);
+  if (!Object.prototype.hasOwnProperty.call(data.globalenv, name)) return null;
+  return { name, range };
+}
+
+function ctrlClick(doc, pos, session) {
+  const found = sessionObjectAt(doc, pos, session);
+  if (!found) return undefined;
+  const click = lastMouseClick;
+  const isClick = click && !click.used &&
+    click.file === doc.uri.toString() &&
+    found.range.contains(click.position) &&
+    Date.now() - click.time < CLICK_WINDOW_MS;
+  if (!isClick) return [new vscode.Location(doc.uri, found.range)];
+  click.used = true;
+  const node = { owner: session, rootName: found.name, objectPath: [] };   // what the Workspace panel passes
+  vscode.commands.executeCommand("r.workspaceViewer.view", node).then(
+    () => log("view " + found.name + " (Ctrl+click)"),
+    (e) => log("ERR  view " + found.name + " | " + (e && e.message ? e.message : e)));
+  return [];
+}
+
+function ctrlClickLogged(doc, pos, session) {
+  try {
+    return ctrlClick(doc, pos, session);
+  } catch (e) {
+    log("ERR  ctrlClick | " + (e && e.stack ? e.stack : e));
+    return undefined;
+  }
+}
+
 // The stop button (18 Nov 2026): sends Ctrl+C to the R terminal, as pressing
 // Ctrl+C in it would, so R stops the command it is running and shows ">" again.
 // The R terminal is the one the R add-on calls "R Interactive", else the open terminal.
@@ -966,10 +1033,12 @@ function activate(context) {
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.enter", onEnterLogged));
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.runStatement", runStatementLogged));
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.insertPipe", insertPipe));
+  context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.ctrlClick", ctrlClickLogged));
+  context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(noteMouseClick));
   try { activateClaudeEdits(context); } catch (e) { log("ERR  edits " + (e && e.stack ? e.stack : e)); }
-  log("activated 0.5.3 (Keep / Undo also stages in git, 18 Nov 2026)");
+  log("activated 0.5.4 (Ctrl+click opens a global object in the data viewer, 18 Nov 2026)");
 }
 
 function deactivate() {}
 
-module.exports = { activate, deactivate, _test: { blank, unterminatedQuote, statementStart, statementEnd, unfinished, makeSavedEditsSafe, freshSavedEdits, changedBlock, matchingLine } };
+module.exports = { activate, deactivate, _test: { blank, unterminatedQuote, statementStart, statementEnd, unfinished, makeSavedEditsSafe, freshSavedEdits, changedBlock, matchingLine, sessionObjectAt } };

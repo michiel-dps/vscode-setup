@@ -24,10 +24,13 @@
     "editor.inlayHints.enabled": "offUnlessPressed",
     "editor.minimap.enabled": false,
     "[r]": {
-        "editor.inlineSuggest.enabled": false
+        "editor.inlineSuggest.enabled": false,
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true,
+        "editor.detectIndentation": false
     },
-    "r.consolePath": "C:\\Program Files\\R\\R-4.5.1\\bin\\R.exe",
-    "r.executablePath": "C:\\Program Files\\R\\R-4.5.1\\bin\\R.exe",
+    "r.consolePath": "C:\\Program Files\\R\\R-4.6.1\\bin\\R.exe",
+    "r.executablePath": "C:\\Program Files\\R\\R-4.6.1\\bin\\R.exe",
     "r.bracketedPaste": true,
     "r.sessionWatcher": true,
     "r.plot.backend": "httpgd",

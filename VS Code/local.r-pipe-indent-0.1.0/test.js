@@ -14,21 +14,30 @@ class Range {
     else { this.start = a; this.end = b; }
   }
   get isEmpty() { return this.start.line === this.end.line && this.start.character === this.end.character; }
+  contains(p) {
+    const afterStart = p.line > this.start.line || (p.line === this.start.line && p.character >= this.start.character);
+    const beforeEnd = p.line < this.end.line || (p.line === this.end.line && p.character <= this.end.character);
+    return afterStart && beforeEnd;
+  }
 }
+class Location { constructor(uri, range) { this.uri = uri; this.range = range; } }
 class Selection extends Range {
   constructor(a, b, c, d) { super(a, b, c, d); this.anchor = this.start; this.active = this.end; }
 }
 const state = { registered: {}, commands: [], warnings: [], answer: undefined, inserted: null, replaced: [], sent: null };
 const vscode = {
-  Position, Range, Selection,
+  Position, Range, Selection, Location,
+  TextEditorSelectionChangeKind: { Keyboard: 1, Mouse: 2, Command: 3 },
   window: {
     activeTextEditor: null,
     showWarningMessage: async (msg) => { state.warnings.push(msg); return state.answer; },
+    onDidChangeTextEditorSelection: (fn) => { state.onSelection = fn; return { dispose() {} }; },
   },
   commands: {
     registerCommand: (id, fn) => { state.registered[id] = fn; return { dispose() {} }; },
-    executeCommand: async (cmd) => {
+    executeCommand: async (cmd, arg) => {
       state.commands.push(cmd);
+      if (cmd === "r.workspaceViewer.view") state.viewed = arg.rootName;
       if (cmd === "r.runSelection") {            // what the R extension would see
         const s = vscode.window.activeTextEditor.selection;
         state.sent = s.isEmpty ? "cursor" : (s.start.line + 1) + "-" + (s.end.line + 1);
@@ -297,6 +306,70 @@ async function pipe(lineText, col) {
     const longFile = long.slice(0, 50).concat(["new"]).concat(long.slice(51, 300)).concat(["extra 1", "extra 2"]).concat(long.slice(300));
     check("400 lines, changes far apart", match(long, longFile, 200), 200);
     check("400 lines, below both changes", match(long, longFile, 350), 352);
+  }
+
+  console.log("--- Ctrl+click on a global object opens the data viewer (ctrlClick)");
+  {
+    const lines = [
+      'rent <- read_csv(file) %>%',
+      '    filter(price > 10)',
+      'x <- rent$price + n  # rent here is a comment',
+      'y <- "rent"',
+      'z <- dplyr::n()',
+    ];
+    const doc = {
+      uri: { toString: () => "file:///c/test.R" },
+      lineAt: (i) => ({ text: lines[i] }),
+      getText: (r) => lines[r.start.line].slice(r.start.character, r.end.character),
+      getWordRangeAtPosition: (p, re) => {
+        const g = new RegExp(re.source, "g");
+        let m;
+        while ((m = g.exec(lines[p.line])) !== null) {
+          if (m.index <= p.character && p.character <= m.index + m[0].length) return new Range(p.line, m.index, p.line, m.index + m[0].length);
+        }
+        return undefined;
+      },
+    };
+    const session = { workspaceData: { globalenv: { rent: {}, price: {}, n: {}, file: {} } } };
+    const ctrl = state.registered["rPipeIndent.ctrlClick"];
+    function mouseClick(line, col) {
+      state.onSelection({ kind: 2, textEditor: { document: doc }, selections: [new Selection(line, col, line, col)] });
+    }
+    function ask(line, col, s = session) {
+      state.viewed = undefined;
+      const answer = ctrl(doc, new Position(line, col), s);
+      if (answer === undefined) return "language server";
+      if (answer.length === 0) return "viewed " + state.viewed;
+      return "underline " + doc.getText(answer[0].range);
+    }
+    check("Ctrl+hover on rent: underline only", ask(0, 2), "underline rent");
+    mouseClick(0, 2);
+    check("Ctrl+click on rent: viewer", ask(0, 2), "viewed rent");
+    check("same click asked again: underline only", ask(0, 2), "underline rent");
+    mouseClick(1, 4);
+    check("click on filter (a function, not global): language server", ask(1, 4), "language server");
+    mouseClick(1, 12);
+    check("Ctrl+click on price, a global: viewer", ask(1, 12), "viewed price");
+    mouseClick(2, 10);
+    check("price after $: language server", ask(2, 10), "language server");
+    mouseClick(2, 5);
+    check("rent before $: viewer", ask(2, 5), "viewed rent");
+    mouseClick(2, 24);
+    check("rent in a comment: language server", ask(2, 24), "language server");
+    mouseClick(3, 7);
+    check("rent in a string: language server", ask(3, 7), "language server");
+    mouseClick(4, 12);
+    check("dplyr::n: language server", ask(4, 12), "language server");
+    mouseClick(0, 2);
+    check("no R session: language server", ask(0, 2, null), "language server");
+    check("workspace unavailable: language server", ask(0, 2, { workspaceUnavailable: true, workspaceData: session.workspaceData }), "language server");
+    mouseClick(0, 2);
+    const now = Date.now;
+    Date.now = () => now() + 5000;
+    check("request long after the click (a hover): underline only", ask(0, 2), "underline rent");
+    Date.now = now;
+    mouseClick(0, 18);
+    check("click on file, then Ctrl+hover on rent: underline only", ask(0, 2), "underline rent");
   }
 
   console.log("\n" + passed + " passed, " + failed + " failed");

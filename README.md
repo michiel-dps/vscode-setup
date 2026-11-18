@@ -54,6 +54,12 @@ setup.
 Change the real files on the computer, not the copies here: SAVE overwrites
 the copies.
 
+**Two computers** (18 Nov 2026): SAVE copies a file only when it is newer on
+this computer, deletes nothing here, and adds to the package and add-on lists.
+The newest change of each file wins. So before you change something on a
+computer, bring it up to date first: SAVE.cmd, then INSTALL.cmd. Details: the
+note, section 1.
+
 Change these four in this folder instead (SAVE leaves them alone):
 
 - `R\watch.R` and `R\Rprofile.R`: R uses them straight from here.

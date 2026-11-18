@@ -1,6 +1,6 @@
-Last change saved: 2026-11-18 11:30
+Last change saved: 2026-11-18 11:58
 Computer:          <computer>
 Home folder:       C:\Users\<you>
 Setup folder:      C:\Users\<you>\<Dropbox>\<name>\VS Code setup
-R folder:          C:\Program Files\R\R-4.5.1
-Python:            C:\Users\<you>\AppData\Local\Programs\Python\Python312\python.exe
+R folder:          C:\Program Files\R\R-4.6.1
+Python:            C:\Users\<you>\AppData\Local\Python\pythoncore-3.14-64\python.exe

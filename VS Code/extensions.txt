@@ -1,7 +1,7 @@
-# Every VS Code add-on on this computer. Written by save.ps1.
+# Every VS Code add-on on these computers. Written by save.ps1.
 # Add-ons from the Marketplace: id, version, pinned. INSTALL installs them.
 # Pinned add-ons are installed at this exact version and do not update by themselves.
-anthropic.claude-code                2.1.325
+anthropic.claude-code                2.1.327
 gerane.theme-idlefingers             0.0.5
 iamhyc.overleaf-workshop             0.15.10
 mechatroner.rainbow-csv              3.24.1

@@ -1,6 +1,6 @@
 #!/usr/bin/perl
-# Five fixes to the VS Code R extension (reditorsupport.r), applied by editing
-# its dist/extension.js (fixes 1-4) and dist/webviews/httpgd/index.js (fix 5).
+# Six fixes to the VS Code R extension (reditorsupport.r), applied by editing
+# its dist/extension.js (fixes 1-4 and 6) and dist/webviews/httpgd/index.js (fix 5).
 # Re-run after the R extension updates itself (the
 # folder reditorsupport.r-x.y.z gets a new version number). Idempotent: each
 # fix is skipped when it is already in place.
@@ -13,7 +13,9 @@
 #    stretched to the window (the toolbar buttons still switch per table).
 # 2. Completion: the session popup with column names (inside a pipe, e.g.
 #    rename(look = lookout, |) ) comes after ", " (comma space), not right
-#    after the comma. The popup after "(" "[" "$" "@" is unchanged.
+#    after the comma, and also after "= " "== " "< " "> " "& " "| " "%in% "
+#    (mutate(x = |), filter(year == |)). The popup after "(" "[" "$" "@" is
+#    unchanged.
 # 3. Knit (Ctrl+Shift+K): a knitted PDF opens in the editor to the right of
 #    the .Rmd (Overleaf style); an open PDF tab there reloads by itself.
 # 4. Plots: a new plot (print(p), plot(x)) brings the R Plot tab to the front
@@ -23,6 +25,10 @@
 #    spot under the mouse, like the PDF viewer (patch-pdf-viewer.pl) and
 #    VS Code's PNG preview. Zoomed in: the wheel or a mouse drag moves the
 #    plot, a double-click zooms back out. A new plot starts unzoomed.
+# 6. Ctrl+click on a name in R's global environment (a table, a value, a
+#    function) opens it in the data viewer, like the eye button in the
+#    Workspace panel. Needs the Enter add-on (local.r-pipe-indent 0.5.4 or
+#    later), which decides. Other names keep Go to Definition.
 use strict; use warnings;
 my $ext = "$ENV{USERPROFILE}/.vscode/extensions";
 opendir(my $dh, $ext) or die "cannot open $ext";
@@ -57,19 +63,23 @@ if ($js =~ /patched: size to content by default/) {
 }
 
 # ---- 2. completion: column names after ", " instead of "," ----------------
-if ($js =~ /patched: column names after comma-space/) {
+# Since 18 Nov 2026 also after "= " "== " "< " "> " "& " "| " "%in% ", so
+# mutate(x = |) and filter(year == |) show the column names too.
+my $space_old = q~if(c===" "){if(!/,\s$/.test(e.lineAt(n.line).text.slice(0,n.character)))return s;c=","}/* patched: column names after comma-space */~;
+my $space_new = q~if(c===" "){if(!/(,|=|<|>|&|\||%in%)\s$/.test(e.lineAt(n.line).text.slice(0,n.character)))return s;c=","}/* patched: column names after comma-space and after = */~;
+if ($js =~ /patched: column names after comma-space and after =/) {
     print "completion fix: already in place\n";
+} elsif ($js =~ /patched: column names after comma-space/) {
+    replace_once($space_old, $space_new, "completion fix, after =");   # older patch: widen it
+    print "completion fix: widened to = == < > & | %in%\n"; $changed++;
 } else {
     # the session completion provider's trigger characters: drop "," add " "
     replace_once(
         q~let o=["","[","(",",","$","@",'"',"'"];return t.subscriptions.push(Je.languages.registerCompletionItemProvider(["r","rmd"],new Ly,...o))~,
         q~let o=["","[","(","$","@",'"',"'"," "];return t.subscriptions.push(Je.languages.registerCompletionItemProvider(["r","rmd"],new Ly,...o))~,
         "completion fix, trigger characters");
-    # a space counts as the comma trigger only when it follows a comma
-    replace_once(
-        q~let c=i.triggerCharacter;~,
-        q~let c=i.triggerCharacter;if(c===" "){if(!/,\s$/.test(e.lineAt(n.line).text.slice(0,n.character)))return s;c=","}/* patched: column names after comma-space */~,
-        "completion fix, provider");
+    # a space counts as the comma trigger only after a comma or a comparison
+    replace_once(q~let c=i.triggerCharacter;~, q~let c=i.triggerCharacter;~ . $space_new, "completion fix, provider");
     print "completion fix: applied\n"; $changed++;
 }
 
@@ -98,6 +108,21 @@ if ($js =~ /patched: a new plot brings the plot tab to the front/) {
         q~else{for(let u of this.plots)c.includes(u.id)?this.updatePlot(u):this.addPlot(u);this._focusPlot()}a.some(u=>!c.includes(u.id))&&this.webviewPanel?.reveal(void 0,!0)/* patched: a new plot brings the plot tab to the front */}updatePlot(e){~,
         "plot to front fix");
     print "plot to front fix: applied\n"; $changed++;
+}
+
+# ---- 6. Ctrl+click on a session object opens the data viewer ----------------
+if ($js =~ /patched: Ctrl\+click on a session object opens the data viewer/) {
+    print "Ctrl+click fix: already in place\n";
+} else {
+    # Before the language server answers a definition request (Ctrl+hover,
+    # Ctrl+click), ask the Enter add-on (command rPipeIndent.ctrlClick) with the
+    # document's R session (s0, as the session hover uses). Its answer
+    # undefined = let the language server answer as before.
+    replace_once(
+        q~middleware:{...Pte,provideSignatureHelp:async(j,V,Z,ce,fe)=>~,
+        q~middleware:{...Pte,provideDefinition:async(j,V,Z,ce)=>{let w;try{w=await hr.commands.executeCommand("rPipeIndent.ctrlClick",j,V,typeof s0=="function"?s0(j.uri):void 0)}catch(e){}return w===void 0?ce(j,V,Z):w}/* patched: Ctrl+click on a session object opens the data viewer */,provideSignatureHelp:async(j,V,Z,ce,fe)=>~,
+        "Ctrl+click fix");
+    print "Ctrl+click fix: applied\n"; $changed++;
 }
 
 if ($changed) {
