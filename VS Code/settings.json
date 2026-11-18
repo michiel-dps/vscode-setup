@@ -31,8 +31,16 @@
         "editor.inlineSuggest.enabled": false,
         "editor.tabSize": 2,
         "editor.insertSpaces": true,
-        "editor.detectIndentation": false
+        "editor.detectIndentation": false,
+        // No small colour square before "darkred": Color Highlight paints the word's background instead (18 Nov 2026)
+        "editor.colorDecorators": false
     },
+    // Color Highlight add-on (naumovs.color-highlight): colour names and #hex codes get their colour as background, in R files only
+    "color-highlight.markerType": "background",
+    "color-highlight.matchWords": true,
+    "color-highlight.languages": [
+        "r"
+    ],
     "r.consolePath": "C:\\Program Files\\R\\R-4.6.1\\bin\\R.exe",
     "r.executablePath": "C:\\Program Files\\R\\R-4.6.1\\bin\\R.exe",
     "r.bracketedPaste": true,

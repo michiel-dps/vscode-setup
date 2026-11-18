@@ -312,6 +312,18 @@ first the same day: too bright, "not the same shade as my tabs". He confirmed
 `#FFD16640` ("good like this", 10 Nov 2026): keep it. It is only the
 line between editor groups, not the edge of the side windows or the bottom panel.
 
+Colour names in R code (18 Nov 2026): in `scale_fill_gradient(low =
+"lightyellow", high = "darkred")` the word itself gets its colour as a
+background block, in place of VS Code's small colour square in front of it.
+He asked for this. Two parts: `"editor.colorDecorators": false` in the `[r]`
+block (the square comes from the R language server, VS Code cannot draw it as
+a background), and the add-on Color Highlight (`naumovs.color-highlight`) with
+`color-highlight.markerType` = `background`, `matchWords` = true (colour words
+like `darkred`, not only `#hex`) and `languages` = `["r"]` (so a word like
+"red" in his paper or a note is not painted). The add-on had to be installed
+by hand (Claude's install was blocked). Square back: delete the
+`editor.colorDecorators` line.
+
 ## 4. Keybindings (`%APPDATA%\Code\User\keybindings.json`)
 
 ```json
