@@ -52,6 +52,14 @@
 				"title": "Word Page: Quote Highlighted Text of the Claude Panel in Its Chat Box"
 			},
 			{
+				"command": "wordPage.editorSelectionToClaude",
+				"title": "Word Page: Selected Lines of a File to the Claude Chat Box"
+			},
+			{
+				"command": "wordPage.toClaudeTab",
+				"title": "Word Page: Go to a Claude Chat Tab (Not the Side Panel)"
+			},
+			{
 				"command": "wordPage.assistantCheckAll",
 				"title": "Word Page: Let Claude Read the Whole Document"
 			},

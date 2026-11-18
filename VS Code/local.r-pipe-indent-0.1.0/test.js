@@ -38,6 +38,7 @@ const vscode = {
     executeCommand: async (cmd, arg) => {
       state.commands.push(cmd);
       if (cmd === "r.workspaceViewer.view") state.viewed = arg.rootName;
+      if (cmd === "r.runCommand") state.viewed = "by " + arg;
       if (cmd === "r.runSelection") {            // what the R extension would see
         const s = vscode.window.activeTextEditor.selection;
         state.sent = s.isEmpty ? "cursor" : (s.start.line + 1) + "-" + (s.end.line + 1);
@@ -316,6 +317,7 @@ async function pipe(lineText, col) {
       'x <- rent$price + n  # rent here is a comment',
       'y <- "rent"',
       'z <- dplyr::n()',
+      'print(p) + print(old_plot) + print(map)',
     ];
     const doc = {
       uri: { toString: () => "file:///c/test.R" },
@@ -330,7 +332,12 @@ async function pipe(lineText, col) {
         return undefined;
       },
     };
-    const session = { workspaceData: { globalenv: { rent: {}, price: {}, n: {}, file: {} } } };
+    const session = { workspaceData: { globalenv: {
+      rent: { class: ["tbl_df", "tbl", "data.frame"] }, price: { class: "numeric" }, n: {}, file: { class: "character" },
+      p: { class: ["ggplot2::ggplot", "ggplot", "ggplot2::gg", "S7_object", "gg"] },
+      old_plot: { class: "recordedplot" },
+      map: { class: ["leaflet", "htmlwidget"] },
+    } } };
     const ctrl = state.registered["rPipeIndent.ctrlClick"];
     function mouseClick(line, col) {
       state.onSelection({ kind: 2, textEditor: { document: doc }, selections: [new Selection(line, col, line, col)] });
@@ -370,6 +377,13 @@ async function pipe(lineText, col) {
     Date.now = now;
     mouseClick(0, 18);
     check("click on file, then Ctrl+hover on rent: underline only", ask(0, 2), "underline rent");
+    check("Ctrl+hover on a ggplot: underline only", ask(5, 6), "underline p");
+    mouseClick(5, 6);
+    check("Ctrl+click on a ggplot: printed (R Plot tab)", ask(5, 6), "viewed by print(p)");
+    mouseClick(5, 20);
+    check("Ctrl+click on a saved base plot: printed", ask(5, 20), "viewed by print(old_plot)");
+    mouseClick(5, 36);
+    check("Ctrl+click on a leaflet map: printed", ask(5, 36), "viewed by print(map)");
   }
 
   console.log("\n" + passed + " passed, " + failed + " failed");

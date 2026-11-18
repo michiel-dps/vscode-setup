@@ -18,7 +18,7 @@ computer, `SAVE.cmd` copies this computer's setup into the folder.
 | `VS Code\extensions.txt` | every VS Code add-on on the computer, written by SAVE from `%USERPROFILE%\.vscode\extensions\extensions.json`. Marketplace add-ons first (id, version; `pinned` = installed at that exact version), which INSTALL installs. Then, since 10 Nov 2026, the own add-ons as `#` lines (id, version, where it comes from), so INSTALL skips them there: `local.r-pipe-indent` (INSTALL copies it), `local.claude-chat-opener` (INSTALL runs its `build.ps1`), `local.startup-screen` (personal: run its `build.ps1` by hand, section 5b), `local.word-page` (INSTALL runs its `build.ps1`, section 5c). Check against VS Code itself: `code --list-extensions --show-versions` |
 | `VS Code\patch-r-extension.pl` | six fixes to the R extension: data viewer columns sized to content, the column-name popup after `, ` (and after `= `, `== `, `%in% `, since 18 Nov 2026) instead of right after the comma, a knitted PDF opening in the editor to the right, a new plot bringing the R Plot tab to the front, Ctrl+wheel zoom on plots like a PDF, and Ctrl+click on a table or value opening it in the data viewer (18 Nov 2026, with the Enter add-on) (run again after every R extension update, section 6) |
 | `VS Code\patch-pdf-viewer.pl` | two fixes to the PDF viewer add-on `tomoki1207.pdf` (10 Nov 2026; zoom version 3 on 11 Nov 2026): Ctrl+wheel and touchpad pinch zoom smoothly in on the spot under the mouse (a pinch follows the fingers, the wheel glides); and a clean reload after each knit (run again after every update of that add-on, section 6b) |
-| `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.4); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; a stop button for R (18 Nov 2026); Ctrl+click on a table or value opens it in the data viewer (18 Nov 2026, with fix 6 of `patch-r-extension.pl`, section 6); shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo; Keep selects the kept lines), section 5 |
+| `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.5); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; a stop button for R (18 Nov 2026); Ctrl+click on a table or value opens it in the data viewer, a plot in the R Plot tab (18 Nov 2026, with fix 6 of `patch-r-extension.pl`, section 6); shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo; Keep selects the kept lines), section 5 |
 | `VS Code\local.startup-screen-0.1.0\` | the startup screen (6 Nov 2026): a short loading screen with a picture, a tip and the loading steps when VS Code starts; personal, left out of the GitHub copy; section 5b |
 | `VS Code\local.word-page-0.1.0\` | Word Page (11 Nov 2026): write like in Word or Google Docs inside VS Code. Quarto's visual editor as a white page with black text under any colour theme, "Word Page: New Document", citations from a `.bib` file and from Zotero; the file underneath is markdown (`.qmd`). Since 11 Nov 2026 the page looks like the PDF of a paper (LaTeX font, A4 margins, PDF heading sizes; setting `wordPage.look`). Its `bench\` is a test VS Code for Claude on its own, invisible Windows desktop; section 5c |
 | `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `awake\awake.py` (computer stays awake while Claude works, section 9), `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\` (the /chats add-on, which also makes code blocks in the Claude chat wrap, section 9), `memory\` (one folder per project) |
@@ -283,17 +283,26 @@ line between editor groups, not the edge of the side windows or the bottom panel
     { "key": "ctrl+enter",   "command": "rPipeIndent.runStatement",
       "when": "editorTextFocus && editorLangId == r && !editorReadonly" },
     { "key": "ctrl+numpad5", "command": "claude-vscode.sidebar.open" },
-    { "key": "ctrl+numpad5", "command": "runCommands",
-      "args": { "commands": [
-        "claude-vscode.sidebar.open",
-        "claude-vscode.insertAtMention" ] },
+    { "key": "ctrl+numpad5", "command": "wordPage.editorSelectionToClaude",
       "when": "editorTextFocus && editorHasSelection" },
     { "key": "ctrl+numpad5", "command": "wordPage.selectionToClaude",
       "when": "activeCustomEditorId == 'quarto.visualEditor' && !sideBarFocus && !auxiliaryBarFocus && !panelFocus" },
     { "key": "ctrl+numpad5", "command": "wordPage.browserToClaude",
       "when": "activeEditor == 'workbench.editor.browser' && !sideBarFocus && !auxiliaryBarFocus && !panelFocus" },
     { "key": "ctrl+numpad5", "command": "wordPage.chatSelectionToClaude",
+      "when": "activeWebviewPanelId == 'claudeVSCodePanel' && !sideBarFocus && !auxiliaryBarFocus && !panelFocus" },
+    { "key": "ctrl+numpad5", "command": "wordPage.chatSelectionToClaude",
       "when": "focusedView == 'claudeVSCodeSidebar' || focusedView == 'claudeVSCodeSidebarSecondary'" },
+    // Ctrl+Numpad1: the same six, each with "args": { "target": "tab" }, the
+    // first one being "wordPage.toClaudeTab" (18 Nov 2026)
+    { "key": "ctrl+numpad1", "command": "wordPage.toClaudeTab" },
+    { "key": "ctrl+numpad1", "command": "wordPage.editorSelectionToClaude",
+      "args": { "target": "tab" }, "when": "editorTextFocus && editorHasSelection" },
+    // ... selectionToClaude, browserToClaude, chatSelectionToClaude (twice) as above
+    { "key": "ctrl+numpad9", "command": "quarto.editInSourceMode",
+      "when": "activeCustomEditorId == 'quarto.visualEditor'" },
+    { "key": "ctrl+numpad9", "command": "quarto.editInVisualMode",
+      "when": "editorTextFocus && editorLangId == quarto" },
     { "key": "ctrl+numpad7", "command": "runCommands",
       "args": { "commands": [
         "workbench.action.focusSecondEditorGroup",
@@ -312,8 +321,9 @@ line between editor groups, not the edge of the side windows or the bottom panel
 | Ctrl+M | disabled (it toggled "Tab moves focus" by accident) |
 | Ctrl+Enter | run the statement at the cursor, or the selection widened to whole statements; refuses an unfinished statement with a yellow warning (section 5) |
 | (stop button) | the square at the top right of an R file and in the terminal panel: Ctrl+C to R, stops a running command (section 5, 18 Nov 2026) |
-| Ctrl+Numpad1 | a `.qmd`: Word Page ↔ plain text, both ways (section 5c; 16 Nov 2026). In the text you see Claude's edits red/green with Keep / Undo |
-| Ctrl+Numpad5 | jump to the **Claude Code** chat box in the side panel (opens it if closed). With lines highlighted in a file, it also types a reference to them into the message, e.g. `@code/04_maps.R#12-20` (file from the project folder, first-last line), so Claude reads exactly those lines; without a highlight it only jumps. Two entries for the same key: the plain one first, then one with `"when": "editorTextFocus && editorHasSelection"` that runs `claude-vscode.sidebar.open` and then `claude-vscode.insertAtMention` (the Claude add-on's own Alt+K command); the later entry wins when its `when` is true. The order inside matters: side panel first, because the add-on types the reference into every Claude chat that is visible at that moment (read in its code, version 2.1.322), so a Claude tab that is open next to the code gets the reference too; delete it there. A highlight on a Word Page is not an editor selection, so there a third entry (`"when": "activeCustomEditorId == 'quarto.visualEditor' ..."`, keyboard on the page) runs the Word Page add-on's own command, which does the same job in another way: section 5c, "Highlighted text to Claude". A highlight in the macro Tutor (VS Code's built-in browser, Ctrl+Numpad3) is not an editor selection either: a fourth entry (`"when": "activeEditor == 'workbench.editor.browser' ..."`) runs `wordPage.browserToClaude`, which pastes the highlighted piece, where it sits and its card into the chat box, ending "My question: " (section 5c, "Highlighted text in the built-in browser", 14 Nov 2026). A highlight inside the Claude side panel itself (a piece of an answer): a fifth entry (`"when": "focusedView == 'claudeVSCodeSidebar' || ..."`) runs `wordPage.chatSelectionToClaude`, which puts the piece back into the chat box as a quote (`> ...`) for a follow-up question (section 5c, "Highlighted text in the Claude panel", 14 Nov 2026). NumLock must be on (added 11 Nov 2026) |
+| Ctrl+Numpad9 | a `.qmd`: Word Page ↔ plain text, both ways (section 5c; 16 Nov 2026, on Ctrl+Numpad1 until 18 Nov 2026, when that key went to the Claude chat tab). In the text you see Claude's edits red/green with Keep / Undo |
+| Ctrl+Numpad1 | like Ctrl+Numpad5, but into a **Claude chat in an editor tab**, never the side panel (18 Nov 2026, his wish). Everything Ctrl+Numpad5 takes along comes along: highlighted lines in a file (`@file#12-20 `), a highlight on the Word Page, in the macro Tutor, in the side panel or in a chat tab (as a quote). Nothing highlighted: the keyboard only goes to that chat box. Which tab, in this order: (1) a chat tab in front in **another** editor window than the one with the keyboard, (2) a chat tab in front in this editor window (the keyboard is in it), (3) a chat tab behind another tab in another editor window, brought to the front, (4) one behind the file in this window, brought to the front, (5) none: a new chat tab in another editor window (or a new window beside), with the reference already in its box. Several in one step: the one used last. Section 5c, "Highlighted text to a Claude chat tab". The macro Tutor itself only copies its text on Ctrl+Numpad5 (its page code, H26 Macro project): there Ctrl+Numpad1 only goes to the tab. NumLock must be on |
+| Ctrl+Numpad5 | jump to the **Claude Code** chat box in the side panel (opens it if closed), **only ever the side panel** (since 18 Nov 2026). With lines highlighted in a file, it also types a reference to them into the message, e.g. `@code/04_maps.R#12-20 ` (file from the project folder, first-last line), so Claude reads exactly those lines. Without a highlight it only jumps. Two entries for the same key: the plain one first, then one with `"when": "editorTextFocus && editorHasSelection"` that runs `wordPage.editorSelectionToClaude`. The later entry wins when its `when` is true. Until 18 Nov 2026 that entry ran the Claude add-on's own `claude-vscode.insertAtMention`, but that one types the reference into **every** Claude chat that is visible at that moment (its function `G6`, read in version 2.1.327), so a Claude tab next to the code, or next to the `.qmd`, got it too (he noticed it in the `.qmd`). The Word Page command writes the reference itself (the same text, `@file#lines `) over the clipboard into the side panel only, puts the clipboard back, and undoes the paste should it ever land in the file. A highlight in a Claude chat **tab**: an entry with `"when": "activeWebviewPanelId == 'claudeVSCodePanel' ..."` quotes it into the side panel (18 Nov 2026). A highlight on a Word Page is not an editor selection, so there a third entry (`"when": "activeCustomEditorId == 'quarto.visualEditor' ..."`, keyboard on the page) runs the Word Page add-on's own command, which does the same job in another way: section 5c, "Highlighted text to Claude". A highlight in the macro Tutor (VS Code's built-in browser, Ctrl+Numpad3) is not an editor selection either: a fourth entry (`"when": "activeEditor == 'workbench.editor.browser' ..."`) runs `wordPage.browserToClaude`, which pastes the highlighted piece, where it sits and its card into the chat box, ending "My question: " (section 5c, "Highlighted text in the built-in browser", 14 Nov 2026). A highlight inside the Claude side panel itself (a piece of an answer): a fifth entry (`"when": "focusedView == 'claudeVSCodeSidebar' || ..."`) runs `wordPage.chatSelectionToClaude`, which puts the piece back into the chat box as a quote (`> ...`) for a follow-up question (section 5c, "Highlighted text in the Claude panel", 14 Nov 2026). NumLock must be on (added 11 Nov 2026) |
 | Ctrl+Numpad7 | new **Claude Code** chat as a tab in its own column on the right (runs on the Claude subscription): it first focuses the second editor group (VS Code makes one on the right if there is only one), then runs `claude-vscode.primaryEditor.open`, which opens in that active group (or in a column that already holds only Claude tabs) and, unlike `claude-vscode.editor.open`, does not switch `claudeCode.preferredLocation` from sidebar to panel. Changed 4 Nov 2026: it first opened VS Code's own Claude harness ("Claude copilot"), but that chat cannot send anything here: Copilot Free (`copilot token sku: free_limited_copilot`) offers it no Claude models, and Anthropic does not allow claude.ai subscription logins in Agent SDK products (Agent SDK overview page), so it would need an Anthropic API key or a paid Copilot plan. Old notes on that harness, kept for later: it first focuses the second editor group (VS Code makes one on the right if there is only one), then opens the chat there; if that column already shows a Claude chat, the new one replaces it in place (the old one stays in the sessions list). Layout: Claude Code in the left side bar, code + Claude chat in the middle, Copilot chat ("Chat"; VS Code cannot rename a view) in the right side bar. VS Code has only one chat view, which is why the Claude chat is an editor tab and not a second side bar. Session type `agent-host-claude` (VS Code's Agent Host; the same command as picking "Claude" in the chat's session-type menu). Needed `"chat.agentHost.claudeAgent.enabled": true` in settings.json; **removed again 5 Nov 2026**: with it on, the Copilot chat panel opened this Claude chat type (which cannot send) and the old Copilot chats dropped out of the sessions list. Do not turn it back on (the old name `github.copilot.chat.claudeAgent.enabled` no longer exists in VS Code 1.144). Who pays depends on the model picked in that chat: models from your own Anthropic login (VS Code tags them `anthropic`, "native") bill your Claude account; the others go through Copilot. While signed in to GitHub, Copilot is the default. Native models only appear after VS Code has downloaded the Claude Agent SDK (agenthost.log said "SDK not downloaded yet" on 4 Nov). Added 4 Nov 2026 |
 | Ctrl+Numpad8 | jump to the Copilot chat box in the side window (opens it if closed); NumLock must be on (added 4 Nov 2026) |
 | Ctrl+Numpad3 | open the macro Tutor (the study page for the macro exam, online on claude.ai) as a tab inside VS Code, in a column to the side, so it sits next to the Claude chat. Progress is saved to his account; Claude grading and "Ask Claude about this" work. It runs VS Code's own built-in browser (`workbench.action.browser.open`, in VS Code since 1.109; no add-on). `reuseUrlFilter` makes a second press jump to the tab that is already open instead of opening another one; `openToSide` puts it in the side column and locks that column (VS Code's own behaviour: files you open go to the other column). After Claude republishes the page: Ctrl+R in that tab. He asked for this on 13 Nov 2026 ("get it to my editor window") because switching between VS Code and claude.ai was a hassle; the default key Ctrl+Alt+/ did not open anything for him. The command id and its arguments were read from VS Code's own code (1.146), they are not in the documentation. Works, also the claude.ai login inside it (he confirmed 13 Nov 2026). NumLock must be on. A second key, Ctrl+Numpad9, opened the local copy `Study tool/ECON4310 Tutor.html` (no Claude, progress only in that browser); removed the same day at his request, Numpad3 is better (added 13 Nov 2026) |
@@ -1059,7 +1069,7 @@ page (the rules and fonts are then not even written into Quarto's file).
   `"workbench.editorAssociations"` has `"*.qmd": "quarto.visualEditor"` in
   settings.json. A `.md` never opens as a page by itself: right-click it,
   `Word Page: Open as Page`.
-- **Ctrl+Numpad1** switches between the page and the plain markdown text, both
+- **Ctrl+Numpad9** (Ctrl+Numpad1 until 18 Nov 2026) switches between the page and the plain markdown text, both
   ways (Quarto's `quarto.editInSourceMode` on the page,
   `quarto.editInVisualMode` in the text; keybindings.json, 16 Nov 2026). His
   Ctrl+Shift+F4 did nothing (probably the computer's F4 needs Fn).
@@ -1362,7 +1372,7 @@ saving from the page in the bench and comparing the file):
     Quarto's pages share one localStorage (VS Code gives a custom editor
     one fixed origin, the same in every window). Each page read the lists
     once when it opened and then wrote its own whole copy back, so with two
-    pages open (two tabs, two windows, a page reopened with Ctrl+Numpad1)
+    pages open (two tabs, two windows, a page reopened with Ctrl+Numpad9)
     the page that wrote last wiped the other's decisions. Now
     `addToStored` reads what is stored, adds the new item and writes the
     union, and a page takes in another page's decisions at once (the
@@ -1506,8 +1516,9 @@ Things to know.
 - The message "close this document tab and open it again" means the page was
   opened before the add-on had put its script block in (after a Quarto
   update, or right after a change to the add-on).
-- A Claude chat that is open as a tab does not get the reference (unlike the
-  key in a normal file): it goes to the side panel only.
+- A Claude chat that is open as a tab does not get the reference: it goes to
+  the side panel only (since 18 Nov 2026 also from a normal file). For a chat
+  tab, press Ctrl+Numpad1 instead (below).
 - One line per key press in `%TEMP%\word-page.log` (what was found, what was
   pasted, how long the copy and the panel took). Read that first when it
   "does nothing".
@@ -1558,9 +1569,49 @@ copies from a webview panel that has the keyboard (its "webview" copy
 handler). To tell "nothing highlighted" apart, the clipboard first gets a
 probe text: still the probe after 0.4 s = nothing copied, and the key only
 goes to the chat box, as before. Otherwise the quote is pasted with
-`pasteInChatBox` and the clipboard is put back as it was (text only). A
-Claude chat open as a tab (Ctrl+Numpad7) is not covered: the quote would go
-to the side panel. Log lines start with `chat:` in `%TEMP%\word-page.log`.
+`pasteInChatBox` and the clipboard is put back as it was (text only). Since
+18 Nov 2026 a highlight in a Claude chat **tab** works too (keybinding
+`activeWebviewPanelId == 'claudeVSCodePanel'`): Ctrl+Numpad5 quotes it into
+the side panel, Ctrl+Numpad1 into a chat tab. Log lines start with `chat:` in
+`%TEMP%\word-page.log`.
+
+**Highlighted text to a Claude chat tab: Ctrl+Numpad1** (18 Nov 2026, his
+wish: "a shortcut that moves focus to a Claude chat in one of the editor
+windows, with all the info about what is selected, as Ctrl+Numpad5 does for
+the side window. It can never go into the side window"). Every Ctrl+Numpad5
+entry in keybindings.json has a Ctrl+Numpad1 twin with `"args": { "target":
+"tab" }`, the plain one being `wordPage.toClaudeTab`. The commands read that
+argument (`targetOf`): `"tab"` goes through `goToChatTab`, which never opens
+the side panel. In `extension.js` part 4: `pickChatTab` chooses the tab in
+this order: a chat tab in front in another editor window than the one with
+the keyboard, then one in front in this window, then one behind another tab
+in another window, then one behind the file in this window. Several in one
+step: the one that had the keyboard last (`chatTabUsed`, kept from the tab
+events). A chat tab is a webview tab whose view type contains
+`claudeVSCodePanel`. `focusTab` gives its editor window the keyboard and
+brings it to the front (`workbench.action.focus<N>EditorGroup`, then
+`openEditorAtIndex`, as the Claude add-on does for a tab it reopens), and
+the chat box then has the keyboard: paste after 0.15 s. No chat tab at all:
+`claude-vscode.editor.open` with the text as its 2nd argument (Claude puts it
+into the new chat box with `setInputText` once the box has started, it is
+**not sent**) and the 5th argument `true`. Without that 5th argument the
+command also switches Claude's preferred place from side panel to tab
+(`setPreferredLocation("panel")`), as Ctrl+Numpad7's note says. The new tab
+goes into another editor window, or into a new one beside. Log lines in
+`%TEMP%\word-page.log`: `editor:` (a file), `tab:` (no highlight), and the
+usual `claude:`, `browser:`, `chat:` with the tab they went to. Checked in the
+bench on 18 Nov 2026 (11 cases: tab in front in the other window, hidden in
+the other window, hidden in this window, two tabs, no tab, no highlight, side
+panel open beside, quote from the side panel to a tab and from a tab to the
+side panel, Ctrl+Numpad5 with a tab visible now only in the side panel).
+**Not checked in the bench: the Word Page.** On the UiO computer the bench's
+Quarto finds no Quarto program (CLI), so it opens no page. The page path
+uses the same code as the checked ones, and the page script reacts to both
+keys (`CLAUDE_KEYS` in `inject\word-page.template.js`). A page opened before
+the update: close the tab and open it again. One bench run also showed the
+quote from the side panel go only to the tab, without the text, when the key
+came at once after a click from a chat tab into the side panel (VS Code had
+not yet noted where the keyboard was). The second try worked.
 
 **Test bench for Claude** (`bench\`). Claude cannot see the screen, so it
 tests in a second VS Code that nobody sees: `bench\launch.ps1` copies VS
@@ -1748,6 +1799,13 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
      object comes to the front. `watch.R` keeps the tab live as before. Other
      names (`filter`, `mutate`, a column after `$`, `dplyr::n`, words in a
      string or comment) keep Go to Definition from the language server.
+     **A plot object** (class `gg`/`ggplot`, `recordedplot`, `trellis`,
+     `patchwork`, `tmap`, or an `htmlwidget` such as leaflet or plotly) is
+     not sent to `View()` but printed: `print(p)` goes to the R terminal
+     (command `r.runCommand`) and the plot shows in the R Plot tab, which fix 4
+     brings to the front (a widget shows in the viewer tab). The class comes
+     from the R session's workspace data (`sess`, `get_workspace_data`).
+     Added the same day, add-on v0.5.5, log line `plot p (Ctrl+click)`.
      Ctrl+hover still underlines the name, but no longer shows where it was
      made. How: the patch makes the R extension ask the Enter add-on (section
      5, command `rPipeIndent.ctrlClick`, v0.5.4) before its language server
@@ -1758,7 +1816,7 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
      message). Needs a running R terminal that knows the object (run the line
      that makes it first); without one, Ctrl+click works as before. The log
      gets a `view rent (Ctrl+click)` line, or an `ERR  view` / `ERR  ctrlClick`
-     line. 15 offline checks in the add-on's `test.js`.
+     line. 19 offline checks in the add-on's `test.js`.
 - Picking a function from the autocomplete popup inserts `f()` as a snippet;
   the Enter extension works inside it too (its activation rule must NOT
   contain `!inSnippetMode`).
@@ -2075,7 +2133,7 @@ Tested with a test .bib in `code/test_code/bib_edit_test/`: the log shows
 
 **On a `.qmd` (16 Nov 2026):** the red/green and Keep / Undo work for `.qmd`
 too, but only in the plain text view: the Word Page (Quarto's visual editor,
-a web page) cannot draw them. **Ctrl+Numpad1** switches between the Word
+a web page) cannot draw them. **Ctrl+Numpad9** switches between the Word
 Page and the text view (Quarto's own key). Red/green on the Word Page itself
 is wanted, planned after the hand-in of 17 Nov 2026.
 

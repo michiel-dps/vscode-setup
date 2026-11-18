@@ -23,13 +23,7 @@
     },
     {
         "key": "ctrl+numpad5",
-        "command": "runCommands",
-        "args": {
-            "commands": [
-                "claude-vscode.sidebar.open",
-                "claude-vscode.insertAtMention"
-            ]
-        },
+        "command": "wordPage.editorSelectionToClaude",
         "when": "editorTextFocus && editorHasSelection"
     },
     {
@@ -45,15 +39,54 @@
     {
         "key": "ctrl+numpad5",
         "command": "wordPage.chatSelectionToClaude",
+        "when": "activeWebviewPanelId == 'claudeVSCodePanel' && !sideBarFocus && !auxiliaryBarFocus && !panelFocus"
+    },
+    {
+        "key": "ctrl+numpad5",
+        "command": "wordPage.chatSelectionToClaude",
         "when": "focusedView == 'claudeVSCodeSidebar' || focusedView == 'claudeVSCodeSidebarSecondary'"
     },
     {
         "key": "ctrl+numpad1",
+        "command": "wordPage.toClaudeTab"
+    },
+    {
+        "key": "ctrl+numpad1",
+        "command": "wordPage.editorSelectionToClaude",
+        "args": { "target": "tab" },
+        "when": "editorTextFocus && editorHasSelection"
+    },
+    {
+        "key": "ctrl+numpad1",
+        "command": "wordPage.selectionToClaude",
+        "args": { "target": "tab" },
+        "when": "activeCustomEditorId == 'quarto.visualEditor' && !sideBarFocus && !auxiliaryBarFocus && !panelFocus"
+    },
+    {
+        "key": "ctrl+numpad1",
+        "command": "wordPage.browserToClaude",
+        "args": { "target": "tab" },
+        "when": "activeEditor == 'workbench.editor.browser' && !sideBarFocus && !auxiliaryBarFocus && !panelFocus"
+    },
+    {
+        "key": "ctrl+numpad1",
+        "command": "wordPage.chatSelectionToClaude",
+        "args": { "target": "tab" },
+        "when": "activeWebviewPanelId == 'claudeVSCodePanel' && !sideBarFocus && !auxiliaryBarFocus && !panelFocus"
+    },
+    {
+        "key": "ctrl+numpad1",
+        "command": "wordPage.chatSelectionToClaude",
+        "args": { "target": "tab" },
+        "when": "focusedView == 'claudeVSCodeSidebar' || focusedView == 'claudeVSCodeSidebarSecondary'"
+    },
+    {
+        "key": "ctrl+numpad9",
         "command": "quarto.editInSourceMode",
         "when": "activeCustomEditorId == 'quarto.visualEditor'"
     },
     {
-        "key": "ctrl+numpad1",
+        "key": "ctrl+numpad9",
         "command": "quarto.editInVisualMode",
         "when": "editorTextFocus && editorLangId == quarto"
     },

@@ -63,7 +63,7 @@
   // The memory of Accept and Decline is shared by every open page (one localStorage for all of
   // Quarto's pages, in every window). Each page used to read it once when it opened and then
   // write its own whole list back, so with two pages (two tabs, two windows, a page reopened
-  // with Ctrl+Numpad1) the last one to write wiped the decisions made in the other, and those
+  // with the page/text key, Ctrl+Numpad9) the last one to write wiped the decisions made in the other, and those
   // suggestions came back (18 Nov 2026, asked: "proposals I had already declined or accepted
   // came back"). Now every write first takes in what is stored, adds the new item and writes
   // the union, and a page hears of another page's decisions at once (the "storage" event).
@@ -551,7 +551,7 @@
     var white = '<button data-do="';
     if (s.kind === "edit") {
       // Accept keeps Claude's words; Decline puts the old words back (no Decline when the page
-      // cannot do that, e.g. bold or code: then Ctrl+Z in the text view, Ctrl+Numpad1)
+      // cannot do that, e.g. bold or code: then Ctrl+Z in the text view, Ctrl+Numpad9)
       return green + 'close"' + at + ">Accept</button>" + (s.undo ? white + 'apply"' + at + ">Decline</button>" : "");
     }
     return (s.note ? "" : green + 'apply"' + at + ">Accept</button>") + white + 'close"' + at + ">Decline</button>";

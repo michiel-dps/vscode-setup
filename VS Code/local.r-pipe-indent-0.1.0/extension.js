@@ -947,7 +947,9 @@ async function stageChangeStay(uri, changes, index) {
 // Ctrl+click on a name that is in R's global environment (a table, a value, a
 // list, a function) opens it in the data viewer, exactly as the eye button in
 // the Workspace panel does: same command, so the same place (the second editor
-// window, made if it is not open). Other names keep Go to Definition. (18 Nov 2026)
+// window, made if it is not open). A plot object (a ggplot) is printed instead,
+// so it shows in the R Plot tab (see isPlot). Other names keep Go to
+// Definition. (18 Nov 2026)
 //
 // The R extension asks us first, before its language server answers a
 // definition request (patch-r-extension.pl, fix 6). VS Code sends such a
@@ -982,7 +984,18 @@ function sessionObjectAt(doc, pos, session) {
   if (/(\$|@|::)$/.test(before)) return null;   // x$name, dplyr::name: not the global object
   const name = doc.getText(range);
   if (!Object.prototype.hasOwnProperty.call(data.globalenv, name)) return null;
-  return { name, range };
+  return { name, range, plot: isPlot(data.globalenv[name]) };
+}
+
+// A plot object (a ggplot, a saved base plot, lattice, tmap, a leaflet or
+// plotly widget) is shown by print(), in the R Plot tab or the viewer, not by
+// View(). The R session sends each object's class (one name, or a list).
+const PLOT_CLASSES = ["gg", "ggplot", "ggplot2::ggplot", "recordedplot", "trellis", "patchwork", "tmap", "htmlwidget"];
+
+function isPlot(info) {
+  if (!info || info.class === undefined || info.class === null) return false;
+  const classes = Array.isArray(info.class) ? info.class : String(info.class).split(", ");
+  return classes.some((c) => PLOT_CLASSES.includes(c));
 }
 
 function ctrlClick(doc, pos, session) {
@@ -995,6 +1008,14 @@ function ctrlClick(doc, pos, session) {
     Date.now() - click.time < CLICK_WINDOW_MS;
   if (!isClick) return [new vscode.Location(doc.uri, found.range)];
   click.used = true;
+  if (found.plot) {
+    // print(p) in the R terminal: the plot shows in the R Plot tab (fix 4 of
+    // patch-r-extension.pl brings that tab to the front)
+    vscode.commands.executeCommand("r.runCommand", "print(" + found.name + ")").then(
+      () => log("plot " + found.name + " (Ctrl+click)"),
+      (e) => log("ERR  plot " + found.name + " | " + (e && e.message ? e.message : e)));
+    return [];
+  }
   const node = { owner: session, rootName: found.name, objectPath: [] };   // what the Workspace panel passes
   vscode.commands.executeCommand("r.workspaceViewer.view", node).then(
     () => log("view " + found.name + " (Ctrl+click)"),
@@ -1036,7 +1057,7 @@ function activate(context) {
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.ctrlClick", ctrlClickLogged));
   context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(noteMouseClick));
   try { activateClaudeEdits(context); } catch (e) { log("ERR  edits " + (e && e.stack ? e.stack : e)); }
-  log("activated 0.5.4 (Ctrl+click opens a global object in the data viewer, 18 Nov 2026)");
+  log("activated 0.5.5 (Ctrl+click opens a global object in the data viewer, a plot in the R Plot tab, 18 Nov 2026)");
 }
 
 function deactivate() {}

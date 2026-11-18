@@ -66,11 +66,12 @@
   // after it, so the add-on can find the lines in the .qmd file. The command then pastes
   // a reference ("@file#lines ...") into the Claude chat box; should that paste ever land
   // on the page instead, it is stopped here. Every other copy and paste works as always.
-  var CLAUDE_KEY = "Numpad5";      // the key of Ctrl+Numpad5
-  var claudeKeyAt = 0;             // when that key was last pressed on this page
+  // Ctrl+Numpad1 does the same into a Claude chat tab (18 Nov 2026)
+  var CLAUDE_KEYS = ["Numpad5", "Numpad1"];   // Ctrl+Numpad5 (side panel), Ctrl+Numpad1 (chat tab)
+  var claudeKeyAt = 0;             // when one of those keys was last pressed on this page
   var claudeCopyDone = true;
   window.addEventListener("keydown", function (event) {
-    if (event.ctrlKey && !event.shiftKey && !event.altKey && event.code === CLAUDE_KEY) {
+    if (event.ctrlKey && !event.shiftKey && !event.altKey && CLAUDE_KEYS.indexOf(event.code) >= 0) {
       claudeKeyAt = Date.now();
       claudeCopyDone = false;
     }

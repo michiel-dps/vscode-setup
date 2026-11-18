@@ -152,7 +152,7 @@ check("strip refuses a block without end", (() => { try { patch.strip(patch.STAR
 
 // the script block also answers the add-on's copy for Claude, and stops a stray paste
 check("script block listens for the Claude key, a copy and a paste",
-  blocks.js.includes('"Numpad5"') && blocks.js.includes('addEventListener("copy"') && blocks.js.includes('addEventListener("paste"'));
+  blocks.js.includes('"Numpad5"') && blocks.js.includes('"Numpad1"') && blocks.js.includes('addEventListener("copy"') && blocks.js.includes('addEventListener("paste"'));
 
 // ---- mention.js: the reference for the Claude chat box ----
 const mention = require("./mention");

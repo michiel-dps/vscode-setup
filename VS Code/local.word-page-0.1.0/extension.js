@@ -13,7 +13,8 @@
 //   3. the first .qmd of a session also opens as a page (Quarto itself only does
 //      that for the files opened after it has started);
 //   4. Ctrl+Numpad5 on a page puts a reference to the highlighted text into the
-//      Claude chat box (mention.js finds its lines in the .qmd file);
+//      Claude chat box (mention.js finds its lines in the .qmd file). Ctrl+Numpad1
+//      does the same into a Claude chat in an editor tab (18 Nov 2026);
 //   5. the page ends of the PDF on the page: each time the PDF next to an open page
 //      changes, pdfpages.py reads where its pages start, and the page draws a
 //      dashed line there;
@@ -52,6 +53,11 @@ function activate(context) {
     vscode.commands.registerCommand("wordPage.selectionToClaude", selectionToClaude),
     vscode.commands.registerCommand("wordPage.browserToClaude", browserToClaude),
     vscode.commands.registerCommand("wordPage.chatSelectionToClaude", chatSelectionToClaude),
+    vscode.commands.registerCommand("wordPage.editorSelectionToClaude", editorSelectionToClaude),
+    vscode.commands.registerCommand("wordPage.toClaudeTab", () => goToChat("tab")),
+    // which Claude chat tab was used last (Ctrl+Numpad1 picks that one first)
+    vscode.window.tabGroups.onDidChangeTabs((change) => { noteChatTabs([...change.opened, ...change.changed]); }),
+    vscode.window.tabGroups.onDidChangeTabGroups((change) => { noteChatTabs(change.changed.map((group) => group.activeTab).filter(Boolean)); }),
     // Quarto was updated or installed: its new files do not have the page yet
     vscode.extensions.onDidChange(() => refresh(false)),
     vscode.workspace.onDidChangeConfiguration((change) => {
@@ -352,9 +358,120 @@ async function answerOfPage(ms) {
   }
 }
 
+// ---- where the text goes: the side panel or a chat tab (18 Nov 2026) ----------------
+// Ctrl+Numpad5 = the Claude side panel, never a chat tab. Ctrl+Numpad1 = a Claude chat
+// in an editor tab, never the side panel. The keys pass { "target": "tab" } for the
+// tab (keybindings.json). Which tab, in this order:
+//   1. a chat tab in front in ANOTHER editor window than the one with the keyboard
+//   2. a chat tab in front in this editor window (the keyboard is in that chat)
+//   3. a chat tab behind another tab in another editor window (brought to the front)
+//   4. a chat tab behind the file in this editor window (brought to the front)
+//   5. none: a new chat tab, in another editor window (or a new one beside this one)
+// Several in the same step: the one used last.
+const CLAUDE_TAB = "claudeVSCodePanel";     // part of the view type of a Claude chat tab
+const FOCUS_GROUP = ["First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth"]
+  .map((n) => "workbench.action.focus" + n + "EditorGroup");
+const chatTabUsed = new Map();   // "column|title" of a chat tab -> when it last had the keyboard
+
+function targetOf(args) {
+  return args && args.target === "tab" ? "tab" : "panel";
+}
+
+function isChatTab(tab) {
+  return tab.input instanceof vscode.TabInputWebview && tab.input.viewType.includes(CLAUDE_TAB);
+}
+
+function tabKey(tab) {
+  return tab.group.viewColumn + "|" + tab.label;
+}
+
+function noteChatTabs(tabs) {
+  for (const tab of tabs) {
+    if (isChatTab(tab) && tab.isActive && tab.group.isActive) { chatTabUsed.set(tabKey(tab), Date.now()); }
+  }
+}
+
+function pickChatTab() {
+  const here = vscode.window.tabGroups.activeTabGroup.viewColumn;
+  const tabs = vscode.window.tabGroups.all.flatMap((group) => group.tabs.filter(isChatTab));
+  const steps = [
+    ["in front in another editor window", (t) => t.isActive && t.group.viewColumn !== here],
+    ["in front in this editor window", (t) => t.isActive && t.group.viewColumn === here],
+    ["behind another tab in another editor window", (t) => !t.isActive && t.group.viewColumn !== here],
+    ["behind the file in this editor window", (t) => !t.isActive && t.group.viewColumn === here],
+  ];
+  const lastUsed = (t) => chatTabUsed.get(tabKey(t)) || 0;
+  for (const [why, fits] of steps) {
+    const found = tabs.filter(fits).sort((a, b) => lastUsed(b) - lastUsed(a));
+    if (found.length > 0) { return { tab: found[0], why: why }; }
+  }
+  return null;
+}
+
+// Bring a tab to the front of its editor window and give that window the keyboard
+// (as the Claude add-on does itself for a tab it reopens).
+async function focusTab(tab) {
+  const focusGroup = FOCUS_GROUP[tab.group.viewColumn - 1];
+  if (!focusGroup) { return false; }
+  await vscode.commands.executeCommand(focusGroup);
+  const group = vscode.window.tabGroups.all.find((g) => g.viewColumn === tab.group.viewColumn);
+  // the tab itself, else the first chat tab with its title (two new chats are both "Claude Code")
+  let index = group ? group.tabs.indexOf(tab) : -1;
+  if (index < 0 && group) { index = group.tabs.findIndex((t) => isChatTab(t) && t.label === tab.label); }
+  if (index < 0) { return false; }
+  await vscode.commands.executeCommand("workbench.action.openEditorAtIndex", index);
+  for (let waited = 0; waited < 1000; waited += 50) {
+    if (group.tabs[index] && group.tabs[index].isActive) { return true; }
+    await pause(50);
+  }
+  return false;
+}
+
+// Go to a Claude chat tab (never the side panel). Returns words for the log; they
+// start with "new" when the tab was just made. A new tab gets `text` as its first
+// text: Claude puts it into the chat box once the box has started (setInputText,
+// it is not sent), so nothing has to be pasted and no start time guessed.
+async function goToChatTab(text) {
+  const picked = pickChatTab();
+  if (picked) {
+    const ok = await focusTab(picked.tab);
+    noteChatTabs([picked.tab]);
+    return "tab \"" + picked.tab.label + "\" (" + picked.why + ")" + (ok ? "" : ", NOT brought to the front");
+  }
+  // no chat tab: a new one, in another editor window, or a new window beside this one.
+  // Opened the way Ctrl+Numpad4 does (5th argument true): a plain "open in new tab"
+  // would also change Claude's preferred place from the side panel to a tab.
+  const here = vscode.window.tabGroups.activeTabGroup.viewColumn;
+  const other = vscode.window.tabGroups.all.find((g) => g.viewColumn !== here);
+  const column = other ? other.viewColumn : vscode.ViewColumn.Beside;
+  await vscode.commands.executeCommand("claude-vscode.editor.open", undefined, text || undefined, column, undefined, true);
+  return "new chat tab in " + (other ? "editor window " + column : "a new editor window beside") + (text ? ", with the text" : "");
+}
+
+// Go to the chat box the key is for, without pasting (nothing highlighted).
+async function goToChat(target) {
+  if (target === "tab") {
+    const how = await goToChatTab();
+    log("tab: went to " + how);
+    return;
+  }
+  await vscode.commands.executeCommand(CLAUDE_PANEL);
+}
+
 // Go to the Claude chat box and paste what is on the clipboard there.
 // Returns a few words for the log: how long the panel took.
-async function pasteInChatBox() {
+async function pasteInChatBox(target) {
+  if (target === "tab") {
+    const how = await goToChatTab(await vscode.env.clipboard.readText());
+    if (how.startsWith("new")) {
+      await pause(300);                  // a new tab got the text itself
+      return how;
+    }
+    await pause(150);                    // the chat box takes the keyboard a moment after its tab
+    await vscode.commands.executeCommand("editor.action.clipboardPasteAction");
+    await pause(300);
+    return how;
+  }
   const opening = Date.now();
   await vscode.commands.executeCommand(CLAUDE_PANEL);
   const panelTime = Date.now() - opening;
@@ -382,7 +499,8 @@ async function pasteInChatBox() {
 const BROWSER_MARK = "[to Claude chat]\n";
 const BROWSER_WAIT = 400;      // ms: the page copies before VS Code gets the key, so it is usually there at once
 
-async function browserToClaude() {
+async function browserToClaude(args) {
+  const target = targetOf(args);
   const clipboard = vscode.env.clipboard;
   const started = Date.now();
   let text = null;
@@ -394,12 +512,12 @@ async function browserToClaude() {
   }
   try {
     if (text === null) {
-      await vscode.commands.executeCommand(CLAUDE_PANEL);
-      log("browser: nothing came from the page, only went to the chat box");
+      await goToChat(target);
+      log("browser: nothing came from the page, only went to the chat box (" + target + ")");
       return;
     }
     await clipboard.writeText(text);       // without the mark, so a later press does not paste it again
-    const how = await pasteInChatBox();
+    const how = await pasteInChatBox(target);
     log("browser: pasted " + text.length + " characters (wait " + (Date.now() - started) + " ms in all, " + how + ")");
   } catch (err) {
     log("browser: error " + (err && err.message ? err.message : err));
@@ -416,7 +534,8 @@ async function browserToClaude() {
 // The clipboard is put back afterwards (text only).
 const CHAT_COPY_WAIT = 400;    // ms: the panel copies a moment after the command
 
-async function chatSelectionToClaude() {
+async function chatSelectionToClaude(args) {
+  const target = targetOf(args);
   const clipboard = vscode.env.clipboard;
   const old = await clipboard.readText();
   const probe = "word-page probe " + Date.now();
@@ -432,13 +551,13 @@ async function chatSelectionToClaude() {
     const piece = copied === probe ? "" : copied.replace(/\r\n/g, "\n").trim();
     if (!piece) {
       await clipboard.writeText(old);
-      await vscode.commands.executeCommand(CLAUDE_PANEL);
-      log("chat: nothing highlighted in the panel, only went to the chat box");
+      await goToChat(target);
+      log("chat: nothing highlighted in the chat, only went to the chat box (" + target + ")");
       return;
     }
     const quote = piece.split("\n").map((line) => "> " + line).join("\n") + "\n\n";
     await clipboard.writeText(quote);
-    const how = await pasteInChatBox();
+    const how = await pasteInChatBox(target);
     log("chat: quoted " + piece.length + " characters (copy " + (Date.now() - started) + " ms in all, " + how + ")");
   } catch (err) {
     log("chat: error " + (err && err.message ? err.message : err));
@@ -448,11 +567,12 @@ async function chatSelectionToClaude() {
   }
 }
 
-async function selectionToClaude() {
+async function selectionToClaude(args) {
+  const target = targetOf(args);
   const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
   const onPage = tab && tab.input instanceof vscode.TabInputCustom && tab.input.viewType === VISUAL_EDITOR;
   if (!onPage) {
-    await vscode.commands.executeCommand(CLAUDE_PANEL);
+    await goToChat(target);
     return;
   }
   const clipboard = vscode.env.clipboard;
@@ -476,8 +596,8 @@ async function selectionToClaude() {
         vscode.window.showInformationMessage("Word Page: close this document tab and open it again. After that, Ctrl+Numpad5 takes the highlighted text along to Claude.");
         log("claude: plain copy, the page has no answer block yet");
       }
-      if (panelFirstOpened === 0) { panelFirstOpened = Date.now(); }
-      await vscode.commands.executeCommand(CLAUDE_PANEL);
+      if (target === "panel" && panelFirstOpened === 0) { panelFirstOpened = Date.now(); }
+      await goToChat(target);
       picked = await answerOfPage(2500);     // a busy computer: the answer can still come
       if (!picked) {
         if (now === old) { log("claude: nothing highlighted"); }
@@ -499,7 +619,7 @@ async function selectionToClaude() {
     // 3. paste it into the chat box
     try {
       await clipboard.writeText(reference);
-      const how = await pasteInChatBox();
+      const how = await pasteInChatBox(target);
       log("claude: " + (lines ? "lines " + lines.first + "-" + lines.last : "no lines found") +
         ", pasted " + JSON.stringify(reference) + " (copy " + copyTime + " ms, " + how + ")");
     } finally {
@@ -508,6 +628,52 @@ async function selectionToClaude() {
   } catch (err) {
     log("claude: error " + (err && err.message ? err.message : err));
     vscode.window.showWarningMessage("Word Page: could not send the highlighted text to Claude. " + (err && err.message ? err.message : err));
+  }
+}
+
+// ---- 4d. a selection in a normal file: an R script, the .qmd as text (18 Nov 2026) ----
+// Claude's own command for this (claude-vscode.insertAtMention) sends "@file#lines" to
+// EVERY Claude chat that can be seen at that moment: the side panel and a chat tab next
+// to the file alike. So with a chat tab open, Ctrl+Numpad5 also wrote into that tab
+// (noticed in the .qmd). This command writes the same reference into the one chat the
+// key is for, over the clipboard, which is put back afterwards (text only). Should the
+// paste land in the file after all (the chat did not take the keyboard), it is undone.
+async function editorSelectionToClaude(args) {
+  const target = targetOf(args);
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.selection.isEmpty) {
+    await goToChat(target);
+    return;
+  }
+  const file = vscode.workspace.asRelativePath(editor.document.fileName);
+  if (file.includes("#") || file.includes('"')) {
+    vscode.window.showWarningMessage("Claude cannot take a reference to a file with # or \" in its name: " + file);
+    await goToChat(target);
+    return;
+  }
+  const selection = editor.selection;
+  let last = selection.end.line;
+  if (selection.end.character === 0 && last > selection.start.line) { last--; }   // ends at the start of a line: that line is not selected
+  const reference = mention.buildMention(file, { first: selection.start.line + 1, last: last + 1 }, "");
+  const document = editor.document;
+  const version = document.version;
+  const clipboard = vscode.env.clipboard;
+  const old = await clipboard.readText();
+  try {
+    await clipboard.writeText(reference);
+    const how = await pasteInChatBox(target);
+    if (document.version !== version && document.getText().includes(reference.trim())) {
+      await vscode.commands.executeCommand("undo");
+      log("editor: the paste landed in " + file + " and was undone (" + how + ")");
+      vscode.window.showWarningMessage("The Claude chat did not take the keyboard in time. Press the key again.");
+      return;
+    }
+    log("editor: pasted " + JSON.stringify(reference) + " (" + target + ", " + how + ")");
+  } catch (err) {
+    log("editor: error " + (err && err.message ? err.message : err));
+    vscode.window.showWarningMessage("Could not send the selection to Claude. " + (err && err.message ? err.message : err));
+  } finally {
+    await clipboard.writeText(old);
   }
 }
 

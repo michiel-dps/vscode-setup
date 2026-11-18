@@ -173,7 +173,8 @@ def main():
         mods = sys.argv[3].split(",") if len(sys.argv) > 3 else []
         m = (1 if "alt" in mods else 0) | (2 if "ctrl" in mods else 0) | (8 if "shift" in mods else 0)
         codes = {"F4": 115, "Enter": 13, "Escape": 27, "Tab": 9, "F1": 112, "F8": 119, "Backspace": 8,
-                 "ArrowDown": 40, "ArrowUp": 38, "End": 35, "Home": 36, "Numpad5": 101}
+                 "ArrowDown": 40, "ArrowUp": 38, "End": 35, "Home": 36, "Numpad5": 101,
+                 "Numpad1": 97, "Numpad4": 100, "Numpad9": 105}
         vk = codes.get(key, ord(key.upper()) if len(key) == 1 else 0)
         code = key if len(key) > 1 else "Key" + key.upper()
         # with Shift a real keyboard reports the capital letter ("K", not "k"); the page editor
