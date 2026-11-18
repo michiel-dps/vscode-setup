@@ -685,7 +685,16 @@ A click or any key stops it at once and goes to VS Code.
   Code offer "C# Dev Kit": say no. It was installed on 6 Nov 2026 (with
   `ms-dotnettools.csharp` and `ms-dotnettools.vscode-dotnet-runtime`) and
   removed the same day, because its only effect was the message "The .NET SDK
-  cannot be located ... .NET debugging will not be enabled".
+  cannot be located ... .NET debugging will not be enabled". It came back on
+  18 Nov 2026 at 16:52 (all three, most likely through that same offer while a
+  Claude chat had a `.cs` file open) and gave the popup "Error acquiring
+  .NET": each time a `.cs` file opened, the C# add-on looked for .NET 10.0.5,
+  did not accept the 10.0.11 on the computer, tried to download its own copy and
+  gave up after 30 seconds (`C#.log`: "Could not resolve the dotnet path!").
+  Removed again the same evening with `code --uninstall-extension
+  ms-dotnettools.csdevkit` (that takes the C# add-on with it) and
+  `... ms-dotnettools.vscode-dotnet-runtime`, and their three lines were taken
+  out of `VS Code\extensions.txt` by hand, because SAVE only adds to that list.
 - **After a change**: run `build.ps1` in the add-on folder. It stops the
   helper, packs `startup-screen.vsix` and installs it with
   `code --install-extension`, builds the helper, makes the Startup shortcut
