@@ -393,6 +393,18 @@ is `sidebar`, a click opens or shows the Claude chat in the side panel, the
 same chat that is already there. It does not start a new chat and does not
 open a tab. With the setting on `panel` it would open a Claude tab instead.
 
+**Since 18 Nov 2026 a second Claude logo does what Ctrl+Numpad4 does** (asked:
+"make that claude icon work like our ctrl 4"). The chat-opener add-on
+(`~/.claude/tools/chat-opener`) puts its own Claude logo in the same place
+(`editor/title`, command `chatOpener.newChatHere`, tooltip "New Claude chat
+here (Ctrl+NumPad4)"): a click opens a new Claude chat tab in that editor
+window. The logo file `claude-logo.svg` is copied from the Claude add-on, and
+`build.ps1` now packs `.svg` files too. The Claude add-on's own logo cannot be
+changed or removed from outside (an update would undo it), so it is hidden by
+hand once: right-click either logo → untick "Claude Code: Open". VS Code
+remembers that per profile, so on a new computer do it again. To show it again:
+right-click the tab bar's buttons → tick it.
+
 The binding is in `keybindings.json` (user keybindings win over extension ones)
 and in the extension's package.json. The log gets a line
 `run  lines a-b (selection was c-d)` or `stop lines a-b: <reason>`.
