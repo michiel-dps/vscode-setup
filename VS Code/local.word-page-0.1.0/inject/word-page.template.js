@@ -7,6 +7,9 @@
   var DROP = /*DROP*/;
   var OPTIONS = /*OPTIONS*/;
   var busy = false;
+  // the zoom of the page (Ctrl+wheel, see "zoom" further down), 1 = 100%, remembered in this page
+  var zoom = 1;
+  try { zoom = Math.min(3, Math.max(0.5, parseFloat(localStorage.getItem("wp-zoom")) || 1)); } catch (err) { zoom = 1; }
 
   function apply() {
     if (busy) { return; }
@@ -23,6 +26,7 @@
       if (st.getPropertyValue("--word-page-width") !== OPTIONS.pageWidth + "px") {
         st.setProperty("--word-page-width", OPTIONS.pageWidth + "px");
       }
+      if (st.getPropertyValue("--wp-zoom") !== String(zoom)) { st.setProperty("--wp-zoom", String(zoom)); }
       if (!root.classList.contains("word-page")) { root.classList.add("word-page"); }
       // the PDF look: the style block has rules that only count with this class
       var pdfLook = OPTIONS.look === "pdf";
@@ -1475,6 +1479,69 @@
   }, true);
 
 /*ASSISTANT*/
+
+  // ---- zoom (18 Nov 2026, asked: "make me able to zoom in and out") ----
+  // Ctrl+wheel or a touchpad pinch zooms the page (PDF look) in on the spot under the mouse,
+  // from 50% to 300%. Near 100% it snaps to 100%. A small label shows the zoom for a moment,
+  // a click on it goes back to 100%. Only the page changes, not the text or the file.
+  var zoomWanted = zoom;
+  var zoomAt = null;
+  var zoomFrame = 0;
+  var zoomLabel = null;
+  var zoomLabelTimer = 0;
+  function showZoom() {
+    if (!document.body) { return; }
+    if (!zoomLabel) {
+      zoomLabel = document.createElement("div");
+      zoomLabel.title = "Click for 100%";
+      zoomLabel.style.cssText = "position: fixed; right: 18px; bottom: 14px; z-index: 1000; padding: 3px 9px; " +
+        "border-radius: 4px; background: rgba(0, 0, 0, 0.72); color: #ffffff; font: 12px sans-serif; cursor: pointer;";
+      zoomLabel.addEventListener("click", function () { zoomTo(1, null); });
+      document.body.appendChild(zoomLabel);
+    }
+    zoomLabel.textContent = Math.round(zoom * 100) + "%";
+    zoomLabel.style.display = "block";
+    clearTimeout(zoomLabelTimer);
+    zoomLabelTimer = setTimeout(function () { zoomLabel.style.display = "none"; }, 1500);
+  }
+  function zoomTo(next, mouse) {
+    next = Math.min(3, Math.max(0.5, next));
+    if (Math.abs(next - 1) < 0.03) { next = 1; }
+    zoomWanted = next;
+    zoomAt = mouse;
+    if (!zoomFrame) { zoomFrame = setTimeout(zoomNow, 16); }
+  }
+  // one change per screen frame (16 ms), however many wheel steps came in
+  function zoomNow() {
+    zoomFrame = 0;
+    var next = zoomWanted;
+    if (next === zoom) { showZoom(); return; }
+    var pm = document.querySelector(".ProseMirror");
+    var down = pm && pm.parentElement;                            // scrolls up and down
+    var side = document.querySelector(".ProseMirror > .body");    // scrolls sideways
+    var ratio = next / zoom;
+    var y = 0;
+    var x = 0;
+    if (down && zoomAt) { y = zoomAt.y - down.getBoundingClientRect().top; }
+    if (side && zoomAt) { x = zoomAt.x - side.getBoundingClientRect().left; }
+    var top = down ? (down.scrollTop + y) * ratio - y : 0;
+    var left = side ? (side.scrollLeft + x) * ratio - x : 0;
+    zoom = next;
+    document.documentElement.style.setProperty("--wp-zoom", String(zoom));
+    // the spot under the mouse stays under the mouse
+    if (down) { down.scrollTop = top; }
+    if (side) { side.scrollLeft = left; }
+    try { localStorage.setItem("wp-zoom", String(zoom)); } catch (err) { /* this session only */ }
+    showZoom();
+  }
+  window.addEventListener("wheel", function (event) {
+    if (!event.ctrlKey || OPTIONS.look !== "pdf") { return; }
+    event.preventDefault();
+    // a mouse notch (about 100) is about 14%, a pinch sends many small steps
+    var step = event.deltaMode === 1 ? event.deltaY * 33 : event.deltaY;
+    step = Math.max(-150, Math.min(150, step));
+    zoomTo(zoomWanted * Math.exp(-step * 0.0015), { x: event.clientX, y: event.clientY });
+  }, { passive: false, capture: true });
 
   apply();
   // VS Code sends its theme colours again when the theme or a setting changes: put ours back

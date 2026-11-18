@@ -18,7 +18,7 @@ computer, `SAVE.cmd` copies this computer's setup into the folder.
 | `VS Code\extensions.txt` | every VS Code add-on on the computer, written by SAVE from `%USERPROFILE%\.vscode\extensions\extensions.json`. Marketplace add-ons first (id, version; `pinned` = installed at that exact version), which INSTALL installs. Then, since 10 Nov 2026, the own add-ons as `#` lines (id, version, where it comes from), so INSTALL skips them there: `local.r-pipe-indent` (INSTALL copies it), `local.claude-chat-opener` (INSTALL runs its `build.ps1`), `local.startup-screen` (personal: run its `build.ps1` by hand, section 5b), `local.word-page` (INSTALL runs its `build.ps1`, section 5c). Check against VS Code itself: `code --list-extensions --show-versions` |
 | `VS Code\patch-r-extension.pl` | five fixes to the R extension: data viewer columns sized to content, the column-name popup after `, ` instead of right after the comma, a knitted PDF opening in the editor to the right, a new plot bringing the R Plot tab to the front, and Ctrl+wheel zoom on plots like a PDF (run again after every R extension update, section 6) |
 | `VS Code\patch-pdf-viewer.pl` | two fixes to the PDF viewer add-on `tomoki1207.pdf` (10 Nov 2026; zoom version 3 on 11 Nov 2026): Ctrl+wheel and touchpad pinch zoom smoothly in on the spot under the mouse (a pinch follows the fingers, the wheel glides); and a clean reload after each knit (run again after every update of that add-on, section 6b) |
-| `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.0); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo; Keep selects the kept lines), section 5 |
+| `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.2); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; a stop button for R (18 Nov 2026); shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo; Keep selects the kept lines), section 5 |
 | `VS Code\local.startup-screen-0.1.0\` | the startup screen (6 Nov 2026): a short loading screen with a picture, a tip and the loading steps when VS Code starts; personal, left out of the GitHub copy; section 5b |
 | `VS Code\local.word-page-0.1.0\` | Word Page (11 Nov 2026): write like in Word or Google Docs inside VS Code. Quarto's visual editor as a white page with black text under any colour theme, "Word Page: New Document", citations from a `.bib` file and from Zotero; the file underneath is markdown (`.qmd`). Since 11 Nov 2026 the page looks like the PDF of a paper (LaTeX font, A4 margins, PDF heading sizes; setting `wordPage.look`). Its `bench\` is a test VS Code for Claude on its own, invisible Windows desktop; section 5c |
 | `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `awake\awake.py` (computer stays awake while Claude works, section 9), `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\` (the /chats add-on, which also makes code blocks in the Claude chat wrap, section 9), `memory\` (one folder per project) |
@@ -250,6 +250,7 @@ line between editor groups, not the edge of the side windows or the bottom panel
 | Ctrl+Shift+M | types ` %>%` (RStudio's pipe shortcut); right after a space just `%>%`, so no double spaces |
 | Ctrl+M | disabled (it toggled "Tab moves focus" by accident) |
 | Ctrl+Enter | run the statement at the cursor, or the selection widened to whole statements; refuses an unfinished statement with a yellow warning (section 5) |
+| (stop button) | the square at the top right of an R file and in the terminal panel: Ctrl+C to R, stops a running command (section 5, 18 Nov 2026) |
 | Ctrl+Numpad1 | a `.qmd`: Word Page ↔ plain text, both ways (section 5c; 16 Nov 2026). In the text you see Claude's edits red/green with Keep / Undo |
 | Ctrl+Numpad5 | jump to the **Claude Code** chat box in the side panel (opens it if closed). With lines highlighted in a file, it also types a reference to them into the message, e.g. `@code/04_maps.R#12-20` (file from the project folder, first-last line), so Claude reads exactly those lines; without a highlight it only jumps. Two entries for the same key: the plain one first, then one with `"when": "editorTextFocus && editorHasSelection"` that runs `claude-vscode.sidebar.open` and then `claude-vscode.insertAtMention` (the Claude add-on's own Alt+K command); the later entry wins when its `when` is true. The order inside matters: side panel first, because the add-on types the reference into every Claude chat that is visible at that moment (read in its code, version 2.1.322), so a Claude tab that is open next to the code gets the reference too; delete it there. A highlight on a Word Page is not an editor selection, so there a third entry (`"when": "activeCustomEditorId == 'quarto.visualEditor' ..."`, keyboard on the page) runs the Word Page add-on's own command, which does the same job in another way: section 5c, "Highlighted text to Claude". A highlight in the macro Tutor (VS Code's built-in browser, Ctrl+Numpad3) is not an editor selection either: a fourth entry (`"when": "activeEditor == 'workbench.editor.browser' ..."`) runs `wordPage.browserToClaude`, which pastes the highlighted piece, where it sits and its card into the chat box, ending "My question: " (section 5c, "Highlighted text in the built-in browser", 14 Nov 2026). A highlight inside the Claude side panel itself (a piece of an answer): a fifth entry (`"when": "focusedView == 'claudeVSCodeSidebar' || ..."`) runs `wordPage.chatSelectionToClaude`, which puts the piece back into the chat box as a quote (`> ...`) for a follow-up question (section 5c, "Highlighted text in the Claude panel", 14 Nov 2026). NumLock must be on (added 11 Nov 2026) |
 | Ctrl+Numpad7 | new **Claude Code** chat as a tab in its own column on the right (runs on the Claude subscription): it first focuses the second editor group (VS Code makes one on the right if there is only one), then runs `claude-vscode.primaryEditor.open`, which opens in that active group (or in a column that already holds only Claude tabs) and, unlike `claude-vscode.editor.open`, does not switch `claudeCode.preferredLocation` from sidebar to panel. Changed 4 Nov 2026: it first opened VS Code's own Claude harness ("Claude copilot"), but that chat cannot send anything here: Copilot Free (`copilot token sku: free_limited_copilot`) offers it no Claude models, and Anthropic does not allow claude.ai subscription logins in Agent SDK products (Agent SDK overview page), so it would need an Anthropic API key or a paid Copilot plan. Old notes on that harness, kept for later: it first focuses the second editor group (VS Code makes one on the right if there is only one), then opens the chat there; if that column already shows a Claude chat, the new one replaces it in place (the old one stays in the sessions list). Layout: Claude Code in the left side bar, code + Claude chat in the middle, Copilot chat ("Chat"; VS Code cannot rename a view) in the right side bar. VS Code has only one chat view, which is why the Claude chat is an editor tab and not a second side bar. Session type `agent-host-claude` (VS Code's Agent Host; the same command as picking "Claude" in the chat's session-type menu). Needed `"chat.agentHost.claudeAgent.enabled": true` in settings.json; **removed again 5 Nov 2026**: with it on, the Copilot chat panel opened this Claude chat type (which cannot send) and the old Copilot chats dropped out of the sessions list. Do not turn it back on (the old name `github.copilot.chat.claudeAgent.enabled` no longer exists in VS Code 1.144). Who pays depends on the model picked in that chat: models from your own Anthropic login (VS Code tags them `anthropic`, "native") bill your Claude account; the others go through Copilot. While signed in to GitHub, Copilot is the default. Native models only appear after VS Code has downloaded the Claude Agent SDK (agenthost.log said "SDK not downloaded yet" on 4 Nov). Added 4 Nov 2026 |
@@ -299,6 +300,15 @@ a selection:
   a "Send anyway" button. Without this guard R waits at a `+` prompt and every
   later Ctrl+Enter disappears into it, with nothing on screen. If the terminal
   already shows `+`: click in it, Esc.
+
+**Stop button (18 Nov 2026, v0.5.2, asked: "a button for the R terminal that
+stops the terminal from running, like a stop button").** A square stop icon
+(`$(debug-stop)`) at the top right of every `.R`, `.Rmd` and `.qmd` tab, and in
+the toolbar of the terminal panel. A click sends Ctrl+C to the R terminal (the
+one called "R Interactive", else the open terminal), as pressing Ctrl+C in it
+would: R stops the running command and shows `>` again. Command
+`rPipeIndent.stopR`. Log: `stop sent Ctrl+C to R Interactive`. It does not
+close the terminal or empty the Workspace.
 
 The binding is in `keybindings.json` (user keybindings win over extension ones)
 and in the extension's package.json. The log gets a line
@@ -592,6 +602,21 @@ counted in "one point of the PDF on the screen", so the whole page follows
 text of 15 px, 1000 gives 18 px). In an editor that is too narrow for the
 page, the margins shrink first (down to 24 px) and the text keeps its size;
 only below that the text shrinks, never under 12.5 px.
+
+**Zoom (18 Nov 2026, asked: "make me able to zoom in and out").** On the page
+(PDF look), **Ctrl+wheel or a touchpad pinch zooms in and out** on the spot
+under the mouse, from 50% to 300%, live, no reopening. A small label at the
+bottom right shows the zoom for 1.5 s, a click on it gives 100% again. Near
+100% it snaps to 100%. Wider than the editor, the editor scrolls sideways.
+The zoom is remembered in the page (localStorage `wp-zoom`). How: the script
+block sets `--wp-zoom` on the page, and `pdf-look.css` multiplies the page,
+the text column and `--wp-pt` by it, so everything stays measured in PDF
+points and the page ends and landscape sheets still fit. A timer of 16 ms
+(not `requestAnimationFrame`, which never fires on the invisible bench
+desktop) bundles the wheel steps. Ctrl+= and Ctrl+- are not used: VS Code
+takes those keys from the page and zooms the whole window. The Word look has
+no zoom (use `wordPage.pageWidth` there). Tested on the bench: 100% to 157%
+and back to 52%, page 820 to 1286 px wide.
 
 **Even closer to the PDF (12 Nov 2026, asked: "want the visual version of the
 .qmd to be exactly how the eventual pdf will look, just that I am able to edit

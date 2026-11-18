@@ -917,13 +917,30 @@ async function stageChangeStay(uri, changes, index) {
   }
 }
 
+// The stop button (18 Nov 2026): sends Ctrl+C to the R terminal, as pressing
+// Ctrl+C in it would, so R stops the command it is running and shows ">" again.
+// The R terminal is the one the R add-on calls "R Interactive", else the open terminal.
+function stopR() {
+  const terminals = vscode.window.terminals || [];
+  const rTerminal = terminals.find((t) => t.name === "R Interactive") ||
+    terminals.find((t) => /^R\b/.test(t.name)) || vscode.window.activeTerminal;
+  if (!rTerminal) {
+    vscode.window.showWarningMessage("There is no R terminal to stop.");
+    log("stop no terminal");
+    return;
+  }
+  rTerminal.sendText("\u0003", false);
+  log("stop sent Ctrl+C to " + rTerminal.name);
+}
+
 function activate(context) {
+  context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.stopR", stopR));
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.stageChangeStay", stageChangeStay));
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.enter", onEnterLogged));
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.runStatement", runStatementLogged));
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.insertPipe", insertPipe));
   try { activateClaudeEdits(context); } catch (e) { log("ERR  edits " + (e && e.stack ? e.stack : e)); }
-  log("activated 0.5.1 (fresh edit history when too big, 16 Nov 2026)");
+  log("activated 0.5.2 (stop button for the R terminal, 18 Nov 2026)");
 }
 
 function deactivate() {}

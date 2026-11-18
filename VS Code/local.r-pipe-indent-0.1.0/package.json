@@ -49,9 +49,28 @@
 				"command": "rPipeIndent.stageChangeStay",
 				"title": "Keep this change, stay here",
 				"icon": "$(check)"
+			},
+			{
+				"command": "rPipeIndent.stopR",
+				"title": "Stop R (send Ctrl+C to the R terminal)",
+				"icon": "$(debug-stop)"
 			}
 		],
 		"menus": {
+			"editor/title": [
+				{
+					"command": "rPipeIndent.stopR",
+					"when": "editorLangId == r || editorLangId == rmd || editorLangId == quarto",
+					"group": "navigation@-10"
+				}
+			],
+			"view/title": [
+				{
+					"command": "rPipeIndent.stopR",
+					"when": "view == terminal",
+					"group": "navigation@-10"
+				}
+			],
 			"scm/change/title": [
 				{
 					"command": "rPipeIndent.stageChangeStay",

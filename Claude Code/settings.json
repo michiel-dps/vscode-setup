@@ -8,7 +8,7 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "fable",
+  "model": "opus",
   "skillOverrides": {
     "docs": "off",
     "docx": "off",
@@ -101,7 +101,7 @@
       "effortLevel": "xhigh"
     },
     "claude-opus-5-5": {
-      "effortLevel": "high"
+      "effortLevel": "medium"
     },
     "claude-fable-5-2": {
       "effortLevel": "xhigh"

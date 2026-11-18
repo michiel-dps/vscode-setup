@@ -37,17 +37,23 @@
    2.5 cm. In a narrower editor the margins get smaller first (down to 24 px) and the text
    keeps its size; only when the column of text itself does not fit, the text gets smaller
    (never under 12.5 px). 80 px = what the editor keeps free beside the page (its left
-   edge, its own padding and the scroll bar). */
+   edge, its own padding and the scroll bar).
+   Zoom (18 Nov 2026, asked: "make me able to zoom in and out"): Ctrl+wheel or a touchpad
+   pinch sets --wp-zoom (the script block), and every size below is multiplied by it. Zoomed
+   in further than the editor is wide, the editor scrolls sideways. */
 html.word-page.pdf-look {
-  --wp-full: var(--word-page-width, 820px);                          /* the page when there is room */
-  --wp-page: min(var(--wp-full), 100vw - 80px);                      /* the page on the screen */
-  --wp-text: min(var(--wp-full) * 0.76183, var(--wp-page) - 48px);   /* the column of text: 453.5 of the 595.28 points */
-  --wp-pt: max(var(--wp-text) / 453.5, 1.1457px);                    /* one point of the PDF */
+  --wp-full: var(--word-page-width, 820px);                               /* the page when there is room */
+  --wp-base-page: min(var(--wp-full), 100vw - 80px);                      /* the page on the screen, at 100% */
+  --wp-base-text: min(var(--wp-full) * 0.76183, var(--wp-base-page) - 48px);  /* the column of text: 453.5 of the 595.28 points */
+  --wp-page: calc(var(--wp-base-page) * var(--wp-zoom, 1));
+  --wp-text: calc(var(--wp-base-text) * var(--wp-zoom, 1));
+  --wp-pt: calc(max(var(--wp-base-text) / 453.5, 1.1457px) * var(--wp-zoom, 1));  /* one point of the PDF */
   --wp-margin: calc((var(--wp-page) - var(--wp-text)) / 2);
 }
 
 /* the page */
 html.word-page.pdf-look .ProseMirror > .body > .pm-content {
+  width: var(--wp-page);
   max-width: var(--wp-page);
   min-height: calc(841.89 * var(--wp-pt));
   padding: var(--wp-margin);
