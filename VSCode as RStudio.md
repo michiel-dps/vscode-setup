@@ -1676,6 +1676,31 @@ quote from the side panel go only to the tab, without the text, when the key
 came at once after a click from a chat tab into the side panel (VS Code had
 not yet noted where the keyboard was). The second try worked.
 
+**A chat tab in a floating window** (18 Nov 2026, "Ctrl+Numpad1 is
+broken"). The bench's "other window" was a second editor group in the same
+window. In a floating window (a tab dragged out, another Windows window)
+`focus<N>EditorGroup` makes the chat tab active there, but VS Code does not
+bring that window to the front. The keyboard stayed in the main window, and
+the paste landed in `unit-04.R`, where the add-on undid it (log: `the paste
+landed in ... and was undone`). Fixed: `focus-window.ps1` (in the add-on,
+packed by `build.ps1`) runs in the background from the add-on's start, one
+PowerShell for the whole session (0.8 s to start, then instant). After the
+tab switch `focusTab` asks it for the window whose title starts with
+`<tab title> - `, as Windows names a floating window after its active tab
+("norad - H26-Data Science - Visual Studio Code"), and it brings that window
+to the front (`SetForegroundWindow`, with `AttachThreadInput` to the window
+in front, since Windows only lets the window in front hand it over). Log
+line `window: OK` (brought forward), `SAME` (already in front), `FAILED`,
+`NONE` (asked again for 0.6 s, the title follows a moment later).
+
+**Plain Ctrl+Numpad1 in a chat tab steps to the next chat tab** (18 Nov 2026,
+his wish: "open one of the other Claude windows so I can cycle through
+them"). With nothing highlighted and the keyboard already in a chat tab,
+each press goes to the next chat tab: editor window by editor window (the
+order of their numbers, floating windows last), left to right, then back to
+the first (`nextChatTab`). From a file, the first press picks as before.
+6 offline checks in `test.js` (175 in all).
+
 **Test bench for Claude** (`bench\`). Claude cannot see the screen, so it
 tests in a second VS Code that nobody sees: `bench\launch.ps1` copies VS
 Code, Quarto and this add-on to `%TEMP%\word-page-bench` (1 GB, once), starts

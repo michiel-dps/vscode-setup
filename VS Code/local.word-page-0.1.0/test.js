@@ -485,6 +485,32 @@ check("assistant: the script block carries the page part, and it is valid JavaSc
   try { new Function(b.js.replace(/^\/\*[^\n]*\*\/\n/, "")); return true; } catch (e) { console.log(e.message); return false; }
 })());
 
+// ---- Ctrl+Numpad1 without a highlight: step through the chat tabs (18 Nov 2026) ----
+{
+  const Module = require("module");
+  class TabInputWebview { constructor(viewType) { this.viewType = viewType; } }
+  const fakeVscode = { TabInputWebview: TabInputWebview };
+  const load = Module._load;
+  Module._load = function (request, ...rest) { return request === "vscode" ? fakeVscode : load.call(this, request, ...rest); };
+  const ext = require("./extension");
+  Module._load = load;
+  const chat = (label) => ({ label: label, input: new TabInputWebview("mainThreadWebview-claudeVSCodePanel") });
+  const file = (label) => ({ label: label, input: {} });
+  const a = chat("A"), b = chat("B"), c = chat("C"), r = file("unit-04.R");
+  const groups = [
+    { viewColumn: 3, tabs: [c], activeTab: c },             // a floating window
+    { viewColumn: 1, tabs: [r, a], activeTab: r },
+    { viewColumn: 2, tabs: [b], activeTab: b },
+  ];
+  const next = (activeGroup) => ext._test.nextChatTab(groups, activeGroup);
+  check("chat tabs: from A the next is B (next editor window)", next({ activeTab: a }) === b);
+  check("chat tabs: from B the next is C (the floating window)", next({ activeTab: b }) === c);
+  check("chat tabs: from C back to A", next({ activeTab: c }) === a);
+  check("chat tabs: keyboard in a file: not stepping (the usual pick)", next({ activeTab: r }) === null);
+  check("chat tabs: only one chat tab: not stepping", ext._test.nextChatTab([{ viewColumn: 1, tabs: [a] }], { activeTab: a }) === null);
+  check("chat tabs: focus-window.ps1 is next to the add-on", fs.existsSync(path.join(__dirname, "focus-window.ps1")));
+}
+
 fs.rmSync(temp, { recursive: true, force: true });
 console.log(passed + " passed, " + failed + " failed");
 process.exit(failed === 0 ? 0 : 1);

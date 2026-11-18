@@ -43,6 +43,9 @@ function activate(context) {
   watchClashes(context);
   // Claude's suggestions on the page, like Grammarly (assistant.js, 16 Nov 2026)
   require("./assistant").activate(context, { log: log, quartoFolders: quartoFolders, patch: patch });
+  // the window helper starts now, so the first Ctrl+Numpad1 does not wait 0.8 s for it
+  try { startWindowHelper(); } catch (err) { log("window: helper did not start: " + err.message); }
+  context.subscriptions.push({ dispose: () => { if (windowHelper) { windowHelper.child.kill(); } } });
 
   context.subscriptions.push(
     vscode.commands.registerCommand("wordPage.newDocument", newDocument),
@@ -408,8 +411,81 @@ function pickChatTab() {
   return null;
 }
 
+// Plain Ctrl+Numpad1 while the keyboard is in a chat tab: the next chat tab, so each
+// press steps through them (18 Nov 2026, his wish: "cycle through them"). The order is
+// editor window by editor window, left to right in each, and back to the first.
+// null: the keyboard is not in a chat tab, or there is no other one.
+function nextChatTab(groups, activeGroup) {
+  const here = activeGroup && activeGroup.activeTab;
+  if (!here || !isChatTab(here)) { return null; }
+  const tabs = groups
+    .slice()
+    .sort((a, b) => a.viewColumn - b.viewColumn)
+    .flatMap((group) => group.tabs.filter(isChatTab));
+  const at = tabs.indexOf(here);
+  if (at < 0 || tabs.length < 2) { return null; }
+  return tabs[(at + 1) % tabs.length];
+}
+
+// A floating editor window is its own window in Windows. VS Code makes the tab there
+// the active one, but does not bring the window to the front, so the keyboard stayed in
+// the main window and the paste landed in the R script (18 Nov 2026). focus-window.ps1
+// does it: it keeps running, one request per line, answer SAME / OK / FAILED / NONE.
+let windowHelper = null;
+function startWindowHelper() {
+  if (windowHelper || process.platform !== "win32") { return windowHelper; }
+  const script = path.join(__dirname, "focus-window.ps1");
+  const child = childProcess.spawn("powershell.exe",
+    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script],
+    { windowsHide: true, stdio: ["pipe", "pipe", "ignore"] });
+  const helper = { child: child, waiting: [], buffer: "" };
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    helper.buffer += chunk;
+    let end;
+    while ((end = helper.buffer.indexOf("\n")) >= 0) {
+      const line = helper.buffer.slice(0, end).trim();
+      helper.buffer = helper.buffer.slice(end + 1);
+      if (line === "READY") { continue; }
+      const done = helper.waiting.shift();
+      if (done) { done(line); }
+    }
+  });
+  child.on("exit", () => {
+    helper.waiting.forEach((done) => done("NONE"));
+    if (windowHelper === helper) { windowHelper = null; }
+  });
+  child.on("error", (err) => log("window: helper did not start: " + err.message));
+  windowHelper = helper;
+  return helper;
+}
+
+function askWindowHelper(titleStart) {
+  const helper = startWindowHelper();
+  if (!helper) { return Promise.resolve("NONE"); }
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve("NONE"), 3000);    // first time: PowerShell starts
+    helper.waiting.push((answer) => { clearTimeout(timer); resolve(answer); });
+    helper.child.stdin.write(titleStart.replace(/[\r\n]/g, " ") + "\n");
+  });
+}
+
+// Bring the Windows window with this tab to the front. The title follows the active tab
+// a moment after the switch, so NONE is asked again for up to 0.6 s.
+async function bringWindowOf(tab) {
+  const titleStart = tab.label + " - ";
+  let answer = "NONE";
+  for (let waited = 0; waited <= 600; waited += 100) {
+    answer = await askWindowHelper(titleStart);
+    if (answer !== "NONE") { break; }
+    await pause(100);
+  }
+  return answer;
+}
+
 // Bring a tab to the front of its editor window and give that window the keyboard
-// (as the Claude add-on does itself for a tab it reopens).
+// (as the Claude add-on does itself for a tab it reopens). Since 18 Nov 2026 the
+// window itself comes to the front too, also a floating one.
 async function focusTab(tab) {
   const focusGroup = FOCUS_GROUP[tab.group.viewColumn - 1];
   if (!focusGroup) { return false; }
@@ -420,11 +496,16 @@ async function focusTab(tab) {
   if (index < 0 && group) { index = group.tabs.findIndex((t) => isChatTab(t) && t.label === tab.label); }
   if (index < 0) { return false; }
   await vscode.commands.executeCommand("workbench.action.openEditorAtIndex", index);
+  let active = false;
   for (let waited = 0; waited < 1000; waited += 50) {
-    if (group.tabs[index] && group.tabs[index].isActive) { return true; }
+    if (group.tabs[index] && group.tabs[index].isActive) { active = true; break; }
     await pause(50);
   }
-  return false;
+  if (!active) { return false; }
+  const answer = await bringWindowOf(group.tabs[index]);
+  log("window: " + answer + " for \"" + group.tabs[index].label + "\"");
+  if (answer === "OK") { await pause(150); }      // the window hands the keyboard to its tab
+  return answer !== "FAILED";
 }
 
 // Go to a Claude chat tab (never the side panel). Returns words for the log; they
@@ -432,7 +513,8 @@ async function focusTab(tab) {
 // text: Claude puts it into the chat box once the box has started (setInputText,
 // it is not sent), so nothing has to be pasted and no start time guessed.
 async function goToChatTab(text) {
-  const picked = pickChatTab();
+  const next = text ? null : nextChatTab(vscode.window.tabGroups.all, vscode.window.tabGroups.activeTabGroup);
+  const picked = next ? { tab: next, why: "the next chat tab" } : pickChatTab();
   if (picked) {
     const ok = await focusTab(picked.tab);
     noteChatTabs([picked.tab]);
@@ -1146,4 +1228,4 @@ function watchClashes(context) {
 
 function deactivate() {}
 
-module.exports = { activate, deactivate };
+module.exports = { activate, deactivate, _test: { nextChatTab } };
