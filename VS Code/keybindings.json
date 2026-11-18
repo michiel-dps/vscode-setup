@@ -18,6 +18,11 @@
         "command": "claude-vscode.primaryEditor.open"
     },
     {
+        "key": "ctrl+numpad4",
+        "command": "chatOpener.newChatHere",
+        "when": "chatOpener.ready"
+    },
+    {
         "key": "ctrl+numpad5",
         "command": "claude-vscode.sidebar.open"
     },

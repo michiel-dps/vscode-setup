@@ -2,10 +2,14 @@
   "name": "claude-chat-opener",
   "publisher": "local",
   "displayName": "Claude Chat Opener",
-  "description": "Opens Claude Code chats picked with /chats as editor tabs, freeing the side panel when it holds the chat. Makes the black code boxes in the Claude chat wrap to the panel width, also after Claude Code updates.",
+  "description": "Opens Claude Code chats picked with /chats as editor tabs, freeing the side panel when it holds the chat. Makes the black code boxes in the Claude chat wrap to the panel width, also after Claude Code updates. Ctrl+Numpad4 opens a new Claude chat tab in the editor window that has the keyboard.",
   "version": "0.3.0",
   "engines": { "vscode": "^1.80.0" },
   "main": "./extension.js",
   "activationEvents": ["onStartupFinished"],
-  "contributes": {}
+  "contributes": {
+    "commands": [
+      { "command": "chatOpener.newChatHere", "title": "Claude: New Chat Tab in This Editor Window" }
+    ]
+  }
 }

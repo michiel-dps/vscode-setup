@@ -109,8 +109,22 @@ function wrapCodeBlocks() {
   }
 }
 
+// Ctrl+Numpad4: a new Claude chat tab in the editor window that has the keyboard.
+// Claude's own claude-vscode.primaryEditor.open prefers ANY editor window that holds only
+// Claude tabs (its function Rse, read in 2.1.327), so a column or a floating window full of
+// chats swallowed every new one. claude-vscode.editor.open with a column given (argument 3)
+// and fullEditor = true (argument 5) opens exactly where asked, focuses the chat box and
+// leaves claudeCode.preferredLocation alone, like primaryEditor.open does.
+async function newChatHere() {
+  log('new chat tab in the active editor window (Ctrl+Numpad4)');
+  await vscode.commands.executeCommand('claude-vscode.editor.open', undefined, undefined, vscode.ViewColumn.Active, undefined, true);
+}
+
 function activate(context) {
   fs.mkdirSync(DIR, { recursive: true });
+  context.subscriptions.push(vscode.commands.registerCommand('chatOpener.newChatHere', newChatHere));
+  // the key binding waits for this, so Ctrl+Numpad4 keeps its old command until the window reloads
+  vscode.commands.executeCommand('setContext', 'chatOpener.ready', true);
   wrapCodeBlocks();
   const timer = setInterval(poll, 400);
   const wrapTimer = setInterval(wrapCodeBlocks, 60000);
