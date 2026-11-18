@@ -232,12 +232,15 @@ def pictures(document, folder, prefix):
                 after = [line for line in lines if line[0].y0 > block.y1 - 1 and line[0].y1 < next_top]
                 ended = bool(table_rules) and any(text_after_table(line, left) and line[0].y0 > last_rule
                                                   for line in after)
+                table_top = None                         # where the rows start, under the caption
                 for line in after:
                     if ended and line[0].y0 > last_rule:
                         break
                     region |= line[0]
+                    table_top = line[0].y0 if table_top is None else min(table_top, line[0].y0)
                 for r in table_rules:
                     region |= r
+                    table_top = r.y0 if table_top is None else min(table_top, r.y0)
                 if not ended and not [line for line in lines if line[0].y0 > region.y1 + 4]:
                     follow = page.number + 1
                     while follow < document.page_count:
@@ -252,6 +255,13 @@ def pictures(document, folder, prefix):
                         follow += 1
             name = "%s-%s.png" % (prefix, label.replace(" ", "_"))
             parts = [save(page, region, folder, name, shown)]
+            # "cap": how many points at the top of a table picture are its caption. A table made
+            # by an include line has its caption as text on the page, so the page leaves that
+            # strip of the picture out and the caption can be typed in (17 Nov 2026)
+            if kind == "Table" and table_top is not None:
+                cap = round(table_top - 3 - max(region.y0 - 3, shown.y0), 1)
+                if 0 < cap < parts[0]["h"]:
+                    parts[0]["cap"] = cap
             # only the first rows fit at the foot of the page: show the next page too
             if more and parts[0]["h"] < 200:
                 nxt = document[page.number + 1]

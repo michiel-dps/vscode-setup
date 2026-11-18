@@ -5,7 +5,7 @@
 // 1. While he writes on the page, Quarto puts the typed text into the document every 2 seconds.
 //    This file notes which paragraphs changed. When he has not typed for PAUSE ms, the changed
 //    paragraphs (of at least MIN_WORDS words) go to Claude, one request per paragraph.
-// 2. The request runs the Claude Code program of this laptop without a window ("claude -p", on
+// 2. The request runs the Claude Code program of this computer without a window ("claude -p", on
 //    his own Claude subscription), with no tools and no session saved, and asks for a list of
 //    suggestions in a fixed JSON form: the exact words, the new words, the kind and a short reason.
 // 3. The answers go into word-page-assistant.css next to Quarto's page (patch.js); the page reads

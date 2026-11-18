@@ -650,14 +650,16 @@
   // another list.
   var includeStyle = null;
   var includeParts = [];       // [{el, path}] of the lists that have a rule now
+  var includeRanges = [];      // the greyed settings at the end of the captions
   var includeWithCursor = null;
   var INCLUDE_CAPTION = /^\s*((?:Table|Figure) [A-Z]?\d+)\./;
 
+  // the line of a list (dt: the include line, dd: the caption) that has the cursor
   function cursorInclude() {
     var selection = window.getSelection();
     var node = selection && selection.rangeCount ? selection.focusNode : null;
     var el = node && (node.nodeType === 1 ? node : node.parentElement);
-    return el && el.closest ? el.closest("dl.pm-definition-list") : null;
+    return el && el.closest ? el.closest("dl.pm-definition-list > dt, dl.pm-definition-list > dd") : null;
   }
 
   // "Table 1" for a list of an include line and a caption that starts with "Table 1."
@@ -669,12 +671,42 @@
     return match ? match[1] : null;
   }
 
-  // a picture as the face of a ::before or ::after, at the size and place of the PDF
-  function pictureCss(doc, part) {
+  // a picture as the face of a ::before or ::after, at the size and place of the PDF.
+  // cap: points at its top left out (the caption, which shows as text above it)
+  function pictureCss(doc, part, cap) {
     var url = String(PICTURE_BASE + (doc.pictures || "") + part.file).replace(/["\\\n]/g, "");
     var place = typeof part.x === "number" ? "margin-left: calc(" + Number(part.x) + " * var(--wp-pt));" : "margin-left: auto; margin-right: auto;";
-    return 'content: ""; display: block; width: calc(' + Number(part.w) + " * var(--wp-pt)); height: calc(" + Number(part.h) +
-      ' * var(--wp-pt)); ' + place + ' background: url("' + url + '") no-repeat 0 0 / 100% 100%;';
+    cap = Number(cap) || 0;
+    return 'content: ""; display: block; width: calc(' + Number(part.w) + " * var(--wp-pt)); height: calc(" + (Number(part.h) - cap) +
+      ' * var(--wp-pt)); ' + place + ' background: url("' + url + '") no-repeat 0 calc(' + (-cap) + " * var(--wp-pt)) / 100% calc(" +
+      Number(part.h) + " * var(--wp-pt));";
+  }
+
+  // the settings at the end of a caption ({tbl-colwidths="..."}) are not words of the paper:
+  // they are greyed (a highlight, so nothing in the editor changes). The words in them can be
+  // in several pieces of text (the spelling marks split them), so the whole caption is read.
+  function settingsRanges(caption, ranges) {
+    if (!caption) { return; }
+    var walker = document.createTreeWalker(caption, NodeFilter.SHOW_TEXT);
+    var nodes = [];
+    var text = "";
+    var node;
+    while ((node = walker.nextNode())) {
+      nodes.push({ node: node, from: text.length });
+      text += node.nodeValue;
+    }
+    var match = /\{[^{}]*\}\s*$/.exec(text);
+    if (!match) { return; }
+    var range = document.createRange();
+    for (var i = nodes.length - 1; i >= 0; i--) {
+      if (nodes[i].from <= match.index) {
+        range.setStart(nodes[i].node, match.index - nodes[i].from);
+        break;
+      }
+    }
+    var last = nodes[nodes.length - 1].node;
+    range.setEnd(last, last.nodeValue.length);
+    ranges.push(range);
   }
 
   function drawIncludes(content) {
@@ -686,32 +718,55 @@
     var doc = currentDoc();
     var rules = [];
     var parts = [];
+    var ranges = [];
     includeWithCursor = cursorInclude();
     if (doc && doc.items && content) {
       // also inside a block such as "::: landscape" (Tables A5 and A6)
       var lists = content.querySelectorAll("dl.pm-definition-list");
       for (var i = 0; i < lists.length; i++) {
         var list = lists[i];
-        if (list === includeWithCursor || list.closest(".pm-code-editor")) { continue; }
+        if (list.closest(".pm-code-editor")) { continue; }
         var label = includeLabel(list);
         var item = label ? doc.items[label] : null;
         if (!item || !item.parts || !item.parts.length) { continue; }   // not in the PDF yet: the lines stay
+        // 17 Nov 2026, asked: "let me easily edit the text around the figures and tables". When
+        // the PDF says where the caption ends in the picture (cap), the caption stays as text
+        // above the picture, to type in like a figure caption. Only the include line is hidden,
+        // and the lines show again only with the cursor in that line. A PDF built before that
+        // has no cap: then the picture holds the caption and both lines are hidden, as before.
+        var cap = item.parts[0].cap;
+        var cursorHere = includeWithCursor && includeWithCursor.parentElement === list;
+        if (cursorHere && (!cap || includeWithCursor.tagName === "DT")) { continue; }
         var path = pathOf(list, content);
         if (!path) { continue; }
         // the last step names the list itself, so a rule can never hide anything else
         var at = ROOT + path.replace(/:nth-child\((\d+)\)$/, "dl.pm-definition-list:nth-child($1)");
-        rules.push(at + " > dt, " + at + " > dd { display: none !important; }");
-        rules.push(at + "::before { " + pictureCss(doc, item.parts[0]) + " }");
+        if (cap) {
+          // the caption first, then the pictures (a list in a column, the pictures put after it)
+          rules.push(at + " { display: flex !important; flex-direction: column; align-items: flex-start; }");
+          rules.push(at + " > dt { display: none !important; }");
+          rules.push(at + " > dd { order: 0; align-self: stretch; margin: 0 !important; padding: 0 !important; }");
+          rules.push(at + "::before { order: 1; " + pictureCss(doc, item.parts[0], cap) + " }");
+          settingsRanges(list.querySelector(":scope > dd"), ranges);
+        } else {
+          rules.push(at + " > dt, " + at + " > dd { display: none !important; }");
+          rules.push(at + "::before { " + pictureCss(doc, item.parts[0]) + " }");
+        }
         if (item.parts[1]) {
-          rules.push(at + "::after { " + pictureCss(doc, item.parts[1]) + " }");
+          rules.push(at + "::after { order: 2; " + pictureCss(doc, item.parts[1]) + " }");
         } else if (item.more) {
-          rules.push(at + "::after { content: " + cssText(label + " goes on for " + item.more + (item.more === 1 ? " more page" : " more pages") +
+          rules.push(at + "::after { order: 2; content: " + cssText(label + " goes on for " + item.more + (item.more === 1 ? " more page" : " more pages") +
             " in " + doc.name) + "; display: block; font-size: 0.85em; color: #666666; }");
         }
         parts.push({ el: list, path: path });
       }
     }
     includeParts = parts;
+    includeRanges = ranges;
+    if (window.CSS && CSS.highlights && typeof Highlight === "function") {
+      CSS.highlights.set("wp-table-settings", new Highlight(...ranges));
+      rules.push("::highlight(wp-table-settings) { color: #9aa0a6; }");
+    }
     var css = rules.join("\n");
     if (includeStyle.textContent !== css) { includeStyle.textContent = css; }
   }
@@ -720,6 +775,14 @@
   function checkIncludes() {
     if (!includeParts.length) { return; }
     var content = pageContent();
+    // typing in a caption can replace its text: grey the settings again
+    for (var r = 0; r < includeRanges.length; r++) {
+      var range = includeRanges[r];
+      if (!range.startContainer.isConnected || range.collapsed || !/^\{/.test(range.toString())) {
+        drawIncludes(content);
+        return;
+      }
+    }
     for (var i = 0; i < includeParts.length; i++) {
       var part = includeParts[i];
       if (!content || !content.contains(part.el) || pathOf(part.el, content) !== part.path) {

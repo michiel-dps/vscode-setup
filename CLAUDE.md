@@ -10,6 +10,46 @@ Nothing is installed or changed until they have said yes to it.
 The installer is `scripts\install.ps1`. Run it with:
 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install.ps1 <options>`
 
+## Before step 1. Whose PC is this, and where is the copy?
+
+They may have opened this copy in VS Code, or only pasted its link into the
+chat with "install". Both are fine. Check two things first.
+
+**1. Is this the setup owner's own PC?** The owner's full setup folder comes
+with Dropbox. Look for it:
+
+`Get-ChildItem "$env:USERPROFILE\*Dropbox*\*\VS Code setup\scripts\publish.ps1"`
+
+- **Found**: this is the owner's own PC. Say so in one line, and install from
+  that folder, not from this copy: `<that folder>\scripts\install.ps1`. It
+  has what this anonymous copy leaves out: the real names, the git name and
+  e-mail, Claude's memory notes, the startup screen. Then:
+  - Ask them to check that Dropbox has finished syncing (its icon says "Up
+    to date").
+  - Skip step 2. They asked for their own setup: every part, `memory` too,
+    and no `-GitName` or `-GitEmail`.
+  - Step 3 stays: show the downloads and ask for one yes.
+  - After the install, ask whether they also want the startup screen. Yes:
+    run `<that folder>\VS Code\local.startup-screen-0.1.0\build.ps1`.
+  - This copy is then not needed. Do not download it, and if it is already
+    there, leave it where it is.
+- **Not found**: go on with this copy.
+
+**2. The copy must be in a folder that stays.** R and Claude Code keep using
+files in it after the install (`R\watch.R`, `R\Rprofile.R`, the scripts).
+Never install from a temp, scratch or Downloads folder.
+
+- You only have the link: put the copy in `C:\Users\<them>\vscode-setup`.
+  - With git: `git clone <link> "$env:USERPROFILE\vscode-setup"`.
+  - Without git: download `<link>/archive/refs/heads/main.zip` with
+    `Invoke-WebRequest`, unpack it with `Expand-Archive`, and move the inner
+    folder to that place.
+  - Refused or not found: the repository is private. They sign in first
+    (`winget install -e --id GitHub.cli`, then `gh auth login`), then
+    `gh repo clone <owner>/vscode-setup "$env:USERPROFILE\vscode-setup"`.
+- They opened the copy themselves: leave it where it is, unless that is a
+  temp or Downloads folder. Then move it first.
+
 ## Step 1. Welcome and check
 
 - Say in three or four lines what the setup is and that they choose what to
@@ -67,7 +107,10 @@ block, everything that will be downloaded:
 
 Ask for a clear yes. Install missing programs one at a time with their
 `winget` line, after that yes, and check that each one worked. If `winget`
-is not there, give the program's download page instead.
+is not there, give the program's download page instead. No restart of VS
+Code is needed in between: the installer reads the PATH again from Windows,
+so it finds a program that was installed a moment ago. R and Git ask for a
+yes in a Windows window (administrator): tell them to look for it.
 
 ## Step 4. Install
 

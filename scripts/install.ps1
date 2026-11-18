@@ -1,4 +1,4 @@
-# install.ps1 -- puts the setup from this folder onto this laptop.
+# install.ps1 -- puts the setup from this folder onto this computer.
 #
 #   addons    VS Code add-ons from the Marketplace (extensions.txt)
 #   enter     the Enter add-on (own): R pipes, Ctrl+Enter check, Claude's edits red/green
@@ -13,7 +13,7 @@
 # Run by INSTALL.cmd (double-click): every part. Safe to run again: add-ons and
 # packages that are already there are skipped. Every file it replaces is first
 # copied to C:\Users\<you>\setup-backup-<date>. Paths inside the files (user
-# folder, Dropbox folder, R, Python) are changed to this laptop's paths, also
+# folder, Dropbox folder, R, Python) are changed to this computer's paths, also
 # the <you>/<Dropbox>/<name> placeholders of the GitHub copy.
 #
 #   install.ps1 -Plan                  show every part: what it does, what it downloads,
@@ -106,7 +106,17 @@ foreach ($line in [IO.File]::ReadAllLines((Join-Path $setup 'saved-from.txt'))) 
 Write-Host "Setup saved on $($saved['Last change saved']) from computer $($saved['Computer'])."
 
 
-# --- 2. Programs this laptop needs ---
+# --- 2. Programs this computer needs ---
+# A program installed a moment ago (winget) is not yet on the PATH of a window
+# that was already open, such as VS Code with Claude in it. Read the PATH again
+# from Windows, so the next run finds the program without a restart.
+$windowsPath = @(
+    [Environment]::GetEnvironmentVariable('Path', 'Machine'),
+    [Environment]::GetEnvironmentVariable('Path', 'User'),
+    $env:Path
+) | Where-Object { $_ }
+$env:Path = $windowsPath -join [IO.Path]::PathSeparator
+
 $code = Join-Path $env:LOCALAPPDATA 'Programs\Microsoft VS Code\bin\code.cmd'
 if (-not (Test-Path -LiteralPath $code)) {
     $found = Get-Command code.cmd -ErrorAction SilentlyContinue
@@ -146,7 +156,7 @@ if ($Plan) {
     $gitPlaceholder = ([IO.File]::ReadAllText("$setup\git\.gitconfig") -match 'Your Name|you@example\.com')
     function Replaces($files) {
         $there = @($files | Where-Object { Test-Path -LiteralPath $_ })
-        if ($there.Count -eq 0) { return 'nothing (these files are new on this laptop)' }
+        if ($there.Count -eq 0) { return 'nothing (these files are new on this computer)' }
         return ($there -join ', ') + ' (a copy goes to the backup folder first)'
     }
     $info = [ordered]@{
@@ -175,11 +185,11 @@ if ($Plan) {
                       downloads = 'nothing'
                       files = @((Join-Path $userHome '.gitconfig')) }
         claude   = @{ title = 'Claude Code setup'
-                      does = 'CLAUDE.md (the setup owner''s rules for Claude: R style, how to answer; read it first, you may want your own), settings.json with hooks (Claude''s R edits shown red/green in VS Code; keeps the laptop awake while Claude works), slash commands /chats /handoff /takeon /personalsettings, the chat opener add-on'
+                      does = 'CLAUDE.md (the setup owner''s rules for Claude: R style, how to answer; read it first, you may want your own), settings.json with hooks (Claude''s R edits shown red/green in VS Code; keeps the computer awake while Claude works), slash commands /chats /handoff /takeon /personalsettings, the chat opener add-on'
                       downloads = 'nothing'
                       files = @((Join-Path $claude 'CLAUDE.md'), (Join-Path $claude 'settings.json')) }
         memory   = @{ title = 'Claude''s memory notes'
-                      does = $(if (Test-Path -LiteralPath "$setup\Claude Code\memory") { 'copies the notes; newer notes on this laptop are kept' } else { 'not in this copy: nothing to do' })
+                      does = $(if (Test-Path -LiteralPath "$setup\Claude Code\memory") { 'copies the notes; newer notes on this computer are kept' } else { 'not in this copy: nothing to do' })
                       downloads = 'nothing'
                       files = @() }
     }
@@ -233,7 +243,7 @@ if (Get-Process -Name Code -ErrorAction SilentlyContinue) {
 }
 
 
-# --- 5. Old paths in the saved files -> this laptop's paths ---
+# --- 5. Old paths in the saved files -> this computer's paths ---
 # Each path in three spellings: C:\a\b, C:/a/b and C:\\a\\b (inside .json).
 $swap = @{}
 function Add-Swap($old, $new) {
@@ -362,7 +372,7 @@ if (Want 'r') {
     Run "R_PROFILE_USER = $rprofile" { [Environment]::SetEnvironmentVariable('R_PROFILE_USER', $rprofile, 'User') }
 
     $rscript = Join-Path "$($rFolder.FullName)" 'bin\Rscript.exe'
-    Run 'install the R packages this laptop does not have yet' {
+    Run 'install the R packages this computer does not have yet' {
         & $rscript --vanilla "$setup\scripts\install-packages.R" "$setup\R\packages.txt"
     }
     Run 'five fixes to the R add-on (data viewer, column-name popup, knit PDF, plot to front, plot zoom)' { & $perl "$setup\VS Code\patch-r-extension.pl" }
@@ -407,8 +417,8 @@ if (Want 'claude') {
 
 # Claude's memory. Each folder is named after a project's path, with - for
 # every character that is not a letter or digit. All projects are in Dropbox,
-# so only the Dropbox part of the name can differ between laptops.
-# Memory files that are newer on this laptop are kept (robocopy /XO).
+# so only the Dropbox part of the name can differ between computers.
+# Memory files that are newer on this computer are kept (robocopy /XO).
 if ((Want 'memory') -and (Test-Path -LiteralPath "$setup\Claude Code\memory")) {
     Say "Claude's memory"
     $oldStart = $oldDropbox -replace '[^A-Za-z0-9]', '-'

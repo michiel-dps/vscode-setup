@@ -4,7 +4,7 @@ The user's setup, as it works on 4 Nov 2026. Keep this file updated whenever
 the setup changes. Everything needed to rebuild it is in this Dropbox folder
 (`<name>\VS Code setup`, called `R setup` until 4 Nov 2026), so it
 travels to every PC. `README.md` says how: `INSTALL.cmd` puts it on a new
-laptop, `SAVE.cmd` copies this laptop's setup into the folder.
+computer, `SAVE.cmd` copies this computer's setup into the folder.
 
 | File | What it is |
 |---|---|
@@ -13,15 +13,15 @@ laptop, `SAVE.cmd` copies this laptop's setup into the folder.
 | `R\watch-test.R` | 30 offline checks for `watch.R`; run after every change to it or R extension update (section 6) |
 | `R\Rprofile.R` | loads `watch.R` in every VS Code R terminal (section 2) |
 | `R\.lintr` | no warnings about trailing spaces / indentation / commented code / "use |> instead of %>%" (copy of `C:\Users\<you>\.lintr`) |
-| `R\packages.txt` | the R packages on the laptop (written by SAVE, installed by INSTALL) |
+| `R\packages.txt` | the R packages on the computer (written by SAVE, installed by INSTALL) |
 | `VS Code\settings.json`, `keybindings.json` | copies of `%APPDATA%\Code\User\` (sections 3 and 4) |
-| `VS Code\extensions.txt` | every VS Code add-on on the laptop, written by SAVE from `%USERPROFILE%\.vscode\extensions\extensions.json`. Marketplace add-ons first (id, version; `pinned` = installed at that exact version), which INSTALL installs. Then, since 10 Nov 2026, the own add-ons as `#` lines (id, version, where it comes from), so INSTALL skips them there: `local.r-pipe-indent` (INSTALL copies it), `local.claude-chat-opener` (INSTALL runs its `build.ps1`), `local.startup-screen` (personal: run its `build.ps1` by hand, section 5b), `local.word-page` (INSTALL runs its `build.ps1`, section 5c). Check against VS Code itself: `code --list-extensions --show-versions` |
+| `VS Code\extensions.txt` | every VS Code add-on on the computer, written by SAVE from `%USERPROFILE%\.vscode\extensions\extensions.json`. Marketplace add-ons first (id, version; `pinned` = installed at that exact version), which INSTALL installs. Then, since 10 Nov 2026, the own add-ons as `#` lines (id, version, where it comes from), so INSTALL skips them there: `local.r-pipe-indent` (INSTALL copies it), `local.claude-chat-opener` (INSTALL runs its `build.ps1`), `local.startup-screen` (personal: run its `build.ps1` by hand, section 5b), `local.word-page` (INSTALL runs its `build.ps1`, section 5c). Check against VS Code itself: `code --list-extensions --show-versions` |
 | `VS Code\patch-r-extension.pl` | five fixes to the R extension: data viewer columns sized to content, the column-name popup after `, ` instead of right after the comma, a knitted PDF opening in the editor to the right, a new plot bringing the R Plot tab to the front, and Ctrl+wheel zoom on plots like a PDF (run again after every R extension update, section 6) |
 | `VS Code\patch-pdf-viewer.pl` | two fixes to the PDF viewer add-on `tomoki1207.pdf` (10 Nov 2026; zoom version 3 on 11 Nov 2026): Ctrl+wheel and touchpad pinch zoom smoothly in on the spot under the mouse (a pinch follows the fingers, the wheel glides); and a clean reload after each knit (run again after every update of that add-on, section 6b) |
 | `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.0); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo; Keep selects the kept lines), section 5 |
 | `VS Code\local.startup-screen-0.1.0\` | the startup screen (6 Nov 2026): a short loading screen with a picture, a tip and the loading steps when VS Code starts; personal, left out of the GitHub copy; section 5b |
 | `VS Code\local.word-page-0.1.0\` | Word Page (11 Nov 2026): write like in Word or Google Docs inside VS Code. Quarto's visual editor as a white page with black text under any colour theme, "Word Page: New Document", citations from a `.bib` file and from Zotero; the file underneath is markdown (`.qmd`). Since 11 Nov 2026 the page looks like the PDF of a paper (LaTeX font, A4 margins, PDF heading sizes; setting `wordPage.look`). Its `bench\` is a test VS Code for Claude on its own, invisible Windows desktop; section 5c |
-| `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `awake\awake.py` (laptop stays awake while Claude works, section 9), `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\` (the /chats add-on, which also makes code blocks in the Claude chat wrap, section 9), `memory\` (one folder per project) |
+| `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `awake\awake.py` (computer stays awake while Claude works, section 9), `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\` (the /chats add-on, which also makes code blocks in the Claude chat wrap, section 9), `memory\` (one folder per project) |
 | `git\.gitconfig` | name, e-mail, GitHub login through `gh` |
 
 Since 30 Oct 2026 nothing is per project any more: a new R folder works
@@ -59,6 +59,31 @@ Code to install it, Claude follows that guide:
 - the steps left to do by hand, and how to undo from the backup folder
 
 Tested 16 Nov with `-TestRoot`, from this folder and from the GitHub copy.
+
+**Paste the link and say "install"** (18 Nov 2026). On a new PC: install VS
+Code and the Claude Code add-on, sign in to Claude, paste the link of the
+GitHub copy into the Claude chat and say "install". Three things make that
+work:
+- The guide now starts with "Before step 1". Claude first looks for this
+  Dropbox folder (`C:\Users\<you>\*Dropbox*\*\VS Code setup\scripts\publish.ps1`,
+  a file only the real folder has). Found: it is your own PC, and Claude
+  installs from this folder: every part, with the memory notes and your git
+  name, and the startup screen after a yes. Not found: Claude installs the
+  anonymous copy.
+- The copy goes into a folder that stays (`C:\Users\<you>\vscode-setup`),
+  never a temp or Downloads folder: R keeps using `R\Rprofile.R` and
+  `R\watch.R` from it.
+- install.ps1 reads the PATH again from Windows when it starts. A program
+  that winget installed a moment ago is found without a restart of VS Code.
+
+Tested 18 Nov: `-TestRoot` from this folder (9 memory folders, the real git
+name) and from the GitHub copy, `-Plan` under a bare PATH (every program
+found), and Word Page's `build.ps1 -NoInstall` from the copy (169 checks
+pass). All 314 R packages in `R\packages.txt` are on CRAN.
+
+publish.ps1 also swaps this machine's own name, which is a plain word since
+17 Nov 2026 (`$computerSwaps` there says which). Before that fix its check
+stopped every publish after 16 Nov.
 
 ## 2. Startup file: watch.R in every R terminal
 
@@ -132,13 +157,13 @@ own code (1.146) and the Claude Code add-on's (2.1.323):
 | Claude Code chats opened **as tabs** (Ctrl+Numpad7) | yes, with the conversation | the add-on restores its tabs (`registerWebviewPanelSerializer("claudeVSCodePanel")`); `claudeCode.continueAfterReload` (default on) even finishes a step that was cut off |
 | The Claude Code chat **in the side bar** | no, it opens empty | the add-on starts the side bar without a session. The old chat is in its list of past conversations (or `/chats`). A chat you want back after a restart: open it as a tab |
 | The Tutor tab (built-in browser, Ctrl+Numpad3) | yes, same web address | the browser tab is saved like any editor tab (its URL) |
-| The Tutor's login and progress | yes | `"workbench.browser.dataStorage": "global"`: one store for the built-in browser, kept across restarts and folders (the default `default` means the same on this laptop, but VS Code turns it into a throw-away store in a folder it does not trust; set explicitly so it stays). Progress is also saved to his claude.ai account by the page itself |
+| The Tutor's login and progress | yes | `"workbench.browser.dataStorage": "global"`: one store for the built-in browser, kept across restarts and folders (the default `default` means the same on this computer, but VS Code turns it into a throw-away store in a folder it does not trust; set explicitly so it stays). Progress is also saved to his claude.ai account by the page itself |
 
 Closing tip: close VS Code with **File → Exit**. A window closed on its own
 with its X before the last one is not part of the session that gets restored.
 
 Colours: all of them are in this settings.json, so SAVE and INSTALL carry
-them to every laptop. The theme itself is the add-on `gerane.theme-idlefingers`
+them to every computer. The theme itself is the add-on `gerane.theme-idlefingers`
 (in `extensions.txt`). Every rule sits under `[idleFingers]`, so it only works
 with that theme.
 
@@ -434,7 +459,7 @@ A click or any key stops it at once and goes to VS Code.
     command-line tool), and covers the screen 0.2 s later: black first, then
     the picture fades in. It draws with WPF on the graphics card, on top of
     everything (also of VS Code's window, which opens a moment later). On
-    this laptop (2560x1600) about 25 frames per second.
+    this computer (2560x1600) about 25 frames per second.
   - The steps are real: the add-on leaves small files in
     `%LOCALAPPDATA%\startup-screen`: `signal-vscode` when VS Code's add-ons
     run, `signal-r` when the R add-on runs. Each step stays at least 1 s; at
@@ -486,7 +511,7 @@ A click or any key stops it at once and goes to VS Code.
 - **See it now**: Ctrl+Shift+P → "Startup screen: play now".
 - **Off**: setting `"startupScreen.enabled": false`.
 - **Personal**: publish.ps1 leaves the add-on folder out of the GitHub copy
-  (`$leaveOut`). INSTALL does not install it: on a new laptop run its
+  (`$leaveOut`). INSTALL does not install it: on a new computer run its
   `build.ps1` and put pictures in the picture folder.
 - **Files**: `helper.cs` (the helper), `extension.js` (the add-on),
   `screen-core.js` + `screen.html` (the add-on's own screen), `tips.txt` (the
@@ -619,7 +644,7 @@ taken out again, so typing never goes into hidden code.
 
 How the page ends work. The add-on watches `*.pdf` in the workspace. When the
 PDF of an open page changes, it waits 1.5 s (Quarto writes it in steps) and
-runs `pdfpages.py` (Python with **PyMuPDF**; on another laptop: `pip install
+runs `pdfpages.py` (Python with **PyMuPDF**; on another computer: `pip install
 pymupdf`; setting `wordPage.python`), which gives the first 12 lines of every
 page. The add-on writes them into `word-page-pdf.css` next to Quarto's
 `index.js` (base64 JSON in a CSS variable: Quarto's page may load style
@@ -681,6 +706,23 @@ gives:
   `::: landscape` (Tables A5, A6). **Cursor in the list** (arrow keys): the
   two lines show again, to change them. Tested in the bench on a copy of
   first_draft.qmd: Tables 1, 2, 3, A2, A5, A6, A7.
+- **Table captions you can type in** (17 Nov 2026, asked: "let me easily edit
+  the text around the figures and tables ... it works for figures but not
+  for tables"). `pdfpages.py` now also writes `cap` in the first part of a
+  table: how many points at the top of the picture are its caption (from the
+  caption block down to 3 pt above the first rule or row). `drawIncludes`
+  then hides only the include line (dt). The caption (dd) stays as normal,
+  editable text, and the picture shows under it without its caption strip
+  (`background-position` shifted up by `cap`, the list made a flex column so
+  the `::before` picture comes after the dd). The settings at the end of a
+  caption (`{tbl-colwidths="..."}`) are greyed with the CSS highlight
+  `wp-table-settings` (searched in the whole caption text, because the
+  spelling marks split it into pieces). Both lines show again only with the
+  cursor in the include line. A PDF built before this has no `cap`: then it
+  works as before (both lines hidden). Code boxes with a caption in R keep
+  the whole picture. Tested in the bench: typing in the Table 1 caption
+  reached the file, the picture and the grey stayed. Needs Reload Window;
+  the pictures are cut again when the page opens or the PDF is rebuilt.
 - Everything here is **as of the last build** (Ctrl+Shift+K): a table
   changed in R shows the old picture until the PDF is built again.
 - **The look of the PDF itself** (12 Nov 2026 night, asked: "the qmd file in
@@ -929,7 +971,7 @@ page (the rules and fonts are then not even written into Quarto's file).
 - **Ctrl+Numpad1** switches between the page and the plain markdown text, both
   ways (Quarto's `quarto.editInSourceMode` on the page,
   `quarto.editInVisualMode` in the text; keybindings.json, 16 Nov 2026). His
-  Ctrl+Shift+F4 did nothing (probably the laptop's F4 needs Fn).
+  Ctrl+Shift+F4 did nothing (probably the computer's F4 needs Fn).
 - **No `editor: visual` in the header any more** (16 Nov 2026, "it kicks me
   back to the visual editor every time"). With that line Quarto reopens the
   page whenever a text tab of the file opens, except right after its own
@@ -1055,7 +1097,7 @@ saving from the page in the bench and comparing the file):
   editor"). What you see: when a document opens as a page, Claude reads
   the text that is already there in the background, paragraph by paragraph
   (`wordPage.assistantReadAll`, on since 16 Nov 2026, asked: "existing text
-  can also just be checked"); the answers are kept on the laptop (see
+  can also just be checked"); the answers are kept on the computer (see
   below), so after a restart
   only changed paragraphs are read again. After you stop typing for about
   4 seconds, the paragraph you changed goes to Claude first; about 5 seconds later coloured lines
@@ -1068,7 +1110,7 @@ saving from the page in the bench and comparing the file):
   usage), turn it off/on (`wordPage.assistant`), forget and read again.
   - How: `assistant.js` (add-on side) notes the changed paragraphs of the
     documents open as a page, and after the pause runs the Claude Code
-    program of this laptop without a window (`claude -p`, your subscription,
+    program of this computer without a window (`claude -p`, your subscription,
     model `wordPage.assistantModel` = sonnet, effort low, no tools, no MCP,
     no session saved, `--setting-sources project` from the empty folder
     `%LOCALAPPDATA%\word-page\assistant`, so your hooks do not run; your
@@ -1722,7 +1764,7 @@ The rules (code style, how to answer, where to look when the editor
 misbehaves) sit in `C:\Users\<you>\.claude\CLAUDE.md`, which Claude reads in
 every project and every window. SAVE copies it, with the rest of
 `.claude` (settings and hooks, review.py, slash commands, chat opener,
-memory), into `Claude Code\` here; INSTALL puts it back on a new laptop.
+memory), into `Claude Code\` here; INSTALL puts it back on a new computer.
 
 **/personalsettings** (6 Nov 2026, `~/.claude/commands/personalsettings.md`):
 "personal settings" means this whole setup. The command answers questions
@@ -1752,13 +1794,13 @@ Claude Code then never offers the survey, neither in the VS Code chat panel nor 
 the terminal (checked in the code of version 2.1.319). Takes effect in a new chat
 or after Reload Window. Undo: delete the `env` block.
 
-### The laptop stays awake while Claude works, also when locked (11 Nov 2026)
+### The computer stays awake while Claude works, also when locked (11 Nov 2026)
 
-Lock the laptop (Win+L) while Claude is busy and walk away: it no longer
+Lock the computer (Win+L) while Claude is busy and walk away: it no longer
 falls asleep after 15 minutes (10 on battery), so Claude keeps working. The
-screen still turns off (after 5 / 3 minutes) and the laptop stays locked.
+screen still turns off (after 5 / 3 minutes) and the computer stays locked.
 Closing the lid or pressing the power button still puts it to sleep, as
-before. This laptop has classic sleep (S3, `powercfg /a`), where such a
+before. This computer has classic sleep (S3, `powercfg /a`), where such a
 request reliably holds off idle sleep and hibernate.
 
 How: two hooks in `~/.claude/settings.json`, **SessionStart** and
@@ -1770,7 +1812,7 @@ request a video player or a download makes; no admin rights needed). It
 looks once a minute whether Claude still writes: any chat transcript
 (`~/.claude/projects/**/*.jsonl`, also subagents) changed in the last 30
 minutes. After 30 quiet minutes it lets go and stops, and Windows' own sleep
-timer counts again from zero: so after Claude finishes, the laptop sleeps
+timer counts again from zero: so after Claude finishes, the computer sleeps
 about 45 minutes later. The next message to Claude starts it again. Only one
 keeper runs (lock file `%LOCALAPPDATA%\claude-awake\keeper.lock`), also with
 several Claude chats open. Log: `%LOCALAPPDATA%\claude-awake\log.txt` (`awake:` /
@@ -1788,7 +1830,7 @@ Reload Window. Off: delete the two hooks from `settings.json`.
 
 This counts as personal settings (11 Nov 2026): `CLAUDE.md` and
 `/personalsettings` now name "Windows sleep and power", so a chat asked
-"my laptop goes to sleep" reads this section before changing anything.
+"my computer goes to sleep" reads this section before changing anything.
 The power plans themselves are left alone (decided 11 Nov 2026). Earlier
 that day another chat had set sleep and hibernate to "never" when plugged in,
 in the plan **Legion Performance Mode** (Fn+Q). the user chose this hook
@@ -1796,10 +1838,10 @@ instead, so that change was undone: back to 15 min sleep and 3 h hibernate
 when plugged in, the same as the other three plans (Quiet, Balance, Windows
 Balanced). Performance mode on battery was already "never sleep" before that
 and was not touched. Without Claude working (for example a long R script on
-its own), a locked laptop still sleeps after 15 min.
+its own), a locked computer still sleeps after 15 min.
 
 **Long R runs use the cores (11 Nov 2026, his idea).** One R process uses one
-CPU core; this laptop has 8 cores (16 threads). A rule in `~/.claude/CLAUDE.md`
+CPU core; this computer has 8 cores (16 threads). A rule in `~/.claude/CLAUDE.md`
 ("Long R runs: use the cores") tells Claude to split a run of more than a few
 minutes into about 6 `Rscript` processes side by side (2 cores stay free),
 e.g. one per group of figure versions, instead of one long run. Background:
@@ -1881,6 +1923,12 @@ let Claude Code update) and take `wrapCodeBlocks()` out of the opener.
 
 What you see: section 5. How it works, around every Edit/Write of an R
 script (hooks in `~/.claude/settings.json`, script `~/.claude/review/review.py`):
+
+**Which files:** `.R`, `.Rmd`, `.qmd` and, since 17 Nov 2026, `.bib` (asked:
+"I want it also for the .bib files", for the paper's references.bib), the
+list `EXTS` near the top of review.py. Other file types get no red/green.
+Tested with a test .bib in `code/test_code/bib_edit_test/`: the log shows
+`edits start`, `snapshot`, `done` for it.
 
 **On a `.qmd` (16 Nov 2026):** the red/green and Keep / Undo work for `.qmd`
 too, but only in the plain text view: the Word Page (Quarto's visual editor,

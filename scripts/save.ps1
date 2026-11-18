@@ -1,9 +1,9 @@
-# save.ps1 -- copies this laptop's setup (VS Code, R, Claude Code, git) into
-# the folder "VS Code setup", so that INSTALL.cmd can put it on another laptop.
+# save.ps1 -- copies this computer's setup (VS Code, R, Claude Code, git) into
+# the folder "VS Code setup", so that INSTALL.cmd can put it on another computer.
 #
 # Run by SAVE.cmd (double-click), and by Claude Code in the background at the
 # start of every chat (SessionStart hook in ~/.claude/settings.json, -Quiet).
-# It only writes inside the setup folder; the laptop's own files are never
+# It only writes inside the setup folder; the computer's own files are never
 # changed. Files that did not change are skipped.
 #
 # Not saved here because they are used straight from the setup folder:
@@ -63,7 +63,7 @@ if (Test-Path -LiteralPath $registry) {
     }
 
     $lines = @(
-        '# Every VS Code add-on on this laptop. Written by save.ps1.',
+        '# Every VS Code add-on on this computer. Written by save.ps1.',
         '# Add-ons from the Marketplace: id, version, pinned. INSTALL installs them.',
         '# Pinned add-ons are installed at this exact version and do not update by themselves.'
     )

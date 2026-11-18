@@ -1,4 +1,4 @@
-# Every VS Code add-on on this laptop. Written by save.ps1.
+# Every VS Code add-on on this computer. Written by save.ps1.
 # Add-ons from the Marketplace: id, version, pinned. INSTALL installs them.
 # Pinned add-ons are installed at this exact version and do not update by themselves.
 anthropic.claude-code                2.1.325
@@ -8,7 +8,7 @@ mechatroner.rainbow-csv              3.24.1
 ms-python.debugpy                    2026.6.0
 ms-python.python                     2026.10.0
 ms-python.vscode-pylance             2026.4.1
-ms-python.vscode-python-envs         1.42.0
+ms-python.vscode-python-envs         1.44.0
 ms-vscode.powershell                 2025.4.0
 quarto.quarto                        1.139.0
 reditorsupport.r                     3.2.2        pinned

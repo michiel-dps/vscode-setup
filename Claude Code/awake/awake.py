@@ -1,4 +1,4 @@
-"""Keep the laptop awake while Claude Code works, also when it is locked.
+"""Keep the computer awake while Claude Code works, also when it is locked.
 
 Started by two hooks in ~/.claude/settings.json (SessionStart and
 UserPromptSubmit): `python -I awake.py`. That starts a small keeper in the
@@ -6,7 +6,7 @@ background (pythonw, no window) and returns at once.
 
 The keeper asks Windows not to sleep (SetThreadExecutionState with
 ES_SYSTEM_REQUIRED, the same request a video player or a download makes).
-The screen may still turn off and the laptop stays locked; only sleep and
+The screen may still turn off and the computer stays locked; only sleep and
 hibernate after "no mouse or keyboard" are held off. Closing the lid and the
 power button still work as always.
 
@@ -97,7 +97,7 @@ def keep():
 
     kernel32 = ctypes.windll.kernel32
     kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)
-    log("awake: Claude is working, the laptop will not sleep")
+    log("awake: Claude is working, the computer will not sleep")
     try:
         while True:
             quiet = time.time() - newest_change(folder)

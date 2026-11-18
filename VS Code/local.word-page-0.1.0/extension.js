@@ -478,7 +478,7 @@ async function selectionToClaude() {
       }
       if (panelFirstOpened === 0) { panelFirstOpened = Date.now(); }
       await vscode.commands.executeCommand(CLAUDE_PANEL);
-      picked = await answerOfPage(2500);     // a busy laptop: the answer can still come
+      picked = await answerOfPage(2500);     // a busy computer: the answer can still come
       if (!picked) {
         if (now === old) { log("claude: nothing highlighted"); }
         return;

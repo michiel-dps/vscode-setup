@@ -1,5 +1,5 @@
 # install-packages.R  --  installs the R packages listed in R/packages.txt
-# that this laptop does not have yet. Run by install.ps1 (INSTALL.cmd):
+# that this computer does not have yet. Run by install.ps1 (INSTALL.cmd):
 #   Rscript --vanilla install-packages.R "<setup folder>/R/packages.txt"
 
 package_file <- commandArgs(trailingOnly = TRUE)[1]

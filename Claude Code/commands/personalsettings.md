@@ -9,7 +9,7 @@ argument-hint: what to ask, check or change
 - the RStudio-like R setup: watch.R, Rprofile.R, .lintr, the list of R packages
 - Claude Code: ~/.claude/CLAUDE.md, settings.json and its hooks (review.py, awake.py), the slash commands (this one too), memory
 - git: .gitconfig
-- Windows sleep and power: the laptop stays awake while Claude works, also when locked (`~/.claude/awake/awake.py`, note section 9). The Windows power plans themselves are left alone (decided 11 Nov 2026): read that part of the note before changing any sleep, lid or power-plan setting
+- Windows sleep and power: the computer stays awake while Claude works, also when locked (`~/.claude/awake/awake.py`, note section 9). The Windows power plans themselves are left alone (decided 11 Nov 2026): read that part of the note before changing any sleep, lid or power-plan setting
 
 The master copy is the folder `C:\Users\<you>\<Dropbox>\<name>\VS Code setup` (in Dropbox). Its `README.md` says what is where. `VSCode as RStudio.md` there explains how everything works and why: section 5 the Enter add-on, 6 the R add-on gotchas, 9 Claude Code. An anonymous copy of the folder is in his private GitHub repo vscode-setup, made by `scripts/publish.ps1`.
 
@@ -17,7 +17,7 @@ His request: $ARGUMENTS
 
 ## A question or a check
 
-How does X work, why does Y happen, is Z switched on: read the relevant section of the note and the real file on the laptop, then answer short. For editor trouble, read `%TEMP%\r-pipe-indent.log` first. Change nothing.
+How does X work, why does Y happen, is Z switched on: read the relevant section of the note and the real file on the computer, then answer short. For editor trouble, read `%TEMP%\r-pipe-indent.log` first. Change nothing.
 
 **A window where Claude does not open, or that behaves strangely** (12 and 13 Nov 2026, the H26 folder): run `<folder>\scripts\check-vscode.ps1` first, and with `-Fix` when it says WRONG. It checks that the `vscode://` links, the taskbar list of recent folders and every running window belong to the real VS Code (`%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe`) and not to a test copy. Background: note section 5c, "Test bench for Claude".
 
@@ -25,7 +25,7 @@ How does X work, why does Y happen, is Z switched on: read the relevant section 
 
 ## A change
 
-1. Find where the file really lives: `scripts/save.ps1` lists each laptop location and its copy in the folder. Change the real file on the laptop, not the copy (SAVE overwrites the copies). Changed in the folder itself instead: `R\watch.R`, `R\Rprofile.R` and the Enter add-on `VS Code\local.r-pipe-indent-0.1.0`. After an add-on change, run its `test.js` (note, section 5), then copy `extension.js` to `~/.vscode/extensions/local.r-pipe-indent-0.1.0/`.
+1. Find where the file really lives: `scripts/save.ps1` lists each computer location and its copy in the folder. Change the real file on the computer, not the copy (SAVE overwrites the copies). Changed in the folder itself instead: `R\watch.R`, `R\Rprofile.R` and the Enter add-on `VS Code\local.r-pipe-indent-0.1.0`. After an add-on change, run its `test.js` (note, section 5), then copy `extension.js` to `~/.vscode/extensions/local.r-pipe-indent-0.1.0/`.
 2. Make a small, focused change. If it is not obvious, say first what and why. Never break the working setup: real paths stay real.
 3. Update `VSCode as RStudio.md` in the same turn.
 4. Run `powershell -NoProfile -ExecutionPolicy Bypass -File "<folder>\scripts\save.ps1"`.
