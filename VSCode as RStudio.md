@@ -13,7 +13,7 @@ computer, `SAVE.cmd` copies this computer's setup into the folder.
 | `R\watch-test.R` | 30 offline checks for `watch.R`; run after every change to it or R extension update (section 6) |
 | `R\Rprofile.R` | loads `watch.R` and `terminal-log.R` in every VS Code R terminal (section 2) |
 | `R\terminal-log.R` | copies everything the R terminal shows (output, warnings, errors, commands) to `%TEMP%\r-terminal.log` for Claude (section 2) |
-| `R\.lintr` | no warnings about trailing spaces / indentation / commented code / "use |> instead of %>%" (copy of `C:\Users\<you>\.lintr`) |
+| `R\.lintr` | no warnings about trailing spaces / indentation / commented code / "use |> instead of %>%" / lines longer than 80 characters (`line_length_linter = NULL`, his wish 18 Nov 2026) (copy of `C:\Users\<you>\.lintr`. A project `.lintr`, as in H26-Data Science, overrides it and needs the same lines) |
 | `R\packages.txt` | the R packages on the computer (written by SAVE, installed by INSTALL) |
 | `VS Code\settings.json`, `keybindings.json` | copies of `%APPDATA%\Code\User\` (sections 3 and 4) |
 | `VS Code\extensions.txt` | every VS Code add-on on the computer, written by SAVE from `%USERPROFILE%\.vscode\extensions\extensions.json`. Marketplace add-ons first (id, version; `pinned` = installed at that exact version), which INSTALL installs. Then, since 10 Nov 2026, the own add-ons as `#` lines (id, version, where it comes from), so INSTALL skips them there: `local.r-pipe-indent` (INSTALL copies it), `local.claude-chat-opener` (INSTALL runs its `build.ps1`), `local.startup-screen` (personal: run its `build.ps1` by hand, section 5b), `local.word-page` (INSTALL runs its `build.ps1`, section 5c). Check against VS Code itself: `code --list-extensions --show-versions` |
