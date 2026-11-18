@@ -20,7 +20,7 @@ computer, `SAVE.cmd` copies this computer's setup into the folder.
 | `VS Code\patch-r-extension.pl` | six fixes to the R extension: data viewer columns sized to content, the column-name popup after `, ` (and after `= `, `== `, `%in% `, since 18 Nov 2026) instead of right after the comma, a knitted PDF opening in the editor to the right, a new plot bringing the R Plot tab to the front, Ctrl+wheel zoom on plots like a PDF, and Ctrl+click on a table or value opening it in the data viewer (18 Nov 2026, with the Enter add-on) (run again after every R extension update, section 6) |
 | `VS Code\patch-pdf-viewer.pl` | two fixes to the PDF viewer add-on `tomoki1207.pdf` (10 Nov 2026; zoom version 3 on 11 Nov 2026): Ctrl+wheel and touchpad pinch zoom smoothly in on the spot under the mouse (a pinch follows the fingers, the wheel glides); and a clean reload after each knit (run again after every update of that add-on, section 6b) |
 | `VS Code\patch-color-highlight.ps1` | the Color Highlight add-on marks colour words in R only inside quotes, with the border around the whole `"red"` (18 Nov 2026, section 3, run again after every update of that add-on) |
-| `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.5); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; a stop button for R (18 Nov 2026); Ctrl+click on a table or value opens it in the data viewer, a plot in the R Plot tab (18 Nov 2026, with fix 6 of `patch-r-extension.pl`, section 6); shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo; Keep selects the kept lines), section 5 |
+| `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.5); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; a stop button for R (18 Nov 2026); Ctrl+click on a table or value opens it in the data viewer, a plot in the R Plot tab (18 Nov 2026, with fix 6 of `patch-r-extension.pl`, section 6); shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo, and after a Keep the screen goes back to where you were working, 18 Nov 2026), section 5 |
 | `VS Code\local.startup-screen-0.1.0\` | the startup screen (6 Nov 2026): a short loading screen with a picture, a tip and the loading steps when VS Code starts; personal, left out of the GitHub copy; section 5b |
 | `VS Code\local.word-page-0.1.0\` | Word Page (11 Nov 2026): write like in Word or Google Docs inside VS Code. Quarto's visual editor as a white page with black text under any colour theme, "Word Page: New Document", citations from a `.bib` file and from Zotero; the file underneath is markdown (`.qmd`). Since 11 Nov 2026 the page looks like the PDF of a paper (LaTeX font, A4 margins, PDF heading sizes; setting `wordPage.look`). Its `bench\` is a test VS Code for Claude on its own, invisible Windows desktop; section 5c |
 | `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `awake\awake.py` (computer stays awake while Claude works, section 9), `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\` (the /chats add-on, which also makes code blocks in the Claude chat wrap, section 9), `memory\` (one folder per project) |
@@ -512,7 +512,20 @@ keep: back to line N`. The jump to the next *file* after the last change of
 a file is off in settings.json: `"chat.editing.revealNextChangeOnResolve":
 false`. Copilot's own edits still jump (only Claude's edits are ours).
 
-**Keep selects the kept lines** (10 Nov 2026). After Keep on one change the
+**Keep / Undo goes back to where you were working** (18 Nov 2026, replaces
+the two points before and after this one whenever a saved place exists). He
+asked: "after allowing all edits put me back to where I was on the page, and
+don't move my focus on the page around when you make edits". When Claude's
+first edit of a file starts (`edits start` in the log), the extension saves
+his place in that file: cursor and top line of the screen (`recordHome`). Every
+Keep or Undo, of one change or Keep All (`chatEditingSessionAction`), puts the
+cursor and the screen back on that place 0.1 s later (`goHome`), so the
+selection of the kept lines below no longer happens. The place stays for the
+whole round of edits and Keeps, and a new one is taken at the first Claude
+edit after a Keep. Log: `stay after keep: back to where you were, line N`.
+
+**Keep selects the kept lines** (10 Nov 2026, only when no saved place exists
+since 18 Nov). After Keep on one change the
 lines you just kept are selected (blue), so you see at once where the change
 was; the screen still does not scroll. Undo still puts the cursor back where
 it was. A Keep of a deleted-lines change puts the cursor where the lines were.

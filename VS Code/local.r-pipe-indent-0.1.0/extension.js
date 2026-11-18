@@ -461,6 +461,7 @@ function claimJob(id) {
   job.timer = setTimeout(() => finishJob(job, "timed out"), JOB_TIMEOUT_MS);
   edits.jobs.set(id, job);
   edits.queue.push(job);
+  recordHome(uri);
   log("edits start " + info.file);
   if (edits.wake) edits.wake();
   else if (!edits.opening && edits.active === 0) openRequest(path.basename(job.uri.fsPath));
@@ -732,10 +733,61 @@ function recordView(editor) {
   viewHistory.set(key, list);
 }
 
+// ---- Keep / Undo: back to where you were working (18 Nov 2026) ----
+// Asked: "after allowing all edits put me back to where I was on the page, and
+// don't move my focus on the page around when you make edits". The place he
+// was working (cursor and top of the screen) is saved when Claude's first edit
+// of a file starts, and every Keep or Undo (one change or Keep All) goes back
+// there. The saved place stays for a whole round of edits and Keeps, and a new
+// one is taken at the first Claude edit after a Keep. This replaces "select
+// the kept lines" (10 Nov 2026), which scrolled to the edit.
+const homeViews = new Map();   // file -> { selections, top, used }
+
+function recordHome(uri) {
+  const key = uri.toString();
+  const old = homeViews.get(key);
+  if (old && !old.used) return;                    // still in the same round: keep his first place
+  const list = viewHistory.get(key) || [];
+  const last = list[list.length - 1];
+  const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === key);
+  const view = last || (editor ? {
+    selections: editor.selections,
+    top: editor.visibleRanges.length ? editor.visibleRanges[0].start.line : undefined,
+  } : null);
+  if (!view) return;
+  homeViews.set(key, { selections: view.selections, top: view.top, used: false });
+}
+
+function goHome(editor, home) {
+  const lines = editor.document.lineCount;
+  editor.selections = home.selections.map((s) => {
+    const line = Math.min(s.active.line, lines - 1);
+    return new vscode.Selection(line, s.active.character, line, s.active.character);
+  });
+  if (home.top !== undefined) {
+    const line = Math.min(home.top, lines - 1);
+    editor.revealRange(new vscode.Range(line, 0, line, 0), vscode.TextEditorRevealType.AtTop);
+  }
+}
+
 function stayAfterKeep(event) {
   const action = event && event.action;
-  if (!action || action.kind !== "chatEditingHunkAction" || !action.uri) return;
+  if (!action || !action.uri) return;
+  if (action.kind !== "chatEditingHunkAction" && action.kind !== "chatEditingSessionAction") return;
   const key = action.uri.toString();
+  const home = homeViews.get(key);
+  if (home && (action.outcome === 1 || action.outcome === 2)) {
+    home.used = true;
+    setTimeout(() => {
+      const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === key);
+      if (!editor) return;
+      goHome(editor, home);
+      log("stay after " + (action.outcome === 1 ? "keep" : "undo") + ": back to where you were, line " +
+        ((home.top === undefined ? 0 : home.top) + 1));
+    }, STAY_DELAY_MS);
+    return;
+  }
+  if (action.kind !== "chatEditingHunkAction") return;
   const before = Date.now() - STAY_OLDER_MS;
   const old = [...(viewHistory.get(key) || [])].reverse().find((s) => s.time < before);
   const kept = action.outcome === 1;
