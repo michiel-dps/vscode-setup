@@ -1777,7 +1777,7 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
   `watch-test.R` (`R\` in this folder, see its header), then re-source
   `watch.R` in the running R terminal (Ctrl+Enter on the `source(...)`
   line of the unit, or Ctrl+Alt+R for a new terminal).
-- Six things in the R extension are changed by editing its code
+- Seven things in the R extension are changed by editing its code
   (`VS Code\patch-r-extension.pl` in this folder; the originals are kept next
   to them as `extension.js.orig` and `webviews\httpgd\index.js.orig`). The R
   extension overwrites them when it
@@ -1833,8 +1833,8 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
      list, a function: everything the Workspace panel lists). It runs the
      panel's own eye-button command (`r.workspaceViewer.view`), so it is the
      same `View(get("rent", ...), title = "rent")` line in the R terminal and
-     the same place: the editor window beside the script
-     (`r.session.viewers.viewColumn` → `view` = `Beside`, point 7), made if it
+     the same place: the editor group that already shows a data or plot tab,
+     in any window, or else the one beside the script (point 7), made if it
      is not open, and an open tab of that
      object comes to the front. `watch.R` keeps the tab live as before. Other
      names (`filter`, `mutate`, a column after `$`, `dplyr::n`, words in a
@@ -1857,8 +1857,20 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
      that makes it first); without one, Ctrl+click works as before. The log
      gets a `view rent (Ctrl+click)` line, or an `ERR  view` / `ERR  ctrlClick`
      line. 19 offline checks in the add-on's `test.js`.
-  7. **The R tabs open beside the script, never in a floating window** (18
-     Nov 2026). `settings.json` sets `r.session.viewers.viewColumn` to
+  7. **A new R tab joins the R tabs already open, else it opens beside the
+     script** (18 Nov 2026). A new data viewer tab, R Plot tab or widget tab
+     (leaflet, plotly) opens in the editor group that already shows one of
+     those tabs, in any window, also a floating one on the other screen. A
+     group with the same kind of tab wins (a plot goes to the plot tab's
+     group before the data tab's group). An R tab in the script's own group
+     does not count, so the script is never covered. The patch adds one
+     function, `__rPreviewColumn`, at the top of `extension.js` and calls it
+     where the R extension makes those four tabs (9 offline checks with a
+     fake `vscode` module, 18 Nov 2026). An open tab of the same object still
+     comes forward where it is, as before. Asked for after a Ctrl+click on
+     `wwbi` opened in the main window while the floating window already
+     showed a data tab. With no R tab open anywhere, the setting decides:
+     `settings.json` sets `r.session.viewers.viewColumn` to
      `Beside` for `plot`, `view`, `viewer` and `helpPanel` (`browser` and
      `pageViewer` stay `Active`, the R extension's default). The default `Two`
      means "the second editor group", and VS Code counts the groups of a

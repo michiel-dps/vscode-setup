@@ -1,6 +1,6 @@
 #!/usr/bin/perl
-# Six fixes to the VS Code R extension (reditorsupport.r), applied by editing
-# its dist/extension.js (fixes 1-4 and 6) and dist/webviews/httpgd/index.js (fix 5).
+# Seven fixes to the VS Code R extension (reditorsupport.r), applied by editing
+# its dist/extension.js (fixes 1-4, 6 and 7) and dist/webviews/httpgd/index.js (fix 5).
 # Re-run after the R extension updates itself (the
 # folder reditorsupport.r-x.y.z gets a new version number). Idempotent: each
 # fix is skipped when it is already in place.
@@ -29,6 +29,8 @@
 #    function) opens it in the data viewer, like the eye button in the
 #    Workspace panel. Needs the Enter add-on (local.r-pipe-indent 0.5.4 or
 #    later), which decides. Other names keep Go to Definition.
+# 7. A new data viewer, R Plot or widget tab opens in the editor group that
+#    already has one of those tabs, also in a floating window (18 Nov 2026).
 use strict; use warnings;
 my $ext = "$ENV{USERPROFILE}/.vscode/extensions";
 opendir(my $dh, $ext) or die "cannot open $ext";
@@ -123,6 +125,44 @@ if ($js =~ /patched: Ctrl\+click on a session object opens the data viewer/) {
         q~middleware:{...Pte,provideDefinition:async(j,V,Z,ce)=>{let w;try{w=await hr.commands.executeCommand("rPipeIndent.ctrlClick",j,V,typeof s0=="function"?s0(j.uri):void 0)}catch(e){}return w===void 0?ce(j,V,Z):w}/* patched: Ctrl+click on a session object opens the data viewer */,provideSignatureHelp:async(j,V,Z,ce,fe)=>~,
         "Ctrl+click fix");
     print "Ctrl+click fix: applied\n"; $changed++;
+}
+
+# ---- 7. an R tab opens in the editor group that already has an R tab -------
+# A new data viewer, R Plot or widget viewer tab opens in the editor group
+# (in any window, also a floating one) that already shows a data viewer or
+# plot tab, a group with the same kind of tab first. With none open, or only
+# in the script's own group, the setting (Beside) decides as before.
+# Offline test: R tabs in group 3 of a floating window, data or plot, 9 checks
+# (18 Nov 2026). An open tab of the same object still comes forward where it is.
+if ($js =~ /patched: an R tab opens where an R tab already is/) {
+    print "R tab group fix: already in place\n";
+} else {
+    my $helper = q~function __rPreviewColumn(want,fallback){/* patched: an R tab opens where an R tab already is */try{const v=require("vscode"),ed=v.window.activeTextEditor,own=ed?ed.viewColumn:void 0,R=["dataview","RPlot","r.standardPlot","r.htmlViewer"],kind=tab=>{const x=tab.input;if(!(x instanceof v.TabInputWebview)||typeof x.viewType!="string")return"";return R.find(r=>x.viewType===r||x.viewType.endsWith("-"+r))||""};let best;for(const g of v.window.tabGroups.all){if(g.viewColumn===own)continue;for(const tab of g.tabs){const k=kind(tab);if(!k)continue;const same=want.includes(k);if(!best||same&&!best.same)best={col:g.viewColumn,same:same}}}return best?best.col:fallback}catch(e){return fallback}}~;
+    die "R tab group fix: file does not start with \"use strict\", patch by hand\n" unless substr($js, 0, 13) eq '"use strict";';
+    substr($js, 13, 0) = $helper;   # at the top, so every part of the file sees it
+    # data viewer: a table and a list (the same code twice)
+    my $dv_old = q~{preserveFocus:!0,viewColumn:Me.ViewColumn[i]},{enableScripts:!0,enableFindWidget:!0,retainContextWhenHidden:!0,localResourceRoots:[Me.Uri.file(Uu)]}~;
+    my $dv_new = q~{preserveFocus:!0,viewColumn:__rPreviewColumn(["dataview"],Me.ViewColumn[i])},{enableScripts:!0,enableFindWidget:!0,retainContextWhenHidden:!0,localResourceRoots:[Me.Uri.file(Uu)]}~;
+    my $n = 0;
+    while ((my $i = index($js, $dv_old)) >= 0) { substr($js, $i, length $dv_old) = $dv_new; $n++ }
+    die "R tab group fix: data viewer code found $n times, not 2, patch by hand\n" unless $n == 2;
+    # httpgd plot tab (the backend in settings.json)
+    replace_once(
+        q~createWebviewPanel("RPlot","R Plot",e||this.showOptions,~,
+        q~createWebviewPanel("RPlot","R Plot",{...(e||this.showOptions),viewColumn:__rPreviewColumn(["RPlot"],(e||this.showOptions).viewColumn)},~,
+        "R tab group fix, httpgd plot");
+    # standard plot tab: new tab next to an R tab, an open one stays where it is
+    replace_once(
+        q~createWebviewPanel("r.standardPlot","R Plot",{viewColumn:e,~,
+        q~createWebviewPanel("r.standardPlot","R Plot",{viewColumn:__rPreviewColumn(["r.standardPlot"],e),~,
+        "R tab group fix, standard plot");
+    replace_once(q~this.panel?(this.panel.reveal(e,!0)~, q~this.panel?(this.panel.reveal(void 0,!0)~, "R tab group fix, standard plot reveal");
+    # htmlwidget viewer (leaflet, plotly)
+    replace_once(
+        q~viewColumn:lt.ViewColumn[String(e)]??lt.ViewColumn.Two}~,
+        q~viewColumn:__rPreviewColumn(["r.htmlViewer"],lt.ViewColumn[String(e)]??lt.ViewColumn.Two)}~,
+        "R tab group fix, widget viewer");
+    print "R tab group fix: applied\n"; $changed++;
 }
 
 if ($changed) {

@@ -36,7 +36,8 @@
     "r.plot.backend": "httpgd",
     // Data viewer, R Plot, R Help and the htmlwidget viewer open beside the script, in this
     // window. The default "Two" counts the groups of a floating window too, so with one
-    // group here they landed in a floating window (18 Nov 2026).
+    // group here they landed in a floating window (18 Nov 2026). Fix 7 of patch-r-extension.pl
+    // goes first: a new data or plot tab joins a group that already shows one, in any window.
     "r.session.viewers.viewColumn": {
         "plot": "Beside",
         "browser": "Active",
@@ -173,5 +174,6 @@
     "window.restoreWindows": "all",
     // The built-in browser (Ctrl+Numpad3, the Tutor) keeps its login and stored progress across restarts and folders
     "workbench.browser.dataStorage": "global",
-    "git.autofetch": true
+    "git.autofetch": true,
+    "window.confirmSaveUntitledWorkspace": false
 }
