@@ -19,6 +19,7 @@ computer, `SAVE.cmd` copies this computer's setup into the folder.
 | `VS Code\extensions.txt` | every VS Code add-on on the computer, written by SAVE from `%USERPROFILE%\.vscode\extensions\extensions.json`. Marketplace add-ons first (id, version; `pinned` = installed at that exact version), which INSTALL installs. Then, since 10 Nov 2026, the own add-ons as `#` lines (id, version, where it comes from), so INSTALL skips them there: `local.r-pipe-indent` (INSTALL copies it), `local.claude-chat-opener` (INSTALL runs its `build.ps1`), `local.startup-screen` (personal: run its `build.ps1` by hand, section 5b), `local.word-page` (INSTALL runs its `build.ps1`, section 5c). Check against VS Code itself: `code --list-extensions --show-versions` |
 | `VS Code\patch-r-extension.pl` | six fixes to the R extension: data viewer columns sized to content, the column-name popup after `, ` (and after `= `, `== `, `%in% `, since 18 Nov 2026) instead of right after the comma, a knitted PDF opening in the editor to the right, a new plot bringing the R Plot tab to the front, Ctrl+wheel zoom on plots like a PDF, and Ctrl+click on a table or value opening it in the data viewer (18 Nov 2026, with the Enter add-on) (run again after every R extension update, section 6) |
 | `VS Code\patch-pdf-viewer.pl` | two fixes to the PDF viewer add-on `tomoki1207.pdf` (10 Nov 2026; zoom version 3 on 11 Nov 2026): Ctrl+wheel and touchpad pinch zoom smoothly in on the spot under the mouse (a pinch follows the fingers, the wheel glides); and a clean reload after each knit (run again after every update of that add-on, section 6b) |
+| `VS Code\patch-color-highlight.ps1` | the Color Highlight add-on marks colour words in R only inside quotes, with the border around the whole `"red"` (18 Nov 2026, section 3, run again after every update of that add-on) |
 | `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.5); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; a stop button for R (18 Nov 2026); Ctrl+click on a table or value opens it in the data viewer, a plot in the R Plot tab (18 Nov 2026, with fix 6 of `patch-r-extension.pl`, section 6); shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo; Keep selects the kept lines), section 5 |
 | `VS Code\local.startup-screen-0.1.0\` | the startup screen (6 Nov 2026): a short loading screen with a picture, a tip and the loading steps when VS Code starts; personal, left out of the GitHub copy; section 5b |
 | `VS Code\local.word-page-0.1.0\` | Word Page (11 Nov 2026): write like in Word or Google Docs inside VS Code. Quarto's visual editor as a white page with black text under any colour theme, "Word Page: New Document", citations from a `.bib` file and from Zotero; the file underneath is markdown (`.qmd`). Since 11 Nov 2026 the page looks like the PDF of a paper (LaTeX font, A4 margins, PDF heading sizes; setting `wordPage.look`). Its `bench\` is a test VS Code for Claude on its own, invisible Windows desktop; section 5c |
@@ -315,11 +316,18 @@ line between editor groups, not the edge of the side windows or the bottom panel
 Colour names in R code (18 Nov 2026): in `scale_fill_gradient(low =
 "lightyellow", high = "darkred")` the word itself gets a border in its
 colour, in place of VS Code's small colour square in front of it. First a
-background block, then (his wish the same evening) `outline`. Still open, his
-wish: the border around the whole `"red"` including the quotes, and only for
-words inside quotes. Color Highlight 2.8.0 has no option for either (its
-settings: `enable`, `languages`, `matchWords`, `markerType`, a few rgb/hsl
-switches), so that needs a patch of the add-on, planned after unit 4.7.
+background block, then (his wish the same evening) `outline`, and then the
+border around the whole `"red"` including the quotes, and only for colour
+words inside quotes (`# a red line` in a comment gets nothing). Color
+Highlight 2.8.0 has no option for that (its settings: `enable`, `languages`,
+`matchWords`, `markerType`, a few rgb/hsl switches), so
+`VS Code\patch-color-highlight.ps1` patches its colour-word finder in
+`dist\extension-node.js`: the pattern becomes quote, colour name, the same
+quote (`(["'])(red|...)\1`), and the marked range runs from quote to quote. It
+keeps the original as `extension-node.js.orig`, leaves a patched file alone
+(marker `/*patch-quoted-colour-words*/`), and says WRONG when an update
+changed the code. **Run it again after every update of Color Highlight**,
+then Developer: Restart Extension Host.
 He asked for this. Two parts: `"editor.colorDecorators": false` in the `[r]`
 block (the square comes from the R language server, VS Code cannot draw it as
 a background), and the add-on Color Highlight (`naumovs.color-highlight`) with

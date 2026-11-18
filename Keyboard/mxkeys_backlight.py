@@ -44,15 +44,22 @@ DEVICE_NAME = "MX Keys"
 LED_BATTERY_GREEN = 0x01
 LED_BATTERY_RED = 0x02
 LED_BACKLIGHT = 0x10
-# Forced state: key backlight on, battery LED green + red at once (amber) as the "always on" indicator.
-FORCED_MASK = bytes([LED_BACKLIGHT | LED_BATTERY_GREEN | LED_BATTERY_RED, 0x00, 0x00])
-# While charging: key backlight still forced on, but the amber light off, so the keyboard's own
-# charging light is not mixed with it (that gave odd colours, 18 Nov 2026). Full or on battery: amber again.
+# Forced state: key backlight on, and the battery LED shows the battery (his choice, 18 Nov 2026).
+# The LED is only a green and a red one, each on or off, so: red, green, or both (orange).
+FORCED_MASK = bytes([LED_BACKLIGHT | LED_BATTERY_GREEN | LED_BATTERY_RED, 0x00, 0x00])   # on battery: orange
+LOW_MASK = bytes([LED_BACKLIGHT | LED_BATTERY_RED, 0x00, 0x00])                          # battery low: red
+FULL_MASK = bytes([LED_BACKLIGHT | LED_BATTERY_GREEN, 0x00, 0x00])                       # full on the cable: green
+# While charging: battery LED not forced, so the keyboard's own charging light is not mixed
+# with it (that gave odd colours, 18 Nov 2026). The key backlight stays forced on.
 CHARGING_MASK = bytes([LED_BACKLIGHT, 0x00, 0x00])
-BATTERY_EVERY = 5                            # seconds between battery checks (charging or not)
-# Battery status (feature 0x1000): 1 = charging, 2 = almost full, 4 = charging slowly.
-# 0 = on battery and 3 = full: amber light on.
+LIGHT_NAMES = {FORCED_MASK: "orange (on battery)", LOW_MASK: "red (battery low)",
+               FULL_MASK: "green (full on the cable)", CHARGING_MASK: "off (charging)"}
+LOW_LEVEL = 20                               # battery percent at or below which the light is red
+BATTERY_EVERY = 5                            # seconds between battery checks
+# Battery status (feature 0x1000): 0 = on battery, 1 = charging, 2 = almost full, 3 = full,
+# 4 = charging slowly.
 CHARGING = {1, 2, 4}
+FULL = 3
 CLEAR = bytes([0x00, 0x00, 0x00])
 CID_BACKLIGHT_DOWN = 0x00E2                  # F6 on the MX Keys
 CID_BACKLIGHT_UP = 0x00E3                    # F7 on the MX Keys
@@ -104,7 +111,7 @@ class Keyboard:
         self.f_hidden, _, _ = self.rx.feature_index(self.idx, 0x1E00)
         self.f_led, _, _ = self.rx.feature_index(self.idx, 0x18A1)
         self.f_keys, _, _ = self.rx.feature_index(self.idx, 0x1B04)
-        self.f_battery, _, _ = self.rx.feature_index(self.idx, 0x1000)   # None: amber stays on while charging
+        self.f_battery, _, _ = self.rx.feature_index(self.idx, 0x1000)   # None: always orange
         if not (self.f_hidden and self.f_led and self.f_keys):
             raise RuntimeError("required features not present on this keyboard")
         # The keys this keyboard lets us take over (reprogrammable controls v4, getCount + getCidInfo).
