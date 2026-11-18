@@ -109,6 +109,10 @@ if ($library) {
 Copy-Files $userHome "$setup\git" @('.gitconfig')
 
 
+# --- The startup screen's pictures (18 Nov 2026) ---
+Copy-Folder "$userHome\Pictures\VS Code startup" "$setup\VS Code\startup-pictures"
+
+
 # --- Claude Code: rules, settings, hook script, slash commands, chat opener ---
 Copy-Files  $claude "$setup\Claude Code" @('CLAUDE.md', 'settings.json')
 Copy-Files  "$claude\review" "$setup\Claude Code\review" @('review.py')

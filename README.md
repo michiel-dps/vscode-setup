@@ -62,6 +62,9 @@ Change these four in this folder instead (SAVE leaves them alone):
 - `VS Code\local.startup-screen-0.1.0`: the startup screen. Personal: it is
   left out of the GitHub copy. Afterwards run its `build.ps1` (note,
   section 5b).
+- `VS Code\startup-pictures`: the startup screen's pictures. Do not change
+  them here: save.ps1 copies them from `Pictures\VS Code startup` on the
+  computer. They do go in the GitHub copy (18 Nov 2026).
 
 ## On GitHub (anonymous copy)
 

@@ -501,7 +501,11 @@ A click or any key stops it at once and goes to VS Code.
   `startupScreen.pictureFolder`. No pictures: a dark background with embers.
   The 5 pictures there on 6 Nov 2026 are official images from the game's
   media gallery (https://en.bandainamcoent.eu/elden-ring/elden-ring/media),
-  saved for personal use only; they are not in this folder. The helper shows
+  saved for personal use only. Since 18 Nov 2026 save.ps1 copies them into
+  `VS Code\startup-pictures` here, and publish.ps1 puts them in the GitHub
+  copy (private repo), byte for byte. On a new computer: copy that folder to
+  `Pictures\VS Code startup`. The add-on itself stays out of the GitHub
+  copy. The helper shows
   .jpg, .png and .bmp (not .webp). A picture fills the screen, unless that
   would blow it up more than 1.35 times its real size (blurry): then it is
   shown across the full width, with a soft blurred copy of it above and
@@ -521,8 +525,9 @@ A click or any key stops it at once and goes to VS Code.
 - **See it now**: Ctrl+Shift+P → "Startup screen: play now".
 - **Off**: setting `"startupScreen.enabled": false`.
 - **Personal**: publish.ps1 leaves the add-on folder out of the GitHub copy
-  (`$leaveOut`). INSTALL does not install it: on a new computer run its
-  `build.ps1` and put pictures in the picture folder.
+  (`$leaveOut`), its pictures go in (18 Nov 2026). INSTALL does not install
+  it: on a new computer run its `build.ps1` and copy `VS Code\startup-pictures`
+  to the picture folder.
 - **Files**: `helper.cs` (the helper), `extension.js` (the add-on),
   `screen-core.js` + `screen.html` (the add-on's own screen), `tips.txt` (the
   tips, one per line, read by both).
