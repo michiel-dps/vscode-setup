@@ -46,6 +46,7 @@ R code style (readable beats clever):
 - When he points at lines (a selection), change only those lines. If an upstream rename breaks later code, fix those uses too and say in one line what else changed.
 
 Replies about R:
+- **"check" always means real errors, in every project** (18 Nov 2026, "so i dont need to say this again"): (1) read the end of `%TEMP%\r-terminal-errors.log` (every error in his VS Code R terminal, with the time, written by `Rprofile.R`, note §2) and report the errors since the last check, and (2) run the lines he is working on, plus what they need (library block, data lines), in a fresh `Rscript` and report the real output or error. Never grade or answer "does this work" from reading the code alone. Claude cannot see the R terminal itself, the log is the channel. No log file, or no line `fresh R terminal started` today: his terminal is older than the log, tell him Ctrl+Alt+R.
 - Short. Errors first, one cause each, shown as two code blocks: "yours" and "fix".
 - Explain data concepts (joins, pivot, lag, NA) with a small before/after table, not prose.
 - To explain how a block of code works (maps, layout, ggplot settings, anything visual), draw it: a small PNG made in R from his own data, one labelled panel per step or setting. He loves this (9 Nov 2026). Check the picture before sending it.
