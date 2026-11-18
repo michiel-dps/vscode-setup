@@ -378,12 +378,20 @@ a selection:
 
 **Stop button (18 Nov 2026, v0.5.2, asked: "a button for the R terminal that
 stops the terminal from running, like a stop button").** A square stop icon
-(`$(debug-stop)`) at the top right of every `.R`, `.Rmd` and `.qmd` tab, and in
-the toolbar of the terminal panel. A click sends Ctrl+C to the R terminal (the
+(`$(debug-stop)`) in the toolbar of the terminal panel only, with the tooltip
+"Stop R" (since 18 Nov 2026, asked: no "send Ctrl+C" text in the tooltip, and
+no button at the top of the code tabs). A click sends Ctrl+C to the R terminal (the
 one called "R Interactive", else the open terminal), as pressing Ctrl+C in it
 would: R stops the running command and shows `>` again. Command
 `rPipeIndent.stopR`. Log: `stop sent Ctrl+C to R Interactive`. It does not
 close the terminal or empty the Workspace.
+
+**The Claude logo at the top right of a code tab** is not ours: the Claude
+Code add-on puts it there (command `claude-vscode.editor.openLast`, "Claude
+Code: Open"). Read in version 2.1.327: because `claudeCode.preferredLocation`
+is `sidebar`, a click opens or shows the Claude chat in the side panel, the
+same chat that is already there. It does not start a new chat and does not
+open a tab. With the setting on `panel` it would open a Claude tab instead.
 
 The binding is in `keybindings.json` (user keybindings win over extension ones)
 and in the extension's package.json. The log gets a line

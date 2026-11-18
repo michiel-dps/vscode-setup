@@ -52,18 +52,11 @@
 			},
 			{
 				"command": "rPipeIndent.stopR",
-				"title": "Stop R (send Ctrl+C to the R terminal)",
+				"title": "Stop R",
 				"icon": "$(debug-stop)"
 			}
 		],
 		"menus": {
-			"editor/title": [
-				{
-					"command": "rPipeIndent.stopR",
-					"when": "editorLangId == r || editorLangId == rmd || editorLangId == quarto",
-					"group": "navigation@-10"
-				}
-			],
 			"view/title": [
 				{
 					"command": "rPipeIndent.stopR",
