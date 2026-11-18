@@ -2468,16 +2468,27 @@ through the Unifying receiver (HID++) and starts hidden at every logon.
 | Key | What it does |
 |---|---|
 | F1 / F2 | external screens darker / brighter, 10 of 100 per press, hold to keep going |
-| F7 / F6 | key backlight always on (battery light amber) / the keyboard's normal backlight |
+| F7 / F6 | key backlight always on (battery light shows the battery, below) / the keyboard's normal backlight |
 
-**While charging the amber light is off** (18 Nov 2026): the key backlight
-stays forced on (mask 0x10 in place of 0x13), only the amber battery light
-goes off. When the keyboard is full, or the cable is out, the amber comes
-back by itself. The helper asks the keyboard every 5 seconds (battery
-feature 0x1000: status 1, 2 and 4 = charging, 3 = full, 0 = on battery).
-Tried first and rejected: flickering the amber while charging, and pausing
-the whole forced mode. The keyboard's own charging light mixes with forced
-amber into odd colours, and he wants the backlight on while charging.
+**The battery light while forced** (his choice, 18 Nov 2026). The key
+backlight stays on in every row:
+
+| Battery | Light | Mask |
+|---|---|---|
+| on battery | orange (green + red) | 0x13 |
+| 20% or less, on battery | red | 0x12 |
+| charging | forced light off: the keyboard's own charging light | 0x10 |
+| full, on the cable | green | 0x11 |
+
+The helper asks the keyboard every 5 seconds (battery feature 0x1000: level
+in percent, status 0 = on battery, 1, 2 and 4 = charging, 3 = full). The
+LED is one green and one red LED, each only on or off: red, green and both
+together (orange) are all it can show, so yellow and orange cannot be told
+apart. He asked for yellow when full and blinking yellow while charging,
+and chose green and "off" as the nearest. Tried and rejected: flickering
+the forced light while charging (the keyboard's own charging light mixes
+with it into odd colours), and pausing the whole forced mode while charging
+(he wants the backlight on).
 
 **Why F1/F2 needed it.** Windows sends the brightness keys only to a
 computer's own screen. The computer drives two Dell P2412H screens, so the keys
@@ -2522,6 +2533,9 @@ not see `--user` packages) and starts the watcher.
   seconds without mouse or keyboard input (Windows' `GetLastInputInfo`),
   and when the keyboard connects again. Log line: "lights switched off and
   on again". Dark lights without that line after a break: the pause was not
-  seen. Then F6 and F7 switch them back by hand.
+  seen. Then F6 and F7 switch them back by hand. After a deep sleep the
+  keyboard does not answer for a few seconds: the helper then tries every 2
+  seconds (10 times, then every 10), so the backlight is back within a few
+  seconds of a touch (was 10 to 40 seconds before 18 Nov 2026 evening).
 - Stop for good: `python mxkeys_backlight.py restore` (normal backlight,
   F1/F2/F6/F7 back to normal), stop the watcher, delete the `.vbs`.

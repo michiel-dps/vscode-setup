@@ -1,7 +1,7 @@
 """MX Keys backlight: force always-on via the hidden HID++ LED-test feature (0x18A1).
-While forced, the battery LED is lit amber (green + red) as the indicator that the mode is on.
-While the keyboard charges, the backlight stays forced on but the amber light is off.
-Full or on battery: amber again.
+While forced, the battery LED shows the battery: red when low (20% or less), orange (green + red)
+on battery, off while charging (the keyboard's own charging light), green when full on the cable.
+After the keyboard slept, the lights are switched on again as soon as it wakes.
 
 Usage:  python mxkeys_backlight.py on|off|status|watch|restore
   on       force the backlight on, battery LED amber (and remember that choice)
@@ -129,11 +129,20 @@ class Keyboard:
             return False
         return bool(self.req(self.f_led, 1)[0] & LED_BACKLIGHT)
 
-    def charging(self):
-        """True while the keyboard is charging (not when full or on battery)."""
+    def light(self):
+        """The forced LEDs that fit the battery now: red, orange, green, or none while charging."""
         if not self.f_battery:
-            return False
-        return self.req(self.f_battery, 0)[2] in CHARGING
+            return FORCED_MASK
+        answer = self.req(self.f_battery, 0)
+        level = answer[0]
+        status = answer[2]
+        if status in CHARGING:
+            return CHARGING_MASK
+        if status == FULL:
+            return FULL_MASK
+        if level <= LOW_LEVEL:
+            return LOW_MASK
+        return FORCED_MASK
 
     def force_on(self, mask=FORCED_MASK):
         self.req(self.f_hidden, 1, b'\x01')
@@ -145,23 +154,23 @@ class Keyboard:
         self.req(self.f_led, 2, CLEAR)
         self.req(self.f_hidden, 1, b'\x00')
 
-    def is_set(self, forced, charging=False):
-        """True if the keyboard already shows what forced/charging ask for."""
+    def is_set(self, forced, mask=FORCED_MASK):
+        """True if the keyboard already shows what forced and the battery light ask for."""
         if not forced:
             return not self.forced()
         if not self.req(self.f_hidden, 0)[0]:
             return False
-        return self.req(self.f_led, 1)[:3] == (CHARGING_MASK if charging else FORCED_MASK)
+        return self.req(self.f_led, 1)[:3] == mask
 
-    def refresh(self, charging=False):
+    def refresh(self, mask=FORCED_MASK):
         """Switch the forced LEDs off and on again: after sleep they are dark but still reported as on."""
         self.normal()
-        return self.force_on(CHARGING_MASK if charging else FORCED_MASK)
+        return self.force_on(mask)
 
-    def apply(self, forced, charging=False):
-        """Forced: backlight on, plus the amber light unless charging. Not forced: normal behaviour."""
+    def apply(self, forced, mask=FORCED_MASK):
+        """Forced: backlight on plus the battery light in mask. Not forced: normal behaviour."""
         if forced:
-            return self.force_on(CHARGING_MASK if charging else FORCED_MASK)
+            return self.force_on(mask)
         self.normal()
         return True
 
@@ -238,14 +247,16 @@ def cmd_watch():
     held = set()
     next_check = 0
     repeat_at = None                              # when a held F1/F2 steps again
-    charging = False                              # keyboard on the cable and not full yet
+    light = None                                  # the battery light now (one of the masks)
     next_battery = 0
     need_refresh = False                          # switch the lights off and on again
     was_paused = False                            # no input for IDLE_PAUSE seconds
+    failures = 0                                  # tries in a row the keyboard did not answer
     while True:
         try:
             if kb is None:
                 kb = Keyboard()
+                failures = 0
                 log(f"connected to {DEVICE_NAME} (receiver slot {kb.idx})")
                 missing = [f"{cid:#06x}" for cid in BRIGHTNESS_KEYS if cid not in kb.cids]
                 if missing:
@@ -257,23 +268,23 @@ def cmd_watch():
             if was_paused and idle < 2:
                 need_refresh = True
             was_paused = idle >= IDLE_PAUSE
-            # Charging turns the amber light off (backlight stays). Full or on battery: amber again.
+            # The battery light: red low, orange on battery, off charging, green full on the cable
             if time.time() >= next_battery:
-                now_charging = kb.charging()
-                if now_charging != charging:
-                    charging = now_charging
-                    log("charging: amber light off" if charging else "not charging: amber light on")
+                now_light = kb.light()
+                if now_light != light:
+                    light = now_light
+                    log(f"battery light: {LIGHT_NAMES[light]}")
                     next_check = 0                # apply it right away
                 next_battery = time.time() + BATTERY_EVERY
             if need_refresh:
                 need_refresh = False
                 if load_wanted():
-                    log(f"lights switched off and on again (ok={kb.refresh(charging)})")
+                    log(f"lights switched off and on again (ok={kb.refresh(light)})")
             if time.time() >= next_check:
                 wanted = load_wanted()            # the on/off commands may have changed it
-                if not kb.is_set(wanted, charging):
-                    ok = kb.apply(wanted, charging)
-                    shown = "normal" if not wanted else ("forced on, no amber (charging)" if charging else "forced on")
+                if not kb.is_set(wanted, light):
+                    ok = kb.apply(wanted, light)
+                    shown = f"forced on, battery light {LIGHT_NAMES[light]}" if wanted else "normal"
                     log(f"applied {shown} (ok={ok})")
                 if kb.ensure_diverted(True):
                     log("F6/F7 diverted to the watcher")
@@ -293,6 +304,7 @@ def cmd_watch():
             # The receiver says the keyboard connected again (HID++ 1.0 notification 0x41)
             if len(report) > 2 and report[1] == kb.idx and report[2] == 0x41:
                 log("keyboard reconnected to the receiver")
+                time.sleep(1)                     # it needs a moment before it answers
                 need_refresh = True
                 continue
             keys = kb.pressed_keys(report)
@@ -309,7 +321,7 @@ def cmd_watch():
             if CID_BACKLIGHT_UP in newly and not wanted:
                 wanted = True
                 save_wanted(True)
-                log(f"F7 pressed: forced on (ok={kb.apply(True, charging)})")
+                log(f"F7 pressed: forced on (ok={kb.apply(True, light)})")
             elif CID_BACKLIGHT_DOWN in newly and wanted:
                 wanted = False
                 save_wanted(False)
@@ -322,10 +334,12 @@ def cmd_watch():
             kb = None
             held = set()
             repeat_at = None
-            charging = False
+            light = None
             next_battery = 0
             need_refresh = False
-            time.sleep(10)
+            # just woken up: try again soon, so the backlight is back within a few seconds
+            failures = failures + 1
+            time.sleep(2 if failures <= 10 else 10)
 
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
