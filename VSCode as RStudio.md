@@ -247,7 +247,8 @@ own code (1.146) and the Claude Code add-on's (2.1.323):
 | Editor tabs in each window | yes | VS Code default |
 | Claude Code chats opened **as tabs** (Ctrl+Numpad7) | yes, with the conversation | the add-on restores its tabs (`registerWebviewPanelSerializer("claudeVSCodePanel")`); `claudeCode.continueAfterReload` (default on) even finishes a step that was cut off |
 | The Claude Code chat **in the side bar** | no, it opens empty | the add-on starts the side bar without a session. The old chat is in its list of past conversations (or `/chats`). A chat you want back after a restart: open it as a tab |
-| Data viewer and R Plot tabs, also in a floating window | yes, as a stand-in tab with a short note, in the same place (since 18 Nov 2026) | fix 8 of `patch-r-extension.pl` (section 6). Before, the R extension could not bring them back, and a floating window with only those tabs came back empty or not at all. The next Ctrl+click on that name, or the next plot, replaces the stand-in in that place (fix 7) |
+| Data viewer and R Plot tabs in the main window | yes, as a stand-in tab with a short note, in the same place (since 18 Nov 2026) | fix 8 of `patch-r-extension.pl` (section 6). Before, the R extension could not bring them back. The next Ctrl+click on that name, or the next plot, replaces the stand-in in that place (fix 7) |
+| A floating window (a tab dragged to the other screen) after **Reload Window** | **no, it comes back plain grey** (seen twice on 18 Nov 2026, VS Code 1.146.0) | a VS Code fault while it rebuilds the floating window, also with fix 8 in place (section 6, point 8). Use Restart Extension Host (below), which leaves floating windows alone. If it happened: `scripts\check-vscode.ps1 -Fix` closes the grey window, and the next plot or Ctrl+click opens beside the script |
 | The R terminal | a fresh one starts by itself (since 18 Nov 2026) | the Enter add-on (v0.5.6) runs `r.createRTerm` at every start of the add-ons in a window with an `.R`, `.Rmd` or `.qmd` file open, and first closes an old "R Interactive" terminal (a leftover that can no longer reach the Workspace panel). The R objects are gone, as after an RStudio restart: run the script again. Log line `fresh R: started` |
 | The Tutor tab (built-in browser, Ctrl+Numpad3) | yes, same web address | the browser tab is saved like any editor tab (its URL) |
 | The Tutor's login and progress | yes | `"workbench.browser.dataStorage": "global"`: one store for the built-in browser, kept across restarts and folders (the default `default` means the same on this computer, but VS Code turns it into a throw-away store in a folder it does not trust; set explicitly so it stays). Progress is also saved to his claude.ai account by the page itself |
@@ -1803,7 +1804,9 @@ window only when another VS Code window still shows content; Claude chats
 that were in it stay saved and `/chats` opens them again. Cause that day: a
 floating window (Claude chats dragged out or "Open in New Window") came
 back empty after Reload Window, a VS Code fault. Section 6, point 7 of the
-R extension list says why the data viewer had landed in it. The rule for every test copy of VS Code, also a future
+R extension list says why the data viewer had landed in it. It happened again
+that evening with a floating window that held only the R Plot tab (section 6,
+point 8 has what was measured). The rule for every test copy of VS Code, also a future
 one: its own `--user-data-dir` and its own names in `product.json`. This is
 also written in `~/.claude/CLAUDE.md` and in `/personalsettings`.
 **16 Nov 2026: he had to sign in to GitHub in VS Code again and again.**
@@ -1995,6 +1998,19 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
      next data tab of that name, or the next plot, opens in its group and the
      stand-in closes 0.3 s later. A stand-in of another name stays until you
      close it. 11 offline checks with a fake `vscode` module, 18 Nov 2026.
+     **It does not rescue a floating window** (found the same evening, Reload
+     Window at 20:09). The floating window that held only the R Plot tab came
+     back plain grey again. What was measured: the window had one colour, its
+     title was still "R Plot - H26-Data Science" (so the stand-in tab did come
+     back), resizing it did not redraw it, `renderer.log` had no error, and ten
+     minutes later VS Code's saved state for the folder (`state.vscdb`) held no
+     `editorparts.state` entry, so VS Code itself no longer knew the window.
+     VS Code 1.146.0 rebuilds floating windows in `restoreState` with
+     `Promise.allSettled`, which hides any error, so the log stays clean. The
+     exact step that fails is not found yet: that needs the developer tools on
+     a test copy of VS Code. Not tested either: whether 1.147.0 has it, and
+     whether a full restart of VS Code has it. Until then: with a floating
+     window open, Restart Extension Host and never Reload Window (section 3).
 - **The plot fits the R Plot tab** (18 Nov 2026, his wish: "automatically
   adjust to how big the editor window is"). `settings.json` sets
   `"r.plot.defaults.fullWindowMode": true`. The plot then fills the whole tab,
