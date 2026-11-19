@@ -2,6 +2,7 @@
 While forced, the battery LED shows the battery: red when low (20% or less), orange (green + red)
 on battery, off while charging (the keyboard's own charging light), green when full on the cable.
 After the keyboard slept, the lights are switched on again as soon as it wakes.
+After 5 minutes without input the watcher leaves the keyboard alone, so it can sleep.
 
 Usage:  python mxkeys_backlight.py on|off|status|watch|restore
   on       force the backlight on, battery LED amber (and remember that choice)
@@ -26,6 +27,10 @@ import screens
 # So the lights are switched off and on again when the computer is used after a pause,
 # and when the keyboard (re)connects.
 IDLE_PAUSE = 60                              # seconds without mouse or keyboard input = a pause
+# Every question to the keyboard keeps it awake (19 Nov 2026: it answered every 5 seconds all
+# through a 26 minute break). So while he is away the watcher asks nothing and only listens,
+# and the keyboard gets its own backlight back, which goes dark. The first touch lights it again.
+AWAY_AFTER = 300                             # seconds without input = away: let the keyboard sleep
 
 
 class LASTINPUTINFO(ctypes.Structure):
@@ -252,6 +257,8 @@ def cmd_watch():
     next_battery = 0
     need_refresh = False                          # switch the lights off and on again
     was_paused = False                            # no input for IDLE_PAUSE seconds
+    away = False                                  # no input for AWAY_AFTER seconds: keyboard left alone
+    last_key = 0                                  # time of the last F1/F2/F6/F7 press (Windows does not count those)
     failures = 0                                  # tries in a row the keyboard did not answer
     while True:
         try:
@@ -265,35 +272,48 @@ def cmd_watch():
                 next_check = 0
                 need_refresh = True
             # Back at the computer after a pause: the keyboard may have slept and lost its lights
-            idle = idle_seconds()
+            idle = min(idle_seconds(), time.time() - last_key)
             if was_paused and idle < 2:
                 need_refresh = True
             was_paused = idle >= IDLE_PAUSE
-            # The battery light: red low, orange on battery, off charging, green full on the cable
-            if time.time() >= next_battery:
-                now_light = kb.light()
-                if now_light != light:
-                    light = now_light
-                    log(f"battery light: {LIGHT_NAMES[light]}")
-                    next_check = 0                # apply it right away
-                next_battery = time.time() + BATTERY_EVERY
-            if need_refresh:
-                need_refresh = False
+            # Away: give the keyboard its own backlight back and ask it nothing, so it can sleep
+            if idle >= AWAY_AFTER and not away:
+                away = True
                 if load_wanted():
-                    log(f"lights switched off and on again (ok={kb.refresh(light)})")
-            if time.time() >= next_check:
-                wanted = load_wanted()            # the on/off commands may have changed it
-                if not kb.is_set(wanted, light):
-                    ok = kb.apply(wanted, light)
-                    shown = f"forced on, battery light {LIGHT_NAMES[light]}" if wanted else "normal"
-                    log(f"applied {shown} (ok={ok})")
-                if kb.ensure_diverted(True):
-                    log("F6/F7 diverted to the watcher")
-                external = len(screens.brightness()) > 0
-                if kb.ensure_diverted(external, BRIGHTNESS_KEYS):
-                    log("F1/F2 diverted to the watcher (external screens)" if external
-                        else "F1/F2 back to Windows (no external screen)")
-                next_check = time.time() + CHECK_EVERY
+                    kb.normal()
+                log("away: keyboard left alone so it can sleep")
+            if idle < AWAY_AFTER and away:
+                away = False
+                need_refresh = True
+                next_battery = 0
+                next_check = 0
+                log("back at the computer")
+            if not away:
+                # The battery light: red low, orange on battery, off charging, green full on the cable
+                if time.time() >= next_battery:
+                    now_light = kb.light()
+                    if now_light != light:
+                        light = now_light
+                        log(f"battery light: {LIGHT_NAMES[light]}")
+                        next_check = 0            # apply it right away
+                    next_battery = time.time() + BATTERY_EVERY
+                if need_refresh:
+                    need_refresh = False
+                    if load_wanted():
+                        log(f"lights switched off and on again (ok={kb.refresh(light)})")
+                if time.time() >= next_check:
+                    wanted = load_wanted()        # the on/off commands may have changed it
+                    if not kb.is_set(wanted, light):
+                        ok = kb.apply(wanted, light)
+                        shown = f"forced on, battery light {LIGHT_NAMES[light]}" if wanted else "normal"
+                        log(f"applied {shown} (ok={ok})")
+                    if kb.ensure_diverted(True):
+                        log("F6/F7 diverted to the watcher")
+                    external = len(screens.brightness()) > 0
+                    if kb.ensure_diverted(external, BRIGHTNESS_KEYS):
+                        log("F1/F2 diverted to the watcher (external screens)" if external
+                            else "F1/F2 back to Windows (no external screen)")
+                    next_check = time.time() + CHECK_EVERY
             held_brightness = [cid for cid in BRIGHTNESS_KEYS if cid in held]
             timeout = max(0.0, repeat_at - time.time()) if held_brightness and repeat_at else 0.5
             report = kb.rx.read_report(timeout=timeout)
@@ -313,6 +333,10 @@ def cmd_watch():
                 continue
             newly = keys - held
             held = keys
+            if newly:
+                last_key = time.time()            # a press of F1/F2/F6/F7 also means he is back
+            if away and (CID_BACKLIGHT_UP in newly or CID_BACKLIGHT_DOWN in newly):
+                continue                          # the next round lights the keyboard again
             for cid in BRIGHTNESS_KEYS:
                 if cid in newly:
                     step_screens(cid, "F1 pressed" if cid == CID_BRIGHTNESS_DOWN else "F2 pressed")

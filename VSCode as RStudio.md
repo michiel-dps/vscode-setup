@@ -2564,7 +2564,7 @@ through the Unifying receiver (HID++) and starts hidden at every logon.
 | Key | What it does |
 |---|---|
 | F1 / F2 | external screens darker / brighter, 10 of 100 per press, hold to keep going |
-| F7 / F6 | key backlight always on (battery light shows the battery, below) / the keyboard's normal backlight. F7 again while it is on: lights off and on again, for when they are dark |
+| F7 / F6 | key backlight always on while you are at the computer (battery light shows the battery, below) / the keyboard's normal backlight. F7 again while it is on: lights off and on again, for when they are dark. After 5 minutes without input the keyboard is left alone so it can sleep (gotchas) |
 
 **The battery light while forced** (his choice, 18 Nov 2026). The key
 backlight stays on in every row:
@@ -2637,6 +2637,22 @@ not see `--user` packages) and starts the watcher.
   keyboard does not answer for a few seconds: the helper then tries every 2
   seconds (10 times, then every 10), so the backlight is back within a few
   seconds of a touch (was 10 to 40 seconds before 18 Nov 2026 evening).
+- **The keyboard could not sleep** (19 Nov 2026, "seems like keyboard is
+  not allowed to sleep"): the helper asked it something every 5 seconds
+  (battery) and every 15 seconds (check), also with nobody at the computer.
+  The log showed it: the keyboard answered all through a 26 minute break,
+  with no "keyboard reconnected" line afterwards. Now, after 5 minutes
+  without mouse or keyboard input (`AWAY_AFTER = 300` at the top of
+  `mxkeys_backlight.py`), the helper gives the keyboard its own backlight
+  back (which goes dark), asks nothing and only listens. The first touch
+  (a key, the mouse, or F1/F2/F6/F7) forces the lights on again. Log lines:
+  "away: keyboard left alone so it can sleep" and "back at the computer".
+  So sitting still for 5 minutes (reading) also gives the keyboard's own
+  backlight until the next touch. Offline check with a fake keyboard, 6 of
+  6 pass: no question while away, lights back on return, F2 and F7 work
+  while away. Not yet seen on the real keyboard: that it then really
+  sleeps. A "keyboard reconnected to the receiver" or "keyboard
+  unavailable" line right after "back at the computer" shows that it did.
 - Stop for good: `python mxkeys_backlight.py restore` (normal backlight,
   F1/F2/F6/F7 back to normal), stop the watcher, delete the `.vbs`.
 
