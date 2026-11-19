@@ -59,7 +59,7 @@
     {
         "key": "ctrl+numpad5",
         "command": "wordPage.chatSelectionToClaude",
-        "when": "focusedView == 'claudeVSCodeSidebar' || focusedView == 'claudeVSCodeSidebarSecondary'"
+        "when": "focusedView == 'claudeVSCodeSidebar' || focusedView == 'claudeVSCodeSidebarSecondary' || !editorAreaFocus && !sideBarFocus && !auxiliaryBarFocus && !panelFocus && !inputFocus"
     },
     {
         "key": "ctrl+numpad1",
@@ -93,7 +93,7 @@
         "key": "ctrl+numpad1",
         "command": "wordPage.chatSelectionToClaude",
         "args": { "target": "tab" },
-        "when": "focusedView == 'claudeVSCodeSidebar' || focusedView == 'claudeVSCodeSidebarSecondary'"
+        "when": "focusedView == 'claudeVSCodeSidebar' || focusedView == 'claudeVSCodeSidebarSecondary' || !editorAreaFocus && !sideBarFocus && !auxiliaryBarFocus && !panelFocus && !inputFocus"
     },
     {
         "key": "ctrl+numpad9",

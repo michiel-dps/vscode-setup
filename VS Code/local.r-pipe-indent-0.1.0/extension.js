@@ -377,6 +377,11 @@ const NEXT_JOB_WAIT_MS = 1500;          // edits that follow quickly share one c
 const HANDLER_WAIT_MS = 6000;           // chat request not started by then: give up on it (normal: < 1 s)
 const SESSION = "claude-edits:/edits";  // our own chat session (type "claude-edits", package.json)
 const PAUSE_MS = 2 * 60 * 1000;         // after such a failure, hooks skip this window this long
+const WRITE_POLL_MS = 30;               // while VS Code holds the editor: look for Claude's write this often
+const HOLD_MAX_MS = 1500;               // the editor is never held longer than this (normal: 0.3 to 0.6 s)
+const LAND_GUARD_MS = 700;              // after an edit landed: VS Code's own scroll is undone this long
+const OWN_END_MS = 1000;                // a "kept" this soon after an edit of ours ended is VS Code's own, not a click
+const SAME_CLICK_MS = 1000;             // one Keep can send two events: both go to the same place
 
 const edits = {
   jobs: new Map(),       // id -> job, claimed and not finished yet
@@ -388,6 +393,7 @@ const edits = {
   pausedUntil: 0,        // the chat did not work: leave Claude's edits alone until then
   sessionLoaded: false,  // our chat session ran a request in this window (VS Code read its saved edits)
   savedFile: null,       // VS Code's saved edits of our session (state.json), see restoreAfterReload
+  lastEnd: 0,            // when an edit of ours last ended (see stayAfterKeep)
 };
 
 function signal(name) { return path.join(SIGNALS, name); }
@@ -425,6 +431,8 @@ function finishJob(job, why) {
   if (job.closed) return;
   job.closed = true;
   clearTimeout(job.timer);
+  clearInterval(job.poll);
+  edits.lastEnd = Date.now();
   edits.jobs.delete(job.id);
   const i = edits.queue.indexOf(job);
   if (i >= 0) edits.queue.splice(i, 1);
@@ -432,6 +440,29 @@ function finishJob(job, why) {
   job.resolve();
   log("edits " + why + " " + path.basename(job.uri.fsPath));
   setTimeout(() => ["claimed", "ready", "done"].forEach((s) => remove(job.id + "." + s)), 3000);
+}
+
+function modifiedAt(file) {
+  try { return fs.statSync(file).mtimeMs; } catch (e) { return 0; }
+}
+
+// ---- The editor is held as short as possible (19 Nov 2026) ----
+// VS Code makes the editor read-only while an outside edit is open (built in, no
+// setting). Until 19 Nov 2026 the wait ended at the post hook: 0.8 to 2.2 s per
+// edit, and 10 to 59 s for the first tool call of a Claude message with several
+// tool calls. Now the wait ends the moment the file changes on disk, and never
+// lasts longer than HOLD_MAX_MS. A write that comes later still lands, without
+// Keep / Undo (the git gutter still marks it).
+function watchForWrite(job) {
+  if (job.closed) return;
+  const file = job.uri.fsPath;
+  const before = modifiedAt(file);
+  const began = Date.now();
+  job.poll = setInterval(() => {
+    if (job.closed) clearInterval(job.poll);
+    else if (modifiedAt(file) !== before) finishJob(job, "done (written)");
+    else if (Date.now() - began > HOLD_MAX_MS) finishJob(job, "let go, Claude has not written yet (no Keep / Undo)");
+  }, WRITE_POLL_MS);
 }
 
 // Look for new jobs and finished edits.
@@ -531,6 +562,7 @@ async function editsHandler(request, context, stream, token) {
       if (!names.includes(name)) names.push(name);
       try {
         await stream.externalEdit([job.uri], async () => {
+          if (job.demoText === undefined) watchForWrite(job);   // before .ready: Claude has not written yet
           touch(job.id + ".ready");
           log("edits snapshot " + name);
           if (job.demoText !== undefined) {         // the one-time demo writes its own edit
@@ -539,7 +571,10 @@ async function editsHandler(request, context, stream, token) {
             finishJob(job, "demo shown");
           }
           await job.finished;
+          startLandGuard(job.uri);                  // his screen as it is now, just before the new text comes in
         });
+        edits.lastEnd = Date.now();
+        endLandGuard(job.uri);
         // After Keep or Undo, VS Code marks the file "accepted" and hides any
         // later outside edit of it. An empty chat edit marks it "modified"
         // again, as Copilot's own edits do. Needs the API proposal
@@ -741,12 +776,14 @@ function recordView(editor) {
 // there. The saved place stays for a whole round of edits and Keeps, and a new
 // one is taken at the first Claude edit after a Keep. This replaces "select
 // the kept lines" (10 Nov 2026), which scrolled to the edit.
-const homeViews = new Map();   // file -> { selections, top, used }
+// Since 19 Nov 2026 this saved place is only the fallback. It is taken fresh at
+// every edit, and Keep / Undo first use his place just before the click (see
+// stayAfterKeep): the place of the first edit of a round was minutes old by the
+// time he clicked, and sent him away from the line he was working on.
+const homeViews = new Map();   // file -> { selections, top }
 
 function recordHome(uri) {
   const key = uri.toString();
-  const old = homeViews.get(key);
-  if (old && !old.used) return;                    // still in the same round: keep his first place
   const list = viewHistory.get(key) || [];
   const last = list[list.length - 1];
   const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === key);
@@ -755,14 +792,15 @@ function recordHome(uri) {
     top: editor.visibleRanges.length ? editor.visibleRanges[0].start.line : undefined,
   } : null);
   if (!view) return;
-  homeViews.set(key, { selections: view.selections, top: view.top, used: false });
+  homeViews.set(key, { selections: view.selections, top: view.top });
 }
 
 function goHome(editor, home) {
   const lines = editor.document.lineCount;
   editor.selections = home.selections.map((s) => {
-    const line = Math.min(s.active.line, lines - 1);
-    return new vscode.Selection(line, s.active.character, line, s.active.character);
+    const anchor = Math.min(s.anchor.line, lines - 1);
+    const active = Math.min(s.active.line, lines - 1);
+    return new vscode.Selection(anchor, s.anchor.character, active, s.active.character);   // a selection stays a selection
   });
   if (home.top !== undefined) {
     const line = Math.min(home.top, lines - 1);
@@ -770,14 +808,83 @@ function goHome(editor, home) {
   }
 }
 
+// ---- Claude's edit lands: the screen stays where it is (19 Nov 2026) ----
+// Asked: "dont make me move all over the script, i want to keep looking exactly
+// there where i am looking". After an outside edit VS Code scrolls to the change
+// at or below the cursor (built in, once per chat request). The top line of the
+// screen is saved just before the new text comes in, moved along with lines added
+// or removed above it, and put back for LAND_GUARD_MS after. The cursor is not
+// touched.
+const landGuards = new Map();   // file -> { tops: Map(editor -> top line), until }
+let lastStay = null;            // { key, time, place }: where the last Keep / Undo went back to
+
+// Where the top line of the screen is after these changes of the text
+function shiftedTop(top, changes) {
+  let moved = 0;
+  for (const change of changes) {
+    if (change.range.end.line > top) continue;       // at or below the top line: the top stays
+    moved += change.text.split("\n").length - 1 - (change.range.end.line - change.range.start.line);
+  }
+  return Math.max(0, top + moved);
+}
+
+function startLandGuard(uri) {
+  const key = uri.toString();
+  const tops = new Map();
+  for (const editor of vscode.window.visibleTextEditors) {
+    if (editor.document.uri.toString() !== key || !editor.visibleRanges.length) continue;
+    tops.set(editor, editor.visibleRanges[0].start.line);
+  }
+  if (tops.size) landGuards.set(key, { tops, until: 0 });
+}
+
+function shiftLandGuard(event) {
+  const guard = landGuards.get(event.document.uri.toString());
+  if (!guard) return;
+  for (const [editor, top] of guard.tops) guard.tops.set(editor, shiftedTop(top, event.contentChanges));
+}
+
+function keepTop(editor, guard) {
+  const top = guard.tops.get(editor);
+  if (top === undefined || !editor.visibleRanges.length) return;
+  if (editor.visibleRanges[0].start.line === top) return;
+  const line = Math.min(top, editor.document.lineCount - 1);
+  editor.revealRange(new vscode.Range(line, 0, line, 0), vscode.TextEditorRevealType.AtTop);
+  log("stay at edit: screen back to line " + (line + 1));
+}
+
+function endLandGuard(uri) {
+  const key = uri.toString();
+  const guard = landGuards.get(key);
+  if (!guard) return;
+  guard.until = Date.now() + LAND_GUARD_MS;
+  for (const editor of guard.tops.keys()) keepTop(editor, guard);
+  setTimeout(() => {
+    if (landGuards.get(key) === guard) landGuards.delete(key);
+  }, LAND_GUARD_MS);
+}
+
+function guardLanding(editor) {
+  const guard = landGuards.get(editor.document.uri.toString());
+  if (guard && guard.until && Date.now() < guard.until) keepTop(editor, guard);
+}
+
 function stayAfterKeep(event) {
   const action = event && event.action;
   if (!action || !action.uri) return;
   if (action.kind !== "chatEditingHunkAction" && action.kind !== "chatEditingSessionAction") return;
   const key = action.uri.toString();
-  const home = homeViews.get(key);
+  const now = Date.now();
+  // VS Code itself "keeps" a file when an edit of ours ended without a change (a
+  // failed edit, a wait let go). Nobody clicked, so nothing moves.
+  if (action.kind === "chatEditingSessionAction" && now - edits.lastEnd < OWN_END_MS) return;
+  // His place just before the click, never a place saved minutes ago (19 Nov 2026).
+  // One click can send two events (the change, then the file): both use the same place.
+  const sameClick = lastStay && lastStay.key === key && now - lastStay.time < SAME_CLICK_MS;
+  const seen = (viewHistory.get(key) || []).filter((s) => s.time < now - STAY_OLDER_MS);
+  const home = sameClick ? lastStay.place : (seen[seen.length - 1] || homeViews.get(key));
   if (home && (action.outcome === 1 || action.outcome === 2)) {
-    home.used = true;
+    if (!sameClick) lastStay = { key, time: now, place: home };
     setTimeout(() => {
       const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === key);
       if (!editor) return;
@@ -964,7 +1071,11 @@ function activateClaudeEdits(context) {
     context.subscriptions.push(participant.onDidPerformAction(stayAfterKeep));
     context.subscriptions.push(participant.onDidPerformAction(stageAfterReview));   // the git gutter too
     context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection((e) => recordView(e.textEditor)));
-    context.subscriptions.push(vscode.window.onDidChangeTextEditorVisibleRanges((e) => recordView(e.textEditor)));
+    context.subscriptions.push(vscode.window.onDidChangeTextEditorVisibleRanges((e) => {
+      guardLanding(e.textEditor);     // first undo VS Code's own scroll to Claude's change
+      recordView(e.textEditor);
+    }));
+    context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(shiftLandGuard));
     vscode.window.visibleTextEditors.forEach(recordView);
     // Keep on one change: select the kept lines (see selectKept)
     context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(noteOriginal));
@@ -1154,9 +1265,9 @@ function activate(context) {
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.ctrlClick", ctrlClickLogged));
   context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(noteMouseClick));
   try { activateClaudeEdits(context); } catch (e) { log("ERR  edits " + (e && e.stack ? e.stack : e)); }
-  log("activated 0.5.6 (a fresh R terminal at every start, 18 Nov 2026)");
+  log("activated 0.5.7 (Claude's edits hold the editor shorter and leave the screen where it is, 19 Nov 2026)");
 }
 
 function deactivate() {}
 
-module.exports = { activate, deactivate, _test: { blank, unterminatedQuote, statementStart, statementEnd, unfinished, makeSavedEditsSafe, freshSavedEdits, changedBlock, matchingLine, sessionObjectAt, startFreshR } };
+module.exports = { activate, deactivate, _test: { blank, unterminatedQuote, statementStart, statementEnd, unfinished, makeSavedEditsSafe, freshSavedEdits, changedBlock, matchingLine, sessionObjectAt, startFreshR, shiftedTop, watchForWrite } };

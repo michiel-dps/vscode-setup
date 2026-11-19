@@ -190,5 +190,6 @@
     // The built-in browser (Ctrl+Numpad3, the Tutor) keeps its login and stored progress across restarts and folders
     "workbench.browser.dataStorage": "global",
     "git.autofetch": true,
-    "window.confirmSaveUntitledWorkspace": false
+    "window.confirmSaveUntitledWorkspace": false,
+    "claudeCode.focusView": true
 }

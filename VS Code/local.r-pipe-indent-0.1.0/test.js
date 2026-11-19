@@ -309,6 +309,18 @@ async function pipe(lineText, col) {
     check("400 lines, below both changes", match(long, longFile, 350), 352);
   }
 
+  console.log("--- Claude's edit lands: where the top line of the screen goes (shiftedTop)");
+  {
+    const top = ext._test.shiftedTop;
+    const change = (startLine, endLine, text) => ({ range: { start: { line: startLine }, end: { line: endLine } }, text });
+    check("a change below the top line: the top stays", top(170, [change(205, 390, "a\nb\nc")]), 170);
+    check("3 lines replaced by 4 above the top: one line down", top(170, [change(10, 12, "a\nb\nc\nd")]), 171);
+    check("lines deleted above the top: up", top(170, [change(10, 14, "a")]), 166);
+    check("a change across the top line: the top stays", top(170, [change(160, 180, "a\nb")]), 170);
+    check("two changes, one above and one below", top(170, [change(5, 5, "x\ny\nz"), change(300, 310, "q")]), 172);
+    check("never above the first line", top(2, [change(0, 2, "")]), 0);
+  }
+
   console.log("--- Ctrl+click on a global object opens the data viewer (ctrlClick)");
   {
     const lines = [
@@ -405,6 +417,34 @@ async function pipe(lineText, col) {
     check("qmd open: started", await freshR(["C:/paper/paper.qmd"], []), { started: true, closed: [] });
     check("no R file open: nothing", await freshR(["C:/a/notes.md"], ["R Interactive"]), { started: false, closed: [] });
     check("a Claude chat tab (no file): nothing", await freshR([], []), { started: false, closed: [] });
+  }
+
+  // ---- the editor is held until Claude's write, 1.5 s at most (19 Nov 2026) ----
+  console.log("--- Claude's edit: the hold ends at the write (watchForWrite)");
+  {
+    const fs = require("fs");
+    const os = require("os");
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const file = path.join(os.tmpdir(), "r-pipe-indent-hold-test.txt");
+    const jobFor = (id) => ({ id, uri: { fsPath: file }, closed: false, resolve() { this.resolved = true; } });
+
+    fs.writeFileSync(file, "old text");
+    await wait(50);
+    const written = jobFor("offline-test-written");
+    ext._test.watchForWrite(written);
+    await wait(200);
+    check("no write yet: the hold goes on", written.closed, false);
+    fs.writeFileSync(file, "new text");
+    await wait(200);
+    check("the file was written: the hold ends at once", { closed: written.closed, resolved: written.resolved }, { closed: true, resolved: true });
+
+    const late = jobFor("offline-test-late");
+    ext._test.watchForWrite(late);
+    await wait(1200);
+    check("no write after 1.2 s: still held", late.closed, false);
+    await wait(600);
+    check("no write after 1.8 s: let go", late.closed, true);
+    try { fs.unlinkSync(file); } catch (e) { /* gone */ }
   }
 
   console.log("\n" + passed + " passed, " + failed + " failed");

@@ -511,6 +511,62 @@ check("assistant: the script block carries the page part, and it is valid JavaSc
   check("chat tabs: focus-window.ps1 is next to the add-on", fs.existsSync(path.join(__dirname, "focus-window.ps1")));
 }
 
+// ---- Ctrl+Numpad5 and Ctrl+Numpad1: which command the key reaches (19 Nov 2026) ----
+// The keys are in keybindings.json, not in this add-on. On 19 Nov 2026 a highlight in the Claude
+// side panel was not quoted: the side panel entry asked for focusedView, and VS Code 1.146 leaves
+// that empty while the keyboard is in a side panel that is a web page (so are sideBarFocus and
+// auxiliaryBarFocus). The key fell through to "open the side panel". The entry now also takes
+// "the keyboard is not in the editor area, not in a list or box of a bar, not in a text box".
+// These checks read the real keybindings.json (else the copy in the setup folder) and work out
+// which command each keyboard place reaches, the way VS Code does: the last entry whose "when"
+// is true wins. The values per place were read in the bench with VS Code 1.146.0 (the two
+// places with the Word Page are the measured ones with the page as the file in front).
+{
+  const places = [
+    ["a file with a highlight", { editorTextFocus: true, editorHasSelection: true, editorAreaFocus: true, inputFocus: true }, "wordPage.editorSelectionToClaude"],
+    ["a file without a highlight", { editorTextFocus: true, editorAreaFocus: true, inputFocus: true }, null],
+    ["the Claude side panel, a file in front", {}, "wordPage.chatSelectionToClaude"],
+    ["the Claude side panel, a chat tab in front", { activeWebviewPanelId: "claudeVSCodePanel" }, "wordPage.chatSelectionToClaude"],
+    ["the Claude side panel, the Word Page in front", { activeCustomEditorId: "quarto.visualEditor" }, "wordPage.chatSelectionToClaude"],
+    ["the Claude side panel, the browser tab in front", { activeEditor: "workbench.editor.browser" }, "wordPage.chatSelectionToClaude"],
+    ["a Claude chat tab", { activeWebviewPanelId: "claudeVSCodePanel", editorAreaFocus: true }, "wordPage.chatSelectionToClaude"],
+    ["the Word Page", { activeCustomEditorId: "quarto.visualEditor", editorAreaFocus: true }, "wordPage.selectionToClaude"],
+    ["the browser tab", { activeEditor: "workbench.editor.browser", editorAreaFocus: true, browserFocused: true }, "wordPage.browserToClaude"],
+    ["the file list", { focusedView: "workbench.explorer.fileView", sideBarFocus: true, listFocus: true }, null],
+    ["the terminal", { focusedView: "terminal", panelFocus: true, terminalFocus: true }, null],
+  ];
+  // one piece of a "when": !key, key == 'value', key != 'value' or key
+  const pieceIsTrue = (piece, context) => {
+    const compare = /^(\S+)\s*(==|!=)\s*'([^']*)'$/.exec(piece);
+    if (compare) { return (String(context[compare[1]] || "") === compare[3]) === (compare[2] === "=="); }
+    return piece.startsWith("!") ? !context[piece.slice(1).trim()] : !!context[piece];
+  };
+  // a "when" without brackets: || between groups, && inside a group
+  const whenIsTrue = (when, context) => !when ||
+    when.split("||").some((group) => group.split("&&").every((piece) => pieceIsTrue(piece.trim(), context)));
+  const reached = (entries, key, context) => entries.filter((e) => e.key === key && whenIsTrue(e.when, context)).pop();
+
+  const keyFiles = [path.join(process.env.APPDATA || "", "Code", "User", "keybindings.json"), path.join(__dirname, "..", "keybindings.json")];
+  const keyFile = keyFiles.find((file) => fs.existsSync(file));
+  let entries = [];
+  try {
+    entries = JSON.parse(fs.readFileSync(keyFile, "utf8").split("\n").filter((line) => !line.trim().startsWith("//")).join("\n"));
+  } catch (err) { /* no keybindings.json here, or one this small reader cannot read: nothing to check */ }
+  const brackets = entries.some((e) => /ctrl\+numpad[15]/.test(e.key || "") && /[()]/.test(e.when || ""));
+  if (!brackets && entries.some((e) => e.key === "ctrl+numpad5" && e.command === "wordPage.chatSelectionToClaude")) {
+    for (const key of ["ctrl+numpad5", "ctrl+numpad1"]) {
+      for (const [place, context, command] of places) {
+        const entry = reached(entries, key, context) || {};
+        const ok = command ? entry.command === command : !/^wordPage\..*(selection|browser)/i.test(entry.command || "");
+        check("keys: " + key + " with the keyboard in " + place + " reaches " + (command || "only the way to the chat") + " (it reaches " + entry.command + ")", ok);
+      }
+      const fromPanel = reached(entries, key, {}) || {};
+      check("keys: " + key + " from the side panel goes to the " + (key.endsWith("1") ? "chat tab" : "side panel"),
+        key.endsWith("1") ? !!fromPanel.args && fromPanel.args.target === "tab" : !fromPanel.args);
+    }
+  }
+}
+
 fs.rmSync(temp, { recursive: true, force: true });
 console.log(passed + " passed, " + failed + " failed");
 process.exit(failed === 0 ? 0 : 1);
