@@ -9,6 +9,7 @@ Usage:  python mxkeys_backlight.py on|off|status|watch|restore
   status   print current state
   watch    run forever: keeps the remembered choice applied, and listens to the keyboard's
            backlight keys. F7 (backlight up) = force on, F6 (backlight down) = normal again.
+           F7 while already forced on = switch the lights off and on again (they can be dark).
            Also F1/F2 (screen brightness down/up): external screens over DDC/CI (screens.py),
            hold the key to keep going. Only while such a screen is connected. With the computer
            screen alone, F1/F2 go back to Windows' own brightness control.
@@ -318,7 +319,10 @@ def cmd_watch():
                     repeat_at = time.time() + HOLD_DELAY
             if not any(cid in held for cid in BRIGHTNESS_KEYS):
                 repeat_at = None
-            if CID_BACKLIGHT_UP in newly and not wanted:
+            if CID_BACKLIGHT_UP in newly and wanted:
+                # Already forced on, but the lights can be dark all the same (19 Nov 2026): light them again
+                log(f"F7 pressed: lights switched off and on again (ok={kb.refresh(light)})")
+            elif CID_BACKLIGHT_UP in newly:
                 wanted = True
                 save_wanted(True)
                 log(f"F7 pressed: forced on (ok={kb.apply(True, light)})")

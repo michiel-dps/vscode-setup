@@ -2499,7 +2499,7 @@ through the Unifying receiver (HID++) and starts hidden at every logon.
 | Key | What it does |
 |---|---|
 | F1 / F2 | external screens darker / brighter, 10 of 100 per press, hold to keep going |
-| F7 / F6 | key backlight always on (battery light shows the battery, below) / the keyboard's normal backlight |
+| F7 / F6 | key backlight always on (battery light shows the battery, below) / the keyboard's normal backlight. F7 again while it is on: lights off and on again, for when they are dark |
 
 **The battery light while forced** (his choice, 18 Nov 2026). The key
 backlight stays on in every row:
@@ -2564,7 +2564,11 @@ not see `--user` packages) and starts the watcher.
   seconds without mouse or keyboard input (Windows' `GetLastInputInfo`),
   and when the keyboard connects again. Log line: "lights switched off and
   on again". Dark lights without that line after a break: the pause was not
-  seen. Then F6 and F7 switch them back by hand. After a deep sleep the
+  seen. Then F7 switches them back by hand: since 19 Nov 2026 F7 always
+  switches the lights off and on again, also when the helper already has
+  them as forced on (log line "F7 pressed: lights switched off and on
+  again"). Before that F7 did nothing in that case, and only F6 followed by
+  F7 worked. After a deep sleep the
   keyboard does not answer for a few seconds: the helper then tries every 2
   seconds (10 times, then every 10), so the backlight is back within a few
   seconds of a touch (was 10 to 40 seconds before 18 Nov 2026 evening).
