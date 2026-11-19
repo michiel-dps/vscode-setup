@@ -2656,10 +2656,28 @@ through the Unifying receiver (HID++) and starts hidden at every logon.
 | Key | What it does |
 |---|---|
 | F1 / F2 | external screens darker / brighter, 10 of 100 per press, hold to keep going |
-| F7 / F6 | key backlight always on while you are at the computer (battery light shows the battery, below) / the keyboard's normal backlight. F7 again while it is on: lights off and on again, for when they are dark. After 5 minutes without input all lights go off and the keyboard is left alone so it can sleep (gotchas) |
+| F7 / F6 | key lights on / key lights off (since 19 Nov 2026, before that F6 gave the keyboard's normal light). F7 again while on: lights off and on again, for when they are dark. After 5 minutes without input the lights go off so the keyboard can sleep, the first touch puts them on again |
 
-**The battery light while forced** (his choice, 18 Nov 2026). The key
-backlight stays on in every row:
+**The keyboard is left alone** (19 Nov 2026, "keyboard is going empty
+really quickly": full at 11:00, 20% at 14:55). The helper used to ask the
+keyboard for its battery every 5 seconds and check it every 15 seconds, and
+kept the battery LED forced orange. Now it talks to the keyboard only when
+it connects, when F1/F2/F6/F7 is pressed, once after 5 minutes without
+input (lights off), at the first touch after that (lights on), when the
+receiver reports that the keyboard woke, and when an external screen comes
+or goes. Away and back come from Windows' own input clock, which costs the
+keyboard nothing. The receiver is asked at connect to report sleep and wake
+(HID++ 1.0 register 0x00, "wireless notifications"). Log lines: "keyboard
+asleep (link to the receiver off)" and "keyboard woke up" followed by
+"lights on after waking". While nobody is at the computer and the keyboard
+does not answer, the helper does not ping it either (a ping wakes it). The
+battery light is the keyboard's own again (no colours). Note: the forced
+light is the LED test mode, full brightness with no dimming, so with the
+lights on the battery still runs down much faster than with the keyboard's
+own light. F6 when on battery saves the most.
+
+**Until 19 Nov 2026: the battery light while forced** (his choice, 18 Nov
+2026, dropped for the battery). The key backlight stayed on in every row:
 
 | Battery | Light | Mask |
 |---|---|---|
@@ -2750,6 +2768,12 @@ not see `--user` packages) and starts the watcher.
   while away. Not yet seen on the real keyboard: that it then really
   sleeps. A "keyboard reconnected to the receiver" or "keyboard
   unavailable" line right after "back at the computer" shows that it did.
+  Since 19 Nov 2026 evening the 60-second "pause" refresh, the battery
+  checks and the 15-second checks are gone (see "The keyboard is left
+  alone" above). Lights dark while using only the mouse for a while: the
+  keyboard slept on its own timer. Touching a key should give "keyboard
+  woke up" in the log and the lights come on. If that line never appears,
+  the receiver does not send wake notices: press F7.
 - Stop for good: `python mxkeys_backlight.py restore` (normal backlight,
   F1/F2/F6/F7 back to normal), stop the watcher, delete the `.vbs`.
 

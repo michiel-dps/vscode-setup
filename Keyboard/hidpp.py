@@ -92,6 +92,23 @@ class Receiver:
                 pass
         return None
 
+    def enable_link_notifications(self):
+        """Ask the receiver to report when a device connects or drops (falls asleep).
+        HID++ 1.0 set register 0x00, flag 'wireless notifications'. Returns True if it said yes."""
+        self._drain()
+        self.short.write(bytes([0x10, 0xFF, 0x80, 0x00, 0x00, 0x01, 0x00]))
+        t0 = time.time()
+        while time.time() - t0 < 1.0:
+            for h in self._handles():
+                r = h.read(64)
+                if not r: continue
+                r = bytes(r)
+                if r[1] == 0xFF and r[2] == 0x8F: return False
+                if r[1] == 0xFF and r[2] == 0x80 and r[3] == 0x00: return True
+                self._stash(r)
+            time.sleep(0.005)
+        return False
+
     def paired_name(self, slot):
         """Name of the device paired in receiver slot 1..6 (from the receiver's pairing table), or None."""
         self._drain()
