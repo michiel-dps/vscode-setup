@@ -2302,8 +2302,43 @@ survive a normal Claude Code update.
 window that has the keyboard. Why not Claude's own command: see the Ctrl+Numpad4
 row in section 4. Log line `new chat tab in the active editor window`.
 
+**Right-click on a Claude chat tab: "Rename chat"** (19 Nov 2026, his wish,
+chat opener v0.4.0, command `chatOpener.renameTab`). First line of the tab's
+right-click menu, only on Claude chat tabs. A box opens at the top with the
+current name: type the new one, Enter. Esc leaves the name as it was. The
+name is saved with the chat (a `custom-title` line in its file), so `/chats`
+and the list of past conversations show it too. Two things to know: the
+clicked tab comes to the front and gets the keyboard, and a brand new chat
+without a message cannot be renamed yet (Claude says "This session could not
+be renamed"): send one message first.
+
+How it works. The Claude add-on has the rename itself
+(`claude-vscode.renameSessionTab`, in the right-click menu **inside** the
+chat and in Ctrl+Shift+P), but it renames the chat tab that is in front and
+has the keyboard (its `resolveTabCommandTarget`, read in 2.1.327), and a
+right-click on a tab does not bring that tab to the front. VS Code hands a
+tab menu command the tab's address and `{ groupId, editorIndex }` (read in
+VS Code 1.146). An add-on cannot look up an editor window by that id, so the
+command runs `workbench.action.showEditorsInGroup` with it, which makes that
+editor window the active one (it also opens a list of its tabs, closed again
+at once with `closeQuickOpen`), then `workbench.action.openEditorAtIndex`
+puts the clicked tab in front, a pause of 0.15 s (that command does not wait
+for the tab), then Claude's own rename. The menu line shows only on Claude
+tabs through `"when": "resourceScheme == webview-panel && resourcePath =~
+/claudeVSCodePanel/"` (a webview tab's address holds the name of its kind).
+Log line `rename chat (right-click on tab N): in front is "..."`, with
+`NOT a Claude chat` at the end when bringing the tab to the front failed.
+Tested in the bench (section 5c, `launch.ps1 -Claude`, with the add-on copied
+into `%TEMP%\word-page-bench\ext` and two made-up chats in
+`~/.claude/projects/` for the bench folder): a chat behind another tab, a
+chat in the editor window without the keyboard while the other window also
+has a chat as the same tab number, the rename itself, and no menu line on a
+file tab. If the line is missing after a VS Code update, the address of a
+webview tab changed: read `get resource()` of `webviewInput` in
+`workbench.desktop.main.js`.
+
 **Kept in place by the chat opener add-on** (`~/.claude/tools/chat-opener`,
-v0.3.0, the one behind /chats): `extension\wrap-code.js` runs at every
+v0.4.0, the one behind /chats): `extension\wrap-code.js` runs at every
 VS Code start **and once a minute**. Claude Code updates itself every few
 days into a new folder `anthropic.claude-code-x.y.z` with a fresh
 `index.css`; the minute check patches it as soon as it is downloaded, so it

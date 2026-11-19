@@ -120,9 +120,42 @@ async function newChatHere() {
   await vscode.commands.executeCommand('claude-vscode.editor.open', undefined, undefined, vscode.ViewColumn.Active, undefined, true);
 }
 
+// Right-click on a Claude chat tab, "Rename chat". Claude's own claude-vscode.renameSessionTab
+// (in the right-click menu inside the chat) renames the chat tab that is in front and has the
+// keyboard (its resolveTabCommandTarget, read in 2.1.327), and a right-click does not bring a
+// tab to the front. VS Code hands a tab menu command the tab's address and where it sits
+// ({ groupId, editorIndex }), but an add-on cannot look up an editor window by that id.
+// showEditorsInGroup can: it makes that editor window the active one (and opens a list of its
+// tabs, closed again at once). openEditorAtIndex then puts the clicked tab in front. It does
+// not wait for the tab, hence the short pause before Claude's command.
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function claudeTabInFront() {
+  const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+  const input = tab && tab.input;
+  return !!input && typeof input.viewType === 'string' && input.viewType.includes('claudeVSCodePanel');
+}
+
+async function renameTab(resource, where) {
+  const index = where && typeof where.editorIndex === 'number' ? where.editorIndex : undefined;
+  if (index === undefined) {
+    log('rename chat: no tab given, renaming the chat in front');
+  } else {
+    await vscode.commands.executeCommand('workbench.action.showEditorsInGroup', where);
+    await vscode.commands.executeCommand('workbench.action.closeQuickOpen');
+    await vscode.commands.executeCommand('workbench.action.openEditorAtIndex', index);
+    await pause(150);
+    for (let i = 0; i < 20 && !claudeTabInFront(); i++) await pause(50);
+    const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+    log(`rename chat (right-click on tab ${index + 1}): in front is "${tab ? tab.label : ''}"${claudeTabInFront() ? '' : ', NOT a Claude chat'}`);
+  }
+  await vscode.commands.executeCommand('claude-vscode.renameSessionTab');
+}
+
 function activate(context) {
   fs.mkdirSync(DIR, { recursive: true });
   context.subscriptions.push(vscode.commands.registerCommand('chatOpener.newChatHere', newChatHere));
+  context.subscriptions.push(vscode.commands.registerCommand('chatOpener.renameTab', renameTab));
   // the key binding waits for this, so Ctrl+Numpad4 keeps its old command until the window reloads
   vscode.commands.executeCommand('setContext', 'chatOpener.ready', true);
   wrapCodeBlocks();

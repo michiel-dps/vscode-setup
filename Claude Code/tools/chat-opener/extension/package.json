@@ -2,8 +2,8 @@
   "name": "claude-chat-opener",
   "publisher": "local",
   "displayName": "Claude Chat Opener",
-  "description": "Opens Claude Code chats picked with /chats as editor tabs, freeing the side panel when it holds the chat. Makes the black code boxes in the Claude chat wrap to the panel width, also after Claude Code updates. Ctrl+Numpad4, or the Claude logo at the top right of a tab, opens a new Claude chat tab in that editor window.",
-  "version": "0.3.0",
+  "description": "Opens Claude Code chats picked with /chats as editor tabs, freeing the side panel when it holds the chat. Makes the black code boxes in the Claude chat wrap to the panel width, also after Claude Code updates. Ctrl+Numpad4, or the Claude logo at the top right of a tab, opens a new Claude chat tab in that editor window. Right-click on a Claude chat tab has Rename chat.",
+  "version": "0.4.0",
   "engines": { "vscode": "^1.80.0" },
   "main": "./extension.js",
   "activationEvents": ["onStartupFinished"],
@@ -13,11 +13,25 @@
         "command": "chatOpener.newChatHere",
         "title": "New Claude chat here",
         "icon": { "light": "claude-logo.svg", "dark": "claude-logo.svg" }
+      },
+      {
+        "command": "chatOpener.renameTab",
+        "title": "Rename chat"
       }
     ],
     "menus": {
       "editor/title": [
         { "command": "chatOpener.newChatHere", "when": "chatOpener.ready", "group": "navigation" }
+      ],
+      "editor/title/context": [
+        {
+          "command": "chatOpener.renameTab",
+          "when": "resourceScheme == webview-panel && resourcePath =~ /claudeVSCodePanel/",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        { "command": "chatOpener.renameTab", "when": "false" }
       ]
     }
   }

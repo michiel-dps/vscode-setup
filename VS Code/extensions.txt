@@ -12,13 +12,13 @@ ms-python.vscode-python-envs         1.44.0
 ms-vscode.powershell                 2025.4.0
 naumovs.color-highlight              2.8.0
 quarto.quarto                        1.139.0
-reditorsupport.r                     3.2.2        pinned
+reditorsupport.r                     3.4.0        pinned
 reditorsupport.r-syntax              0.1.5
 tomoki1207.pdf                       1.2.2
 #
 # Own add-ons (not on the Marketplace): id, version, where it comes from.
 # They are # lines, so INSTALL does not look for them on the Marketplace.
-#   local.claude-chat-opener       0.3.0    ..\Claude Code\tools\chat-opener (INSTALL runs its build.ps1)
+#   local.claude-chat-opener       0.4.0    ..\Claude Code\tools\chat-opener (INSTALL runs its build.ps1)
 #   local.r-pipe-indent            0.5.0    VS Code\local.r-pipe-indent-0.1.0 (INSTALL copies it)
 #   local.startup-screen           0.1.0    VS Code\local.startup-screen-0.1.0 (personal: run its build.ps1 by hand)
 #   local.word-page                0.1.0    VS Code\local.word-page-0.1.0 (INSTALL runs its build.ps1)
