@@ -1857,7 +1857,14 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
   until `sess` was reinstalled and undid the data viewer patch, in the middle
   of a study session. Update it by hand between units: Extensions view → R →
   Update, then say yes to the `sess` prompt in a new R terminal, run
-  `perl patch-r-extension.pl`, Reload Window.
+  `perl patch-r-extension.pl`, Ctrl+Shift+P → Developer: Restart Extension
+  Host. **The pin did not hold on 19 Nov 2026**: at 11:06 VS Code installed
+  3.4.0 over 3.2.2 although `extensions.json` still said `"pinned": true`
+  (`sharedprocess.log`: "Installing extension: reditorsupport.r", with
+  `"pinned":true` in the same line). Why is not found yet. All eight fixes
+  were gone (Ctrl+click on a name did nothing). He chose to keep 3.4.0. So
+  after any "my R things stopped working": first look which folder
+  `reditorsupport.r-x.y.z` is there and run the patch script again.
 - "Nothing runs any more": Ctrl+Enter now refuses unfinished statements
   (section 5), so this should be rare. If it still happens, the R terminal
   shows `+` instead of `>` from an earlier unfinished statement: click in it,
@@ -1896,9 +1903,22 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
   to them as `extension.js.orig` and `webviews\httpgd\index.js.orig`). The R
   extension overwrites them when it
   updates itself (the folder `reditorsupport.r-x.y.z` gets a new version
-  number): run the script again, Reload Window. It reports each fix as
-  "applied" or "already in place"; "code not found" means the extension
-  code changed and that fix needs redoing by hand.
+  number): run the script again
+  (`"C:\Program Files\Git\usr\bin\perl.exe" "<this folder>\VS Code\patch-r-extension.pl"`,
+  perl is not on PATH), then Ctrl+Shift+P → Developer: Restart Extension
+  Host. It reports each fix as "applied" or "already in place". A fix that
+  cannot find its code says "SKIPPED" with the reason and the script goes on
+  with the others (since 19 Nov 2026. Before, the first miss stopped the
+  script and nothing was saved). Only a skipped fix needs redoing by hand.
+  **Works on 3.4.0 since 19 Nov 2026.** Every version is built with other
+  short names (`s0` became `Ea`, `Vn` became `_n`, `Pte` became `Vne`), so
+  the script now finds its places by pattern: any name fits where a short
+  name stands, and the new code is written with the names it found. Two
+  places had also changed shape in 3.4.0: the plot ids from before are a Set
+  now (`.has`, was a list with `.includes`, fix 4), and the list of R objects
+  is loaded when asked for (fix 6, below). Tested that day: the script on a
+  copy of 3.4.0 (all eight applied, a second run "already in place" for all,
+  both files still valid JavaScript), then on the real folder.
   1. The data viewer stretches columns to fit the window (long text cut
      off). Patched: every new viewer tab opens with columns sized to
      content; the two toolbar buttons in the tab still switch per table.
@@ -1974,7 +1994,16 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
      message). Needs a running R terminal that knows the object (run the line
      that makes it first); without one, Ctrl+click works as before. The log
      gets a `view rent (Ctrl+click)` line, or an `ERR  view` / `ERR  ctrlClick`
-     line. 19 offline checks in the add-on's `test.js`.
+     line. 19 offline checks in the add-on's `test.js`. **In 3.4.0** (19 Nov
+     2026) the R extension no longer keeps the list of R objects up to date
+     all the time: it loads it half a second after a command, or when
+     something asks. So when the add-on does not know the name, the patch
+     waits for the list (the function the extension's own hover uses, `Lte`
+     in 3.4.0, at most 0.4 s because R may be busy) and asks the add-on once
+     more. Five cases run with stand-ins that day: known at once, known after
+     loading, not an R object, R busy, no R session. The Workspace panel's
+     view command still takes the same thing (`owner`, `rootName`,
+     `objectPath`), so the add-on needed no change.
   7. **A new R tab joins the R tabs already open, else it opens beside the
      script** (18 Nov 2026). A new data viewer tab, R Plot tab or widget tab
      (leaflet, plotly) opens in the editor group that already shows one of

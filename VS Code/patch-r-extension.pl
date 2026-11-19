@@ -7,7 +7,17 @@
 #
 #   perl "C:/Users/<you>/<Dropbox>/<name>/VS Code setup/VS Code/patch-r-extension.pl"
 #
-# Then: Reload Window.
+# Then: Ctrl+Shift+P, Developer: Restart Extension Host.
+#
+# Since 19 Nov 2026 (R extension 3.4.0, which renamed every short name):
+# - A fix that cannot find its code prints a line "SKIPPED" with the reason and
+#   the script goes on, so one changed spot does not block the other fixes.
+#   The file is still written once at the end. The script ends with exit code 1
+#   when a fix was skipped.
+# - The places are found by pattern, not by exact text. The short names the
+#   extension is built with (Je, Ly, Vn, s0 ...) change with every version, so
+#   a pattern takes any name there ($ID) and the new code is built with the
+#   names it found.
 #
 # 1. Data viewer: new tabs open with columns sized to content instead of
 #    stretched to the window (the toolbar buttons still switch per table).
@@ -17,9 +27,9 @@
 #    (mutate(x = |), filter(year == |)). The popup after "(" "[" "$" "@" is
 #    unchanged.
 # 3. Knit (Ctrl+Shift+K): a knitted PDF opens in the editor to the right of
-#    the .Rmd (Overleaf style); an open PDF tab there reloads by itself.
+#    the .Rmd (Overleaf style). An open PDF tab there reloads by itself.
 # 4. Plots: a new plot (print(p), plot(x)) brings the R Plot tab to the front
-#    in its own editor window, also when another tab there was in front; the
+#    in its own editor window, also when another tab there was in front. The
 #    cursor stays in the script. Redrawing an old plot (resize) does not.
 # 5. Plots: Ctrl+wheel or a touchpad pinch zooms 7.5% per step around the
 #    spot under the mouse, like the PDF viewer (patch-pdf-viewer.pl) and
@@ -37,98 +47,154 @@
 use strict; use warnings;
 my $ext = "$ENV{USERPROFILE}/.vscode/extensions";
 opendir(my $dh, $ext) or die "cannot open $ext";
-my ($name) = (sort grep { /^reditorsupport.r-[0-9]/ } readdir $dh)[-1];   # newest version
+# newest version, compared number by number (3.10.0 comes after 3.4.0)
+my ($name) = map { $_->[0] }
+    sort { $b->[1] <=> $a->[1] || $b->[2] <=> $a->[2] || $b->[3] <=> $a->[3] }
+    map { /^reditorsupport\.r-(\d+)\.(\d+)\.(\d+)/ ? [$_, $1, $2, $3] : () } readdir $dh;
 closedir $dh;
 die "R extension not found in $ext" unless $name;
+print "R extension: $name\n";
 my $dir = "$ext/$name/dist";
 my $file = "$dir/extension.js";
 local $/; open my $in, '<', $file or die "cannot read $file\n"; my $js = <$in>; close $in;
 my $changed = 0;
+my @skipped;
+my $ID = qr/[\w\$]+/;   # a short name of the built extension (Je, s0, $t ...)
 
 # literal, once-only replacement (no regex: the JS is full of $ " ' characters)
 sub replace_once {
     my ($old, $new, $what) = @_;
     my $i = index($js, $old);
-    die "$what: code not found; the extension changed, patch by hand\n" if $i < 0;
-    die "$what: code found twice; patch by hand\n" if index($js, $old, $i + 1) >= 0;
+    die "$what: code not found\n" if $i < 0;
+    die "$what: code found twice\n" if index($js, $old, $i + 1) >= 0;
     substr($js, $i, length $old) = $new;
 }
 
+# once-only replacement by pattern. $build gets what the pattern caught
+# (the short names) and returns the new code.
+sub replace_re {
+    my ($re, $build, $what) = @_;
+    my $n = 0;
+    $n++ while $js =~ /$re/g;
+    die "$what: code not found\n" if $n == 0;
+    die "$what: code found $n times, not once\n" if $n > 1;
+    $js =~ s/$re/$build->($1, $2, $3, $4)/e;
+}
+
+# a piece of new code with the found names put in: @@U@@ becomes $names{U}
+sub fill {
+    my ($text, %names) = @_;
+    $text =~ s/\@\@(\w+)\@\@/defined $names{$1} ? $names{$1} : die "fill: no name for $1\n"/ge;
+    return $text;
+}
+
+# One fix. Already there (its marker is in the file): say so. If its code
+# cannot be found: put the text back as it was, say SKIPPED, go on.
+sub try_fix {
+    my ($what, $marker, $code) = @_;
+    if (index($js, $marker) >= 0) { print "$what: already in place\n"; return; }
+    my $before = $js;
+    if (eval { $code->(); 1 }) { print "$what: applied\n"; $changed++; return; }
+    my $why = $@;
+    $why =~ s/\s+$//;
+    $js = $before;
+    print "$what: SKIPPED. $why. The extension changed here, patch this one by hand\n";
+    push @skipped, $what;
+}
+
 # ---- 1. data viewer: size columns to content by default -------------------
-if ($js =~ /patched: size to content by default/) {
-    print "viewer fix: already in place\n";
-} else {
+try_fix("viewer fix", "patched: size to content by default", sub {
     my $n = 0;
     $n += $js =~ s/viewerSizingMode = saved\?\.schema === viewerSchema && saved\.sizingMode === 'content' \? 'content' : 'fit';/viewerSizingMode = saved?.schema === viewerSchema && saved.sizingMode === 'fit' ? 'fit' : 'content'; \/\/ patched: size to content by default/;
     $n += $js =~ s/(    function updateViewerSizingButtons\(\) \{)/    \/\/ patched: a fresh view (no saved widths) in content mode is auto-sized once the first rows are drawn\n    function applyInitialViewerSizing(event) {\n        if (viewerSizingMode === 'content' && !viewerInitialState?.columnSizing) {\n            event.api.autoSizeAllColumns({ defaultMaxWidth: 480 });\n        }\n    }\n\n$1/;
     $n += $js =~ s/(            tooltipShowDelay: 300,\n)(            onStateUpdated: saveViewerState\n)/$1            onFirstDataRendered: applyInitialViewerSizing, \/\/ patched\n$2/;
     $n += $js =~ s/(            onFirstDataRendered: function\(\) \{\n)(                updateFetchStatusPosition\(\);\n                attachScrollbarPositionIndicator\(\);\n)/$1                applyInitialViewerSizing(arguments[0]); \/\/ patched\n$2/;
-    die "viewer fix: only $n of 4 edits matched; the extension code changed, patch by hand\n" unless $n == 4;
-    print "viewer fix: applied\n"; $changed++;
-}
+    die "only $n of 4 edits matched\n" unless $n == 4;
+});
 
 # ---- 2. completion: column names after ", " instead of "," ----------------
 # Since 18 Nov 2026 also after "= " "== " "< " "> " "& " "| " "%in% ", so
 # mutate(x = |) and filter(year == |) show the column names too.
-my $space_old = q~if(c===" "){if(!/,\s$/.test(e.lineAt(n.line).text.slice(0,n.character)))return s;c=","}/* patched: column names after comma-space */~;
-my $space_new = q~if(c===" "){if(!/(,|=|<|>|&|\||%in%)\s$/.test(e.lineAt(n.line).text.slice(0,n.character)))return s;c=","}/* patched: column names after comma-space and after = */~;
-if ($js =~ /patched: column names after comma-space and after =/) {
-    print "completion fix: already in place\n";
-} elsif ($js =~ /patched: column names after comma-space/) {
-    replace_once($space_old, $space_new, "completion fix, after =");   # older patch: widen it
-    print "completion fix: widened to = == < > & | %in%\n"; $changed++;
-} else {
+# @@C@@ is the provider's name for the trigger character (c in 3.2.2, u in 3.4.0)
+my $space_code = q~if(@@C@@===" "){if(!/(,|=|<|>|&|\||%in%)\s$/.test(e.lineAt(n.line).text.slice(0,n.character)))return s;@@C@@=","}/* patched: column names after comma-space and after = */~;
+try_fix("completion fix", "patched: column names after comma-space and after =", sub {
+    if (index($js, "patched: column names after comma-space") >= 0) {
+        # the patch from before 18 Nov 2026 is there: widen it
+        replace_once(
+            q~if(c===" "){if(!/,\s$/.test(e.lineAt(n.line).text.slice(0,n.character)))return s;c=","}/* patched: column names after comma-space */~,
+            fill($space_code, C => 'c'),
+            "after =");
+        return;
+    }
     # the session completion provider's trigger characters: drop "," add " "
-    replace_once(
-        q~let o=["","[","(",",","$","@",'"',"'"];return t.subscriptions.push(Je.languages.registerCompletionItemProvider(["r","rmd"],new Ly,...o))~,
-        q~let o=["","[","(","$","@",'"',"'"," "];return t.subscriptions.push(Je.languages.registerCompletionItemProvider(["r","rmd"],new Ly,...o))~,
-        "completion fix, trigger characters");
+    replace_re(
+        qr~\["","\[","\(",",","\$","\@",'"',"'"\](?=;return t\.subscriptions\.push\($ID\.languages\.registerCompletionItemProvider\(\["r","rmd"\],new $ID,\.\.\.$ID\)\))~,
+        sub { q~["","[","(","$","@",'"',"'"," "]~ },
+        "trigger characters");
+    # the new code uses the provider's own names: e the file, n the place, s the list it gives back
+    die "provider: provideCompletionItems(e,n,r,i) with the list s not found\n"
+        unless $js =~ /async provideCompletionItems\(e,n,r,i\)\{let s=\[\],/;
     # a space counts as the comma trigger only after a comma or a comparison
-    replace_once(q~let c=i.triggerCharacter;~, q~let c=i.triggerCharacter;~ . $space_new, "completion fix, provider");
-    print "completion fix: applied\n"; $changed++;
-}
+    replace_re(
+        qr~let ($ID)=i\.triggerCharacter;(?=if\(\1===void 0\)\{let $ID=$ID\.workspaceData\.globalenv)~,
+        sub { "let $_[0]=i.triggerCharacter;" . fill($space_code, C => $_[0]) },
+        "provider");
+});
 
 # ---- 3. knit: a knitted PDF opens in the editor to the right -------------
-if ($js =~ /patched: a knitted PDF opens in the editor to the right/) {
-    print "knit PDF fix: already in place\n";
-} else {
+try_fix("knit PDF fix", "patched: a knitted PDF opens in the editor to the right", sub {
     # after Ctrl+Shift+K: a .pdf result opens beside the .Rmd, the cursor stays
-    # in the .Rmd; other results (HTML) keep the old rule (openOutputFile, off)
-    replace_once(
-        q~if(o){let C=Vn.Uri.file(m);d0.existsSync(C.fsPath)?Vn.commands.executeCommand("vscode.open",C):Vn.window.showWarningMessage(`Could not find the output file at path: "${C.fsPath}"`)}return!0}~,
-        q~if(/\.pdf$/i.test(m)){let C=Vn.Uri.file(m);d0.existsSync(C.fsPath)&&Vn.commands.executeCommand("vscode.open",C,{viewColumn:Vn.ViewColumn.Beside,preserveFocus:!0,preview:!1})}else if(o){let C=Vn.Uri.file(m);d0.existsSync(C.fsPath)?Vn.commands.executeCommand("vscode.open",C):Vn.window.showWarningMessage(`Could not find the output file at path: "${C.fsPath}"`)}/* patched: a knitted PDF opens in the editor to the right */return!0}~,
-        "knit PDF fix");
-    print "knit PDF fix: applied\n"; $changed++;
-}
+    # in the .Rmd. Other results (HTML) keep the old rule (openOutputFile, off).
+    # U the file address, V vscode, P the path R printed, F node's fs
+    my $old_rule = q~if(o){let @@U@@=@@V@@.Uri.file(@@P@@);@@F@@.existsSync(@@U@@.fsPath)?@@V@@.commands.executeCommand("vscode.open",@@U@@):@@V@@.window.showWarningMessage(`Could not find the output file at path: "${@@U@@.fsPath}"`)}~;
+    my $pdf_rule = q~if(/\.pdf$/i.test(@@P@@)){let @@U@@=@@V@@.Uri.file(@@P@@);@@F@@.existsSync(@@U@@.fsPath)&&@@V@@.commands.executeCommand("vscode.open",@@U@@,{viewColumn:@@V@@.ViewColumn.Beside,preserveFocus:!0,preview:!1})}else ~;
+    replace_re(
+        qr~if\(o\)\{let ($ID)=($ID)\.Uri\.file\(($ID)\);($ID)\.existsSync\(\1\.fsPath\)\?\2\.commands\.executeCommand\("vscode\.open",\1\):\2\.window\.showWarningMessage\(`Could not find the output file at path: "\$\{\1\.fsPath\}"`\)\}(?=return!0\})~,
+        sub { fill($pdf_rule . $old_rule . q~/* patched: a knitted PDF opens in the editor to the right */~, U => $_[0], V => $_[1], P => $_[2], F => $_[3]) },
+        "the line that opens the output file");
+});
 
 # ---- 4. plots: a new plot brings the R Plot tab to the front ---------------
-if ($js =~ /patched: a new plot brings the plot tab to the front/) {
-    print "plot to front fix: already in place\n";
-} else {
-    # httpgd viewer, refreshPlots(): c = plot ids before, a = plot ids now.
+try_fix("plot to front fix", "patched: a new plot brings the plot tab to the front", sub {
+    # httpgd viewer, refreshPlots(): B = the plot ids from before (a list with
+    # .includes in 3.2.2, a Set with .has in 3.4.0), this.plots = the plots now.
     # Only a plot id that was not there before counts (not a resize redraw).
     # reveal(column undefined = where the tab is, preserveFocus true)
-    replace_once(
-        q~else{for(let u of this.plots)c.includes(u.id)?this.updatePlot(u):this.addPlot(u);this._focusPlot()}}updatePlot(e){~,
-        q~else{for(let u of this.plots)c.includes(u.id)?this.updatePlot(u):this.addPlot(u);this._focusPlot()}a.some(u=>!c.includes(u.id))&&this.webviewPanel?.reveal(void 0,!0)/* patched: a new plot brings the plot tab to the front */}updatePlot(e){~,
-        "plot to front fix");
-    print "plot to front fix: applied\n"; $changed++;
-}
+    replace_re(
+        qr~else\{for\(let ($ID) of this\.plots\)($ID)\.(has|includes)\(\1\.id\)\?this\.updatePlot\(\1\):this\.addPlot\(\1\);this\._focusPlot\(\)\}(?=\}updatePlot\(e\)\{)~,
+        sub {
+            fill(q~else{for(let @@P@@ of this.plots)@@B@@.@@T@@(@@P@@.id)?this.updatePlot(@@P@@):this.addPlot(@@P@@);this._focusPlot()}this.plots.some(u=>!@@B@@.@@T@@(u.id))&&this.webviewPanel?.reveal(void 0,!0)/* patched: a new plot brings the plot tab to the front */~,
+                P => $_[0], B => $_[1], T => $_[2]);
+        },
+        "the end of refreshPlots");
+});
 
 # ---- 6. Ctrl+click on a session object opens the data viewer ----------------
-if ($js =~ /patched: Ctrl\+click on a session object opens the data viewer/) {
-    print "Ctrl+click fix: already in place\n";
-} else {
+try_fix("Ctrl+click fix", "patched: Ctrl+click on a session object opens the data viewer", sub {
     # Before the language server answers a definition request (Ctrl+hover,
     # Ctrl+click), ask the Enter add-on (command rPipeIndent.ctrlClick) with the
-    # document's R session (s0, as the session hover uses). Its answer
-    # undefined = let the language server answer as before.
-    replace_once(
-        q~middleware:{...Pte,provideSignatureHelp:async(j,V,Z,ce,fe)=>~,
-        q~middleware:{...Pte,provideDefinition:async(j,V,Z,ce)=>{let w;try{w=await hr.commands.executeCommand("rPipeIndent.ctrlClick",j,V,typeof s0=="function"?s0(j.uri):void 0)}catch(e){}return w===void 0?ce(j,V,Z):w}/* patched: Ctrl+click on a session object opens the data viewer */,provideSignatureHelp:async(j,V,Z,ce,fe)=>~,
-        "Ctrl+click fix");
-    print "Ctrl+click fix: applied\n"; $changed++;
-}
+    # document's R session. Its answer undefined = let the language server
+    # answer as before.
+    # The function that gives a document's R session (s0 in 3.2.2, Ea in 3.4.0):
+    # the one the session completion provider calls first.
+    my ($session) = $js =~ /async provideCompletionItems\(e,n,r,i\)\{let s=\[\],(?:$ID=e\.version,)?$ID=($ID)\(e\.uri\);if\(r\.isCancellationRequested\|\|!$ID\?\.workspaceData\?\.globalenv\)/;
+    die "the function that gives a document's R session not found\n" unless $session;
+    # Since 3.4.0 the list of R objects is loaded when asked for, not kept up to
+    # date all the time. The session hover waits for it with this function
+    # (Lte in 3.4.0). When the name is not in the list yet, wait for the list
+    # (0.4 s at most, R may be busy) and ask once more. Not there in 3.2.2.
+    my ($load) = $js =~ /if\(!await ($ID)\(s,r\)\|\|e\.version!==i\|\|\Q$session\E\(e\.uri\)!==s\)return null/;
+    my $wait = $load
+        ? fill(q~if(w===void 0&&S&&typeof @@L@@=="function"){await Promise.race([Promise.resolve().then(()=>@@L@@(S,T)).catch(()=>{}),new Promise(r=>setTimeout(r,400))]);w=await ask()}~, L => $load)
+        : "";
+    my $definition = fill(
+        q~provideDefinition:async(D,P,T,N)=>{let w;try{const v=require("vscode"),S=typeof @@S@@=="function"?@@S@@(D.uri):void 0,ask=()=>v.commands.executeCommand("rPipeIndent.ctrlClick",D,P,S);w=await ask();@@WAIT@@}catch(e){}return w===void 0?N(D,P,T):w}/* patched: Ctrl+click on a session object opens the data viewer */,~,
+        S => $session, WAIT => $wait);
+    replace_re(
+        qr~middleware:\{\.\.\.($ID),(?=provideSignatureHelp:async\()~,
+        sub { "middleware:{...$_[0]," . $definition },
+        "the language client middleware");
+});
 
 # ---- 7. an R tab opens in the editor group that already has an R tab -------
 # A new data viewer, R Plot or widget viewer tab opens in the editor group
@@ -137,38 +203,35 @@ if ($js =~ /patched: Ctrl\+click on a session object opens the data viewer/) {
 # in the script's own group, the setting (Beside) decides as before.
 # Offline test: R tabs in group 3 of a floating window, data or plot, 9 checks
 # (18 Nov 2026). An open tab of the same object still comes forward where it is.
-if ($js =~ /patched: an R tab opens where an R tab already is/) {
-    print "R tab group fix: already in place\n";
-} else {
+try_fix("R tab group fix", "patched: an R tab opens where an R tab already is", sub {
     # title: the new tab's title. A stand-in tab of the same kind (fix 8) with
     # that title (any title for a plot) closes once the new tab is there.
     my $helper = q~function __rPreviewColumn(want,fallback,title){/* patched: an R tab opens where an R tab already is */try{const v=require("vscode"),ed=v.window.activeTextEditor,own=ed?ed.viewColumn:void 0,R=["dataview","RPlot","r.standardPlot","r.htmlViewer"],kind=tab=>{const x=tab.input;if(!(x instanceof v.TabInputWebview)||typeof x.viewType!="string")return"";return R.find(r=>x.viewType===r||x.viewType.endsWith("-"+r))||""};let best;for(const g of v.window.tabGroups.all){if(g.viewColumn===own)continue;for(const tab of g.tabs){const k=kind(tab);if(!k)continue;const same=want.includes(k);if(!best||same&&!best.same)best={col:g.viewColumn,same:same}}}if(typeof __rHolders!="undefined")for(const [p,h] of __rHolders)if(want.includes(h.kind)&&(h.kind!=="dataview"||h.title===title))setTimeout(()=>p.dispose(),300);return best?best.col:fallback}catch(e){return fallback}}~;
-    die "R tab group fix: file does not start with \"use strict\", patch by hand\n" unless substr($js, 0, 13) eq '"use strict";';
+    die "file does not start with \"use strict\"\n" unless substr($js, 0, 13) eq '"use strict";';
     substr($js, 13, 0) = $helper;   # at the top, so every part of the file sees it
-    # data viewer: a table and a list (the same code twice)
-    my $dv_old = q~{preserveFocus:!0,viewColumn:Me.ViewColumn[i]},{enableScripts:!0,enableFindWidget:!0,retainContextWhenHidden:!0,localResourceRoots:[Me.Uri.file(Uu)]}~;
-    my $dv_new = q~{preserveFocus:!0,viewColumn:__rPreviewColumn(["dataview"],Me.ViewColumn[i],n)},{enableScripts:!0,enableFindWidget:!0,retainContextWhenHidden:!0,localResourceRoots:[Me.Uri.file(Uu)]}~;
+    # data viewer: a table and a list (the same code twice). n is the tab's title.
+    my $dv = qr~createWebviewPanel\("dataview",n,\{preserveFocus:!0,viewColumn:($ID)\.ViewColumn\[i\]\},(?=\{enableScripts:!0,enableFindWidget:!0,retainContextWhenHidden:!0,localResourceRoots:\[$ID\.Uri\.file\($ID\)\]\})~;
     my $n = 0;
-    while ((my $i = index($js, $dv_old)) >= 0) { substr($js, $i, length $dv_old) = $dv_new; $n++ }
-    die "R tab group fix: data viewer code found $n times, not 2, patch by hand\n" unless $n == 2;
+    $n++ while $js =~ /$dv/g;
+    die "data viewer code found $n times, not 2\n" unless $n == 2;
+    $js =~ s/$dv/fill(q~createWebviewPanel("dataview",n,{preserveFocus:!0,viewColumn:__rPreviewColumn(["dataview"],@@V@@.ViewColumn[i],n)},~, V => $1)/ge;
     # httpgd plot tab (the backend in settings.json)
     replace_once(
         q~createWebviewPanel("RPlot","R Plot",e||this.showOptions,~,
         q~createWebviewPanel("RPlot","R Plot",{...(e||this.showOptions),viewColumn:__rPreviewColumn(["RPlot"],(e||this.showOptions).viewColumn)},~,
-        "R tab group fix, httpgd plot");
+        "httpgd plot");
     # standard plot tab: new tab next to an R tab, an open one stays where it is
     replace_once(
         q~createWebviewPanel("r.standardPlot","R Plot",{viewColumn:e,~,
         q~createWebviewPanel("r.standardPlot","R Plot",{viewColumn:__rPreviewColumn(["r.standardPlot"],e),~,
-        "R tab group fix, standard plot");
-    replace_once(q~this.panel?(this.panel.reveal(e,!0)~, q~this.panel?(this.panel.reveal(void 0,!0)~, "R tab group fix, standard plot reveal");
+        "standard plot");
+    replace_once(q~this.panel?(this.panel.reveal(e,!0)~, q~this.panel?(this.panel.reveal(void 0,!0)~, "standard plot reveal");
     # htmlwidget viewer (leaflet, plotly)
-    replace_once(
-        q~viewColumn:lt.ViewColumn[String(e)]??lt.ViewColumn.Two}~,
-        q~viewColumn:__rPreviewColumn(["r.htmlViewer"],lt.ViewColumn[String(e)]??lt.ViewColumn.Two)}~,
-        "R tab group fix, widget viewer");
-    print "R tab group fix: applied\n"; $changed++;
-}
+    replace_re(
+        qr~viewColumn:($ID)\.ViewColumn\[String\(e\)\]\?\?\1\.ViewColumn\.Two\}~,
+        sub { fill(q~viewColumn:__rPreviewColumn(["r.htmlViewer"],@@V@@.ViewColumn[String(e)]??@@V@@.ViewColumn.Two)}~, V => $_[0]) },
+        "widget viewer");
+});
 
 # ---- 8. data and plot tabs keep their place over a restart ------------------
 # The R extension cannot bring a data viewer or R Plot tab back after Reload
@@ -177,19 +240,21 @@ if ($js =~ /patched: an R tab opens where an R tab already is/) {
 # Now they come back as a stand-in tab with a short note, in the same place.
 # Fix 7 then puts the new data tab (same name) or the new plot there and
 # closes the stand-in. The R session itself is new: run the script again.
-if ($js =~ /patched: R tabs keep their place over a restart/) {
-    print "R tab restore fix: already in place\n";
-} else {
+try_fix("R tab restore fix", "patched: R tabs keep their place over a restart", sub {
+    # should the extension ever bring these tabs back by itself, ours would clash with it
+    for my $kind ("dataview", "RPlot") {
+        die "the extension now restores $kind tabs itself, this fix may no longer be needed\n"
+            if index($js, qq~registerWebviewPanelSerializer("$kind"~) >= 0;
+    }
     my $holders = q~var __rHolders=new Map();/* patched: R tabs keep their place over a restart */(function(){try{const v=require("vscode"),esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]),page=(t,m)=>`<!doctype html><html><body style="font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);color:var(--vscode-foreground);padding:24px"><h3>${t}</h3><p>${m}</p></body></html>`,notes={dataview:t=>"Was open before the restart. Run your script, then Ctrl+click "+t+" again: it opens here.",RPlot:()=>"Was open before the restart. Make the plot again: it shows here."};for(const kind of Object.keys(notes))v.window.registerWebviewPanelSerializer(kind,{deserializeWebviewPanel:async p=>{__rHolders.set(p,{kind:kind,title:p.title});p.onDidDispose(()=>__rHolders.delete(p));p.webview.html=page(esc(p.title),notes[kind](esc(p.title)))}})}catch(e){}})();~;
-    die "R tab restore fix: file does not start with \"use strict\", patch by hand\n" unless substr($js, 0, 13) eq '"use strict";';
+    die "file does not start with \"use strict\"\n" unless substr($js, 0, 13) eq '"use strict";';
     substr($js, 13, 0) = $holders;
-    print "R tab restore fix: applied\n"; $changed++;
-}
+});
 
 if ($changed) {
     rename $file, "$file.orig" unless -e "$file.orig";
     open my $out, '>', $file or die "cannot write $file\n"; print $out $js; close $out;
-    print "patched $file (original kept as extension.js.orig). Reload Window.\n";
+    print "patched $file (original kept as extension.js.orig). Ctrl+Shift+P, Developer: Restart Extension Host.\n";
 } else {
     print "nothing to do: $file\n";
 }
@@ -199,9 +264,18 @@ if ($changed) {
 # needs the box #largePlot that holds the plot (an <svg>), so it does not
 # depend on the minified code before it.
 my $plotFile = "$dir/webviews/httpgd/index.js";
-open my $pin, '<', $plotFile or die "cannot read $plotFile\n"; my $pjs = <$pin>; close $pin;
-if ($pjs =~ /patched: zoom the plot like a PDF/) {
+my $plotPage = "$dir/webviews/httpgd/index.ejs";
+my ($pjs, $page);
+if (open my $pin, '<', $plotFile) { $pjs = <$pin>; close $pin; }
+if (open my $pagein, '<', $plotPage) { $page = <$pagein>; close $pagein; }
+if (!defined $pjs) {
+    print "plot zoom fix: SKIPPED. Cannot read $plotFile. The extension changed here, patch this one by hand\n";
+    push @skipped, "plot zoom fix";
+} elsif ($pjs =~ /patched: zoom the plot like a PDF/) {
     print "plot zoom fix: already in place\n";
+} elsif (!defined $page || index($page, 'id="largePlot"') < 0) {
+    print "plot zoom fix: SKIPPED. The plot page has no box largePlot any more. The extension changed here, patch this one by hand\n";
+    push @skipped, "plot zoom fix";
 } else {
     my $zoom = <<'ZOOM';
 
@@ -238,7 +312,7 @@ if ($pjs =~ /patched: zoom the plot like a PDF/) {
       box.classList.add("zoomed");
     }
   }
-  // while zooming the plot is only stretched (instant); 250 ms after the
+  // while zooming the plot is only stretched (instant), and 250 ms after the
   // last step it is drawn sharp once (matters for big maps)
   function stretchThenSharpen() {
     box.classList.add("zooming");
@@ -297,4 +371,9 @@ ZOOM
     open my $pout, '>', $plotFile or die "cannot write $plotFile\n"; print $pout $pjs . $zoom; close $pout;
     print "plot zoom fix: applied\n";
     print "patched $plotFile (original kept as index.js.orig). Close the R Plot tab, plot again.\n";
+}
+
+if (@skipped) {
+    print "\n" . scalar(@skipped) . " fix(es) SKIPPED: " . join(", ", @skipped) . ". The others are in.\n";
+    exit 1;
 }
