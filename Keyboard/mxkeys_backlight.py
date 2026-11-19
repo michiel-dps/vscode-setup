@@ -2,7 +2,8 @@
 While forced, the battery LED shows the battery: red when low (20% or less), orange (green + red)
 on battery, off while charging (the keyboard's own charging light), green when full on the cable.
 After the keyboard slept, the lights are switched on again as soon as it wakes.
-After 5 minutes without input the watcher leaves the keyboard alone, so it can sleep.
+After 5 minutes without input the watcher switches all its lights off and leaves the keyboard
+alone, so it can sleep.
 
 Usage:  python mxkeys_backlight.py on|off|status|watch|restore
   on       force the backlight on, battery LED amber (and remember that choice)
@@ -29,7 +30,8 @@ import screens
 IDLE_PAUSE = 60                              # seconds without mouse or keyboard input = a pause
 # Every question to the keyboard keeps it awake (19 Nov 2026: it answered every 5 seconds all
 # through a 26 minute break). So while he is away the watcher asks nothing and only listens,
-# and the keyboard gets its own backlight back, which goes dark. The first touch lights it again.
+# and all the lights are off. Giving the keyboard its own backlight back did not work: it did
+# not come back as the keyboard's normal light (19 Nov 2026). The first touch lights it again.
 AWAY_AFTER = 300                             # seconds without input = away: let the keyboard sleep
 
 
@@ -160,6 +162,12 @@ class Keyboard:
         self.req(self.f_led, 2, CLEAR)
         self.req(self.f_hidden, 1, b'\x00')
 
+    def lights_off(self):
+        """Every LED forced off (backlight and battery light), for while he is away."""
+        self.req(self.f_hidden, 1, b'\x01')
+        self.req(self.f_led, 2, CLEAR)
+        return self.req(self.f_led, 1)[:3] == CLEAR
+
     def is_set(self, forced, mask=FORCED_MASK):
         """True if the keyboard already shows what forced and the battery light ask for."""
         if not forced:
@@ -276,12 +284,13 @@ def cmd_watch():
             if was_paused and idle < 2:
                 need_refresh = True
             was_paused = idle >= IDLE_PAUSE
-            # Away: give the keyboard its own backlight back and ask it nothing, so it can sleep
+            # Away: lights off and ask the keyboard nothing, so it can sleep
             if idle >= AWAY_AFTER and not away:
                 away = True
                 if load_wanted():
-                    kb.normal()
-                log("away: keyboard left alone so it can sleep")
+                    log(f"away: lights off, keyboard left alone so it can sleep (ok={kb.lights_off()})")
+                else:
+                    log("away: keyboard left alone so it can sleep")
             if idle < AWAY_AFTER and away:
                 away = False
                 need_refresh = True
