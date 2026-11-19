@@ -673,6 +673,21 @@ After changing `extension.js`: run the test, copy the folder to
 
 ## 5b. Startup screen (own add-on, personal, 6 Nov 2026)
 
+**Off since 19 Nov 2026. Recommended: leave it off.** At 16:26 that day
+Windows crashed with a blue screen (bug check 0x1C6, type 0xF: a driver
+handed a "fast resource" lock to an old-style Windows routine, a fault in a
+driver, not in a program). The last line in `startup-screen.log` before the
+crash was `helper: show 01-key-art.jpg`, the fourth full screen in five
+minutes, and nothing else was drawing. The computer has only the Intel UHD
+Graphics 630 (driver 31.0.101.2135, March 2025), and the helper draws the
+whole screen on it. So most likely the full-screen drawing set off a fault in
+the graphics driver. Which driver for sure is only in `C:\Windows\Minidump`,
+which needs admin to read. Switched off by: `"startupScreen.enabled": false`
+in settings.json, `enabled=false` in
+`%LOCALAPPDATA%\startup-screen\helper-settings.txt`, the helper stopped and
+its Startup shortcut deleted. To switch it on again anyway: set the setting to
+true and run `build.ps1` (it makes the shortcut again).
+
 When VS Code starts, or after Reload Window, a loading screen covers the whole
 screen for about six seconds and then closes itself:
 
@@ -2723,6 +2738,10 @@ not see `--user` packages) and starts the watcher.
   plain F-keys. Press Fn+Esc once.
 - Right after waking the keyboard, the first press can do nothing: the
   watcher connects again within about 10 seconds.
+- **F6/F7 do nothing right after a restart** (19 Nov 2026, after the crash):
+  Windows runs the Startup folder a few minutes after logon (that day logon
+  16:28, "watch started" 16:32). Until that line is in `watch.log` there is
+  no helper to answer the keys. Wait, then press F7 again.
 - Nothing at all: read `watch.log`. "not responding on the receiver" =
   keyboard asleep or on another Easy-Switch channel or Bluetooth. "F1/F2
   keys ... not on this keyboard" lists the key codes the keyboard does have.

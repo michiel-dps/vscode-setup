@@ -1,4 +1,7 @@
 {
+    // Startup screen off since 19 Nov 2026: Windows crashed (blue screen 0x1C6, a driver fault)
+    // seconds after it opened full screen. Recommended: leave it off (note, section 5b)
+    "startupScreen.enabled": false,
     // Off since 16 Nov 2026: VS Code's experimental edit statistics kept a full copy of an open
     // document after every change; with the paper on the Word Page that filled the window's
     // memory until it crashed ("renderer process gone (reason: oom)", five times that day)
