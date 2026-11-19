@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>document.write('<base href="' + new URLSearchParams(location.search).get('base') + '">')</script>
+<title>loading</title>
+<style>
+html, body { margin: 0 }
+canvas { display: block }
+canvas { position: absolute }
+canvas { left: 0 }
+canvas { top: 0 }
+#fade { opacity: 0 }
+</style>
+</head>
+<body>
+<canvas id="picture"></canvas>
+<canvas id="effects"></canvas>
+<canvas id="fade"></canvas>
+<script src="sparkles.js"></script>
+<script src="scenes-v2.js"></script>
+<script src="wallpaper.js"></script>
+<script>
+async function measure() {
+  while (!scene) {
+    await new Promise(r => setTimeout(r, 100))
+  }
+  await new Promise(r => setTimeout(r, 800))
+  const info = gl.getExtension('WEBGL_debug_renderer_info')
+  const name = info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : 'unknown'
+  const px = new Uint8Array(4)
+  const frames = 40
+  let t0 = performance.now()
+  for (const i of range(frames)) {
+    render(30 + i / 30, 1 / 30)
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px)
+  }
+  const all = (performance.now() - t0) / frames
+  t0 = performance.now()
+  for (const i of range(frames)) {
+    drawPicture(30 + i / 30)
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px)
+  }
+  const picture = (performance.now() - t0) / frames
+  document.title = `PERF whole frame ${all.toFixed(1)} ms, picture layer ${picture.toFixed(1)} ms, ${W}x${H}, ${name}`
+}
+measure().catch(e => { document.title = 'PERF error ' + e })
+</script>
+</body>
+</html>

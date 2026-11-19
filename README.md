@@ -98,6 +98,10 @@ Ask Claude to "publish the setup", or run
 - `git` : name, e-mail, GitHub login
 - `Keyboard` : the Logitech MX Keys helper. F1/F2 dim and brighten external
   screens, F6/F7 the key backlight (note, section 10)
+- `Elden Show` : the "slideshow": a moving Elden Ring picture across two
+  screens, started with Ctrl+Alt+S (note, section 11). Personal and only
+  for a PC with two screens, so INSTALL leaves it alone: run
+  `Elden Show\install.ps1` by hand there
 - `scripts` : the programs behind INSTALL and SAVE, and `check-vscode.ps1`:
   run it when Claude does not open in a window (it checks that every window
   is run by the real VS Code, not by a test copy; `-Fix` repairs)

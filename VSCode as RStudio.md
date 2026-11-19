@@ -26,6 +26,7 @@ computer, `SAVE.cmd` copies this computer's setup into the folder.
 | `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `awake\awake.py` (computer stays awake while Claude works, section 9), `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\` (the /chats add-on, which also makes code blocks in the Claude chat wrap, section 9), `memory\` (one folder per project) |
 | `git\.gitconfig` | name, e-mail, GitHub login through `gh` |
 | `Keyboard\` | the Logitech MX Keys helper (18 Nov 2026): F1/F2 dim and brighten the external screens, F6/F7 the key backlight. Copies of `C:\Users\<you>\Tools\mxkeys\`, section 10 |
+| `Elden Show\` | the "slideshow" (19 Nov 2026): a moving Land of Shadow picture across two screens, Ctrl+Alt+S, locks Windows on the first touch or after 15 minutes. Copy of `C:\Users\<you>\AppData\Local\EldenShow\`, with its own `install.ps1` (personal, not run by INSTALL), section 11 |
 
 Since 30 Oct 2026 nothing is per project any more: a new R folder works
 without copying anything into it. `%APPDATA%` = `C:\Users\<you>\AppData\Roaming`.
@@ -2638,3 +2639,87 @@ not see `--user` packages) and starts the watcher.
   seconds of a touch (was 10 to 40 seconds before 18 Nov 2026 evening).
 - Stop for good: `python mxkeys_backlight.py restore` (normal backlight,
   F1/F2/F6/F7 back to normal), stop the watcher, delete the `.vbs`.
+
+## 11. Elden Show: the moving picture on two screens (Ctrl+Alt+S), finished 19 Nov 2026
+
+His word for it: "the slideshow". A moving version of the Land of Shadow art
+(official Shadow of the Erdtree announcement art) as one picture across two
+1920x1080 screens, with a clock. Personal, only for a PC with two screens.
+Built on 18 and 19 Nov 2026. He called the 19 Nov version "great" and the
+project finished.
+
+**Using it**
+
+- **Ctrl+Alt+S** starts it, from anywhere. A small background waiter
+  (`EldenShow.exe --resident`, started at login by the shortcut "Elden Show
+  key" in the Startup folder) holds the picture loaded, so it appears at once.
+- **The first touch of mouse or keyboard locks Windows** (the real lock, as
+  Win+L). Until that touch the PC is not locked.
+- While it is up the screen stays on and the PC does not sleep. **After 15
+  minutes without a touch it locks Windows itself** (19 Nov 2026). After the
+  lock the screen and the sleep timers work as normal again.
+- After every unlock the waiter sets the next picture from
+  `Pictures\Elden Wallpaper\lock screen favourites` as the Windows lock
+  screen (`next-lock-picture.ps1`). Add or delete `.jpg` files there.
+
+**Where it lives**
+
+| Place | What |
+|---|---|
+| `C:\Users\<you>\AppData\Local\EldenShow` | the installed show: `EldenShow.exe` and `.cs`, three WebView2 `.dll` files, `wallpaper\` (the page), `stills\shadow.jpg` (shown for the first instant), `log.txt` |
+| `Elden Show\` in this setup folder | the saved copy, and `install.ps1`. Also in the GitHub copy |
+| `H26-Data Science\wallpaper-proposals\` | the workshop: the original art (`sources\`, 60 MB, not saved here), earlier versions (`before-mist-rework\`, `before-19-nov\`), test pictures |
+
+**On a new PC with two screens**: run
+`powershell -NoProfile -ExecutionPolicy Bypass -File "<setup folder>\Elden Show\install.ps1"`.
+It copies the show, unpacks the picture data, builds `EldenShow.exe` with the
+C# compiler that comes with Windows, puts the lock screen picture in place,
+and switches on Ctrl+Alt+S at login. No admin, nothing downloaded. It needs
+the WebView2 part of Edge, which Windows 10 and 11 have. `-To <empty folder>`
+tests it without starting anything (done on 19 Nov 2026: every file
+identical, the program builds). INSTALL.cmd does not run it: it is personal
+and only makes sense with two screens. The accent colour (brown, from the
+lock picture) is not set by it: the values are in `accent-colours.txt`.
+
+**Saving**: save.ps1 copies the show from `AppData\Local\EldenShow` into
+`Elden Show\` (only files that are newer). `EldenShow.exe` is not saved, the
+install builds it. The picture data `wallpaper\data\shadow.js` (8 MB of
+letters, the picture and its masks packed as text) is saved packed as
+`shadow.js.gz`: as plain text the GitHub check finds personal words in it by
+chance. The three WebView2 `.dll` files from Microsoft are saved packed too
+(`.dll.gz`): one of them holds a text the check takes for an e-mail address.
+The install unpacks them all. publish.ps1 copies `.gz` byte for byte.
+
+**Changing the picture** (the files in `wallpaper\`)
+
+- `scenes-v2.js`: the settings per picture. `mistAmount` (how much the fog
+  hides), `mistFloor` (how much fog there is also between the banks),
+  `wisps` (how clearly you see banks and gaps), `warpPixels` (how far clouds
+  change shape), `swayPixels` (wheat), `wobble` (ghost graves), `light`, and
+  the list `effects` (glows, sparkles, dots, debris).
+- `wallpaper.js`: the engine. Layer 1 draws the picture on the graphics chip
+  (fog, wheat, light), layer 2 draws the dots and glows on top.
+- `sparkles.js`: the places of the gold cracks in the tree.
+- After a change: `EldenShow.exe --quit`, then start `EldenShow.exe --resident`.
+  The log line "complete on screen after N ms" proves the page drew.
+- Test without touching the screens: `tools\shot.ps1` draws one frame with
+  Edge, no window (about 30 s, `-Advance 10` and `-Advance 12` give two
+  frames two seconds apart to see what moves). `tools\perf.sh` measures
+  milliseconds per frame on the real graphics chip, but it leaves its hidden
+  Edge running, which spoils the next measurement: stop the `msedge.exe`
+  whose command line has `edge-perf-` after each run. 19 Nov 2026, PC in
+  use: 31 to 35 ms per frame (the budget at 30 frames per second is 33).
+
+**What he asked for, so it is not undone** (19 Nov 2026)
+
+- Fog: "more foggy and lowkey". Flat banks, much wider than high, two sheets
+  with one steady speed each. The version before had one sheet whose speed
+  changed with the distance, which pulled the fog into slanted stripes, worse
+  the longer the show ran.
+- No straight waves through the picture: wheat, ghost graves and their glow
+  each rock per patch at their own moment (a fixed noise picture gives every
+  patch its phase). The version before used plain sine waves and he saw them.
+- The tree: the light behind the trunk breathes, the gold cracks glow and
+  sparkle, molten gold drips down the gold line, gold dust around it.
+- He likes the gold dots. Effects stay low-key: debris, leaves and grass sway
+  were "too prominent" once. Real game art only, no drawn creatures.

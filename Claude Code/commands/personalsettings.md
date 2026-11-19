@@ -10,6 +10,7 @@ argument-hint: what to ask, check or change
 - Claude Code: ~/.claude/CLAUDE.md, settings.json and its hooks (review.py, awake.py), the slash commands (this one too), memory
 - git: .gitconfig
 - the keyboard: the Logitech MX Keys helper in `~/Tools/mxkeys` (F1/F2 external screen brightness, F6/F7 backlight, note section 10, setup folder `Keyboard\`)
+- the Elden Show, his "slideshow": the moving Elden Ring picture across two screens, Ctrl+Alt+S, in `%LOCALAPPDATA%\EldenShow` (note section 11, setup folder `Elden Show\` with its own `install.ps1`). Finished 19 Nov 2026: change the look only when he asks
 - Windows sleep and power: the computer stays awake while Claude works, also when locked (`~/.claude/awake/awake.py`, note section 9). The Windows power plans themselves are left alone (decided 11 Nov 2026): read that part of the note before changing any sleep, lid or power-plan setting
 
 The master copy is the folder `C:\Users\<you>\<Dropbox>\<name>\VS Code setup` (in Dropbox). Its `README.md` says what is where. `VSCode as RStudio.md` there explains how everything works and why: section 5 the Enter add-on, 6 the R add-on gotchas, 9 Claude Code. An anonymous copy of the folder is in his private GitHub repo vscode-setup, made by `scripts/publish.ps1`.

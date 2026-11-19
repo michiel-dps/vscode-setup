@@ -1,0 +1,24 @@
+The Windows accent colour that goes with the Elden lock screen (the line under
+the password box, window borders). Brown, taken from lock picture 18 on
+18 Nov 2026. Read from the registry on 19 Nov 2026. The install does not set
+it. By hand: Settings, Personalization, Colors, Accent color.
+
+Brown (in use now)
+HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent
+  AccentColorMenu = 4281095828
+  StartColorMenu  = 4280567420
+  AccentPalette   = C4 84 4A 00 B4 72 3E 00 A4 64 36 00 94 56 2C 00 7C 46 24 00 62 34 1A 00 42 1E 0E 00 88 17 98 00
+HKCU\Software\Microsoft\Windows\DWM
+  AccentColor           = 4281095828
+  ColorizationColor     = 3298055724
+  ColorizationAfterglow = 3298055724
+The palette as colours, light to dark (red, green, blue):
+  196,132,74 / 180,114,62 / 164,100,54 / 148,86,44 / 124,70,36 / 98,52,26 / 66,30,14
+
+Purple (before 18 Nov 2026, to put back if wanted)
+  DWM AccentColor = 4286644328
+  DWM ColorizationColor = 3295150209
+  DWM ColorizationAfterglow = 3295150209
+  Accent AccentColorMenu = 4286644328
+  Accent StartColorMenu = 4289149582
+  Accent AccentPalette = F0 C0 F4 00 DB 9E E5 00 B7 63 CB 00 A9 4D C1 00 8E 3A A7 00 69 27 82 00 40 0E 59 00 88 17 98 00

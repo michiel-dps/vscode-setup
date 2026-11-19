@@ -1,4 +1,4 @@
-# save.ps1 -- copies this computer's setup (VS Code, R, Claude Code, git, keyboard) into
+# save.ps1 -- copies this computer's setup (VS Code, R, Claude Code, git, keyboard, Elden Show) into
 # the folder "VS Code setup", so that INSTALL.cmd can put it on another computer.
 #
 # Run by SAVE.cmd (double-click), and by Claude Code in the background at the
@@ -167,6 +167,42 @@ Copy-Files $userHome "$setup\git" @('.gitconfig')
 
 # --- The startup screen's pictures (18 Nov 2026) ---
 Copy-Folder "$userHome\Pictures\VS Code startup" "$setup\VS Code\startup-pictures"
+
+
+# --- Elden Show: the moving picture on two screens, Ctrl+Alt+S (19 Nov 2026) ---
+# Only from a PC that has it. EldenShow.exe is not saved: "Elden Show\install.ps1" builds it.
+# The picture data (8 MB of letters) is saved packed, as shadow.js.gz: as plain text the
+# GitHub check finds personal words in it by chance.
+# The three program parts from Microsoft (WebView2, .dll) are saved packed too: one of
+# them holds a text that the check takes for an e-mail address.
+$elden = Join-Path $env:LOCALAPPDATA 'EldenShow'
+Copy-Files $elden "$setup\Elden Show" @('EldenShow.cs', 'start-at-login.ps1', 'next-lock-picture.ps1')
+Copy-Files "$elden\wallpaper" "$setup\Elden Show\wallpaper" @('*.html', '*.js')
+Copy-Files "$elden\stills" "$setup\Elden Show\stills" @('*.jpg')
+Copy-Folder "$userHome\Pictures\Elden Wallpaper\lock screen favourites" "$setup\Elden Show\lock screen favourites"
+
+# Pack one file as <name>.gz in a folder, but only when it is newer than the packed one there
+function Save-Packed($file, $toFolder) {
+    if (-not (Test-Path -LiteralPath $file)) { return }
+    $packedFile = Join-Path $toFolder ((Split-Path $file -Leaf) + '.gz')
+    $fileTime   = (Get-Item -LiteralPath $file).LastWriteTimeUtc
+    if ((Test-Path -LiteralPath $packedFile) -and ($fileTime -le (Get-Item -LiteralPath $packedFile).LastWriteTimeUtc)) { return }
+    New-Item -ItemType Directory -Force -Path $toFolder | Out-Null
+    $plain  = [IO.File]::OpenRead($file)
+    $packed = [IO.File]::Create($packedFile)
+    $zip    = New-Object IO.Compression.GZipStream $packed, ([IO.Compression.CompressionLevel]::Optimal)
+    $plain.CopyTo($zip)
+    $zip.Close()
+    $packed.Close()
+    $plain.Close()
+    (Get-Item -LiteralPath $packedFile).LastWriteTimeUtc = $fileTime   # so the next save sees it is up to date
+    $script:changed++
+}
+
+Save-Packed "$elden\wallpaper\data\shadow.js" "$setup\Elden Show\wallpaper\data"
+foreach ($part in @(Get-ChildItem -Path "$elden\*.dll" -ErrorAction SilentlyContinue)) {
+    Save-Packed $part.FullName "$setup\Elden Show"
+}
 
 
 # --- Keyboard: the Logitech MX Keys helper, F1/F2 screen brightness and F6/F7 backlight (18 Nov 2026) ---
