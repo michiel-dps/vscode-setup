@@ -52,6 +52,10 @@ Show-Part "2. patches on add-ons"
 & $perl "$setup\VS Code\patch-r-extension.pl" 2>&1 | ForEach-Object { "$_" }
 & $perl "$setup\VS Code\patch-pdf-viewer.pl" 2>&1 | ForEach-Object { "$_" }
 powershell -NoProfile -ExecutionPolicy Bypass -File "$setup\VS Code\patch-color-highlight.ps1" 2>&1 | ForEach-Object { "$_" }
+"-- VS Code itself: the yellow box on the side panel tabs (Claude Code, Chat)"
+$lines = @(powershell -NoProfile -ExecutionPolicy Bypass -File "$setup\VS Code\patch-vscode-tabs.ps1" 2>&1 | ForEach-Object { "$_" })
+$lines
+$wrong = $wrong + @($lines | Where-Object { $_ -match '^WRONG' }).Count
 
 Show-Part "3. own tests"
 "-- Enter add-on"
