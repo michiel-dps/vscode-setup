@@ -1,6 +1,6 @@
 #!/usr/bin/perl
-# Eight fixes to the VS Code R extension (reditorsupport.r), applied by editing
-# its dist/extension.js (fixes 1-4 and 6-8) and dist/webviews/httpgd/index.js (fix 5).
+# Nine fixes to the VS Code R extension (reditorsupport.r), applied by editing
+# its dist/extension.js (fixes 1-4 and 6-9) and dist/webviews/httpgd/index.js (fix 5).
 # Re-run after the R extension updates itself (the
 # folder reditorsupport.r-x.y.z gets a new version number). Idempotent: each
 # fix is skipped when it is already in place.
@@ -44,6 +44,10 @@
 # 8. Data viewer and R Plot tabs come back after a restart as a stand-in with
 #    a short note, in the same place, so a floating window keeps them.
 #    The next data tab of that name or the next plot replaces the stand-in.
+# 9. Ctrl+click on a picture path (20 Nov 2026): the R language server's own
+#    link on a string that names a picture is dropped, because it opened the
+#    picture over the script. The Enter add-on (0.5.9 or later) has its own
+#    link there, which opens it beside the script like a data tab.
 use strict; use warnings;
 my $ext = "$ENV{USERPROFILE}/.vscode/extensions";
 opendir(my $dh, $ext) or die "cannot open $ext";
@@ -249,6 +253,20 @@ try_fix("R tab restore fix", "patched: R tabs keep their place over a restart", 
     my $holders = q~var __rHolders=new Map();/* patched: R tabs keep their place over a restart */(function(){try{const v=require("vscode"),esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]),page=(t,m)=>`<!doctype html><html><body style="font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);color:var(--vscode-foreground);padding:24px"><h3>${t}</h3><p>${m}</p></body></html>`,notes={dataview:t=>"Was open before the restart. Run your script, then Ctrl+click "+t+" again: it opens here.",RPlot:()=>"Was open before the restart. Make the plot again: it shows here."};for(const kind of Object.keys(notes))v.window.registerWebviewPanelSerializer(kind,{deserializeWebviewPanel:async p=>{__rHolders.set(p,{kind:kind,title:p.title});p.onDidDispose(()=>__rHolders.delete(p));p.webview.html=page(esc(p.title),notes[kind](esc(p.title)))}})}catch(e){}})();~;
     die "file does not start with \"use strict\"\n" unless substr($js, 0, 13) eq '"use strict";';
     substr($js, 13, 0) = $holders;
+});
+
+# ---- 9. picture links come from the Enter add-on ----------------------------
+# The language server links every string that names a file that is there, and
+# VS Code opens such a link over the script. The Enter add-on links picture
+# paths itself (in strings and comments) and opens them beside the script, by
+# the rules of fix 7. Two links on one string would open the picture twice,
+# so the middleware drops the language server's link when its text is a
+# picture. Its links on other files (a .csv) stay.
+try_fix("picture link fix", "patched: picture links come from the Enter add-on", sub {
+    replace_once(
+        q~,provideSignatureHelp:async(~,
+        q~,provideDocumentLinks:async(D,T,N)=>{const L=await N(D,T);try{const p=/\.(png|jpe?g|jpe|gif|bmp|webp|avif|svg|ico|pdf)$/i;return Array.isArray(L)?L.filter(l=>!p.test(D.getText(l.range))):L}catch(e){return L}}/* patched: picture links come from the Enter add-on */,provideSignatureHelp:async(~,
+        "the language client middleware (signature help)");
 });
 
 if ($changed) {

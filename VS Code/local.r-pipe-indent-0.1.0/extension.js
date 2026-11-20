@@ -1182,6 +1182,9 @@ function isPlot(info) {
 }
 
 function ctrlClick(doc, pos, session) {
+  // a picture path (study/plots/rent.png): its own link opens it (openPicture),
+  // so a name inside it does not open a table as well
+  if (pictureAt(doc, pos)) return [];
   const found = sessionObjectAt(doc, pos, session);
   if (!found) return undefined;
   const click = lastMouseClick;
@@ -1212,6 +1215,161 @@ function ctrlClickLogged(doc, pos, session) {
   } catch (e) {
     log("ERR  ctrlClick | " + (e && e.stack ? e.stack : e));
     return undefined;
+  }
+}
+
+// ---- Ctrl+click on a picture path opens the picture (20 Nov 2026, his wish) ----
+// ggsave("study/plots/a.png", ...) or a comment "Open study/figures/b.png":
+// Ctrl+click on the path opens the picture in VS Code's picture view (a .pdf in
+// the PDF viewer), by the same rules as a Ctrl+click on a table: an open tab of
+// that picture comes forward where it is, else it opens in the editor group
+// that already shows an R tab (a picture first, then the R Plot tab, then a
+// data tab), in any window, else beside the script. Never over the script, and
+// the cursor stays in the script. Strings and comments both work.
+// A path is read from the project folder (where the R terminal starts), else
+// from the script's own folder. A picture that is not there yet: a short message.
+//
+// How: a document link on each picture path. VS Code underlines it on Ctrl+hover
+// and opens it on Ctrl+click. Its target is our command rPipeIndent.openPicture.
+// The R language server makes links of its own for strings that name a file
+// that is there, and those open over the script: fix 9 of patch-r-extension.pl
+// drops them for pictures, so only ours is left.
+const PICTURE_END = /\.(png|jpe?g|jpe|gif|bmp|webp|avif|svg|ico|pdf)$/i;
+// in a comment: a path without spaces, ending in a picture type ("x.png," and "x.png." too)
+const PICTURE_IN_TEXT = /[^\s"'`()\[\]<>{},|]+?\.(?:png|jpe?g|jpe|gif|bmp|webp|avif|svg|ico|pdf)(?!\.?\w)/gi;
+
+// The picture paths on one line: [{ start, end, text }], start and end are columns.
+// A string counts as a whole ("my plots/a.png"), a comment word by word.
+function picturePathsIn(line) {
+  const found = [];
+  if (!/\.(png|jpe?g|jpe|gif|bmp|webp|avif|svg|ico|pdf)/i.test(line)) return found;
+  let quote = null;
+  let from = 0;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (quote) {
+      if (c === "\\") { i++; continue; }
+      if (c !== quote) continue;
+      const text = line.slice(from, i).replace(/\\(.)/g, "$1");   // "a\\b.png" is the path a\b.png
+      const isPath = quote !== "`" && PICTURE_END.test(text) &&
+        !/^\.\w+$/.test(text) &&        // ".png" alone (paste0(name, ".png")) is not a path
+        !/[{}*%<>|?]/.test(text);       // "plot_{i}.png", "%s.png": made by code, not a path
+      if (isPath) found.push({ start: from, end: i, text });
+      quote = null;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") { quote = c; from = i + 1; continue; }
+    if (c === "#") {
+      const comment = line.slice(i);
+      PICTURE_IN_TEXT.lastIndex = 0;
+      let m;
+      while ((m = PICTURE_IN_TEXT.exec(comment)) !== null) {
+        found.push({ start: i + m.index, end: i + m.index + m[0].length, text: m[0] });
+      }
+      break;
+    }
+  }
+  return found;
+}
+
+// the picture path under the cursor, or null
+function pictureAt(doc, pos) {
+  const paths = picturePathsIn(doc.lineAt(pos.line).text);
+  return paths.find((p) => p.start <= pos.character && pos.character <= p.end) || null;
+}
+
+const pictureLinks = {
+  provideDocumentLinks(doc) {
+    const links = [];
+    for (let n = 0; n < doc.lineCount; n++) {
+      for (const p of picturePathsIn(doc.lineAt(n).text)) {
+        // VS Code reads the command's arguments as JSON after one decodeURIComponent
+        const args = encodeURIComponent(JSON.stringify([doc.uri.toString(), p.text]));
+        const target = vscode.Uri.from({ scheme: "command", path: "rPipeIndent.openPicture", query: args });
+        const link = new vscode.DocumentLink(new vscode.Range(n, p.start, n, p.end), target);
+        link.tooltip = "Open the picture";
+        links.push(link);
+      }
+    }
+    return links;
+  }
+};
+
+// Where R would find the file: the project folder(s) first, then the script's folder.
+// "~/" is R's home folder, on Windows the Documents folder.
+function pictureCandidates(written, scriptPath, folders, home) {
+  if (/^~[\/\\]/.test(written)) {
+    const rest = written.slice(2);
+    return [path.join(home, "Documents", rest), path.join(home, rest)];
+  }
+  if (path.isAbsolute(written)) return [written];
+  return folders.concat([path.dirname(scriptPath)]).map((folder) => path.join(folder, written));
+}
+
+function findPicture(written, script) {
+  const ws = vscode.workspace || {};
+  const own = ws.getWorkspaceFolder ? ws.getWorkspaceFolder(script) : undefined;
+  const folders = [own].concat(ws.workspaceFolders || []).filter(Boolean).map((f) => f.uri.fsPath);
+  const candidates = pictureCandidates(written, script.fsPath, folders, os.homedir());
+  const isFile = (p) => {
+    try { return fs.statSync(p).isFile(); } catch (e) { return false; }
+  };
+  return candidates.find(isFile) || null;
+}
+
+// what kind of tab: "picture", "plot" (R Plot), "data" (data viewer, widget) or ""
+function tabKind(tab) {
+  const input = tab.input;
+  if (!input) return "";
+  if (input.uri && PICTURE_END.test(input.uri.path || "")) return "picture";
+  const type = typeof input.viewType === "string" ? input.viewType : "";
+  if (/(^|-)(RPlot|r\.standardPlot)$/.test(type)) return "plot";
+  if (/(^|-)(dataview|r\.htmlViewer)$/.test(type)) return "data";
+  return "";
+}
+
+const TAB_RANK = { picture: 3, plot: 2, data: 1 };
+
+// the editor group (its view column) for the picture. own = the script's column.
+function pictureColumn(picture, own) {
+  const groups = vscode.window.tabGroups ? vscode.window.tabGroups.all : [];
+  const wanted = picture.fsPath.toLowerCase();
+  const isThisPicture = (tab) => tab.input && tab.input.uri && String(tab.input.uri.fsPath).toLowerCase() === wanted;
+  const open = groups.find((g) => g.tabs.some(isThisPicture));
+  if (open) return open.viewColumn;   // already open: it comes forward where it is
+  let best = null;
+  for (const g of groups) {
+    if (g.viewColumn === own) continue;   // never over the script
+    for (const tab of g.tabs) {
+      const rank = TAB_RANK[tabKind(tab)] || 0;
+      if (rank > 0 && (!best || rank > best.rank)) best = { column: g.viewColumn, rank };
+    }
+  }
+  return best ? best.column : vscode.ViewColumn.Beside;
+}
+
+function scriptColumn(script) {
+  const win = vscode.window;
+  const editors = [win.activeTextEditor].concat(win.visibleTextEditors || []);
+  const own = editors.find((e) => e && e.document && e.document.uri.toString() === script.toString());
+  return own ? own.viewColumn : undefined;
+}
+
+async function openPicture(fromFile, written) {
+  try {
+    const script = vscode.Uri.parse(fromFile);
+    const file = findPicture(written, script);
+    if (!file) {
+      vscode.window.showWarningMessage("There is no picture " + written + " yet. Run the line that saves it, then Ctrl+click again.");
+      log("picture " + written + " not found (Ctrl+click)");
+      return;
+    }
+    const picture = vscode.Uri.file(file);
+    const column = pictureColumn(picture, scriptColumn(script));
+    await vscode.commands.executeCommand("vscode.open", picture, { viewColumn: column, preserveFocus: true, preview: false });
+    log("picture " + written + " (Ctrl+click)");
+  } catch (e) {
+    log("ERR  picture " + written + " | " + (e && e.stack ? e.stack : e));
   }
 }
 
@@ -1314,10 +1472,12 @@ function activate(context) {
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.insertPipe", insertPipe));
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.ctrlClick", ctrlClickLogged));
   context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(noteMouseClick));
+  context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.openPicture", openPicture));
+  context.subscriptions.push(vscode.languages.registerDocumentLinkProvider({ language: "r" }, pictureLinks));
   try { activateClaudeEdits(context); } catch (e) { log("ERR  edits " + (e && e.stack ? e.stack : e)); }
-  log("activated 0.5.8 (dead network folders are left out of the search path, 20 Nov 2026)");
+  log("activated 0.5.9 (Ctrl+click on a picture path opens the picture, 20 Nov 2026)");
 }
 
 function deactivate() {}
 
-module.exports = { activate, deactivate, _test: { blank, unterminatedQuote, statementStart, statementEnd, unfinished, makeSavedEditsSafe, freshSavedEdits, changedBlock, matchingLine, sessionObjectAt, startFreshR, shiftedTop, watchForWrite, withoutFolders, lookAtFolder, cleanSearchPath } };
+module.exports = { activate, deactivate, _test: { blank, unterminatedQuote, statementStart, statementEnd, unfinished, makeSavedEditsSafe, freshSavedEdits, changedBlock, matchingLine, sessionObjectAt, startFreshR, shiftedTop, watchForWrite, withoutFolders, lookAtFolder, cleanSearchPath, picturePathsIn, pictureCandidates, findPicture, pictureColumn, openPicture } };

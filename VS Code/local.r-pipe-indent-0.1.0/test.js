@@ -24,19 +24,35 @@ class Location { constructor(uri, range) { this.uri = uri; this.range = range; }
 class Selection extends Range {
   constructor(a, b, c, d) { super(a, b, c, d); this.anchor = this.start; this.active = this.end; }
 }
+class DocumentLink { constructor(range, target) { this.range = range; this.target = target; } }
+// a file address: fsPath and path, as VS Code gives them
+function fileUri(p) {
+  const fsPath = path.resolve(p);
+  return { scheme: "file", fsPath, path: "/" + fsPath.replace(/\\/g, "/"), toString: () => "file:///" + fsPath.replace(/\\/g, "/") };
+}
+const Uri = {
+  from: (parts) => ({ ...parts, toString: () => parts.scheme + ":" + parts.path + "?" + parts.query }),
+  file: fileUri,
+  parse: (s) => fileUri(s.replace(/^file:\/\/\//, "")),
+};
 const state = { registered: {}, commands: [], warnings: [], answer: undefined, inserted: null, replaced: [], sent: null };
 const vscode = {
-  Position, Range, Selection, Location,
+  Position, Range, Selection, Location, DocumentLink, Uri,
+  ViewColumn: { Active: -1, Beside: -2 },
   TextEditorSelectionChangeKind: { Keyboard: 1, Mouse: 2, Command: 3 },
   window: {
     activeTextEditor: null,
     showWarningMessage: async (msg) => { state.warnings.push(msg); return state.answer; },
     onDidChangeTextEditorSelection: (fn) => { state.onSelection = fn; return { dispose() {} }; },
   },
+  languages: {
+    registerDocumentLinkProvider: (selector, provider) => { state.linkProvider = { selector, provider }; return { dispose() {} }; },
+  },
   commands: {
     registerCommand: (id, fn) => { state.registered[id] = fn; return { dispose() {} }; },
-    executeCommand: async (cmd, arg) => {
+    executeCommand: async (cmd, arg, arg2) => {
       state.commands.push(cmd);
+      if (cmd === "vscode.open") state.opened = { file: arg.fsPath, column: arg2.viewColumn, preserveFocus: arg2.preserveFocus };
       if (cmd === "r.workspaceViewer.view") state.viewed = arg.rootName;
       if (cmd === "r.runCommand") state.viewed = "by " + arg;
       if (cmd === "r.runSelection") {            // what the R extension would see
@@ -396,6 +412,110 @@ async function pipe(lineText, col) {
     check("Ctrl+click on a saved base plot: printed", ask(5, 20), "viewed by print(old_plot)");
     mouseClick(5, 36);
     check("Ctrl+click on a leaflet map: printed", ask(5, 36), "viewed by print(map)");
+
+    // a name inside a picture path: the picture's link opens it, not the table too
+    const pictureLine = "# saved as study/plots/rent.png, see there";
+    const pictureDoc = { ...doc, lineAt: () => ({ text: pictureLine }), getWordRangeAtPosition: () => new Range(0, 23, 0, 27) };
+    state.viewed = undefined;
+    lastClickOn(pictureDoc, 25);
+    const answer = ctrl(pictureDoc, new Position(0, 25), session);
+    check("rent inside a picture path in a comment: nothing (the link opens it)", [answer, state.viewed], [[], undefined]);
+    function lastClickOn(d, col) {
+      state.onSelection({ kind: 2, textEditor: { document: d }, selections: [new Selection(0, col, 0, col)] });
+    }
+  }
+
+  // ---- Ctrl+click on a picture path opens the picture (20 Nov 2026) -----------
+  console.log("--- Ctrl+click on a picture path (picturePathsIn, links, openPicture)");
+  {
+    const paths = (line) => ext._test.picturePathsIn(line).map((p) => p.text + " @" + p.start + "-" + p.end);
+    check("ggsave string", paths('ggsave("study/plots/unit3_boxplot.png", ans_3_5a, width = 8, height = 5)'), ["study/plots/unit3_boxplot.png @8-37"]);
+    check("task text in a comment", paths("#   1. Open study/figures/fastfood-logos.png (click it in the Explorer):"), ["study/figures/fastfood-logos.png @12-44"]);
+    check("comment path before ), and before ,", paths("#   study/figures/economist-co2-stacked.png): make a chart, a/b.png, panel A."), ["study/figures/economist-co2-stacked.png @4-43", "a/b.png @60-67"]);
+    check("comment path at the end of a sentence", paths("# Open study/figures/unit-07-integral.png."), ["study/figures/unit-07-integral.png @7-41"]);
+    check("ggsave inside a comment (quotes in the comment)", paths('#   ggsave("study/plots/name.png", ans, width = 8, height = 5)'), ["study/plots/name.png @12-32"]);
+    check("\".png\" alone is not a path", paths('x <- file.path(plot_dir, paste0(o, ".png"))'), []);
+    check("a .tif is not a picture VS Code shows", paths('pop <- rast("study/data/cellphone/zaf-pop-2024.tif")'), []);
+    check("a string with a space and \\\\", paths('ggsave("my plots\\\\fig 1.png")'), ["my plots\\fig 1.png @8-27"]);
+    check("a # inside a string is not a comment", paths('p <- "a # b.png"'), ["a # b.png @6-15"]);
+    check("x.png.bak is not a picture, Y.PNG is", paths("# see x.png.bak and Y.PNG."), ["Y.PNG @20-25"]);
+    check("roxygen picture", paths("#' ![](figures/a.svg)"), ["figures/a.svg @7-20"]);
+    check("made by code: {i} and %s", paths('ggsave(glue("plot_{i}.png")) + sprintf("%s.png", x)'), []);
+    check("a pdf, a jpeg", paths('ggsave("out/fig.pdf") # and out/photo.jpeg'), ["out/fig.pdf @8-19", "out/photo.jpeg @28-42"]);
+    check("a backtick name is not a path", paths("`my.png` <- 1"), []);
+    check("no picture on the line", paths("x <- read_csv(file) %>%"), []);
+
+    // the links: a whole path, a command with the script and the path
+    check("link provider for R files", state.linkProvider.selector, { language: "r" });
+    const scriptLines = ['ggsave("study/plots/a.png", p)', "# Open study/figures/b.png, panel A"];
+    const linkDoc = { uri: { toString: () => "file:///c:/Users/me/H26/unit.R" }, lineCount: 2, lineAt: (i) => ({ text: scriptLines[i] }) };
+    const links = state.linkProvider.provider.provideDocumentLinks(linkDoc);
+    const shown = links.map((l) => [l.range.start.line, l.range.start.character, l.range.end.character, l.target.scheme, l.target.path, JSON.parse(decodeURIComponent(l.target.query))]);
+    check("two links, each the whole path, a command with its arguments", shown, [
+      [0, 8, 25, "command", "rPipeIndent.openPicture", ["file:///c:/Users/me/H26/unit.R", "study/plots/a.png"]],
+      [1, 7, 26, "command", "rPipeIndent.openPicture", ["file:///c:/Users/me/H26/unit.R", "study/figures/b.png"]],
+    ]);
+    check("tooltip", links[0].tooltip, "Open the picture");
+
+    // where R would look: the project folder first, then the script's folder
+    const cand = ext._test.pictureCandidates;
+    check("relative: project folder, then script folder", cand("plots/a.png", "C:\\p\\study\\unit.R", ["C:\\p"], "C:\\Users\\me"), ["C:\\p\\plots\\a.png", "C:\\p\\study\\plots\\a.png"]);
+    check("absolute path as it is", cand("C:/pics/a.png", "C:\\p\\unit.R", ["C:\\p"], "C:\\Users\\me"), ["C:/pics/a.png"]);
+    check("~/ is Documents, then home", cand("~/a.png", "C:\\p\\unit.R", ["C:\\p"], "C:\\Users\\me"), ["C:\\Users\\me\\Documents\\a.png", "C:\\Users\\me\\a.png"]);
+
+    // real files in a temp project
+    const fs = require("fs");
+    const os = require("os");
+    const project = fs.mkdtempSync(path.join(os.tmpdir(), "r-pipe-indent-pictures-"));
+    fs.mkdirSync(path.join(project, "study", "plots"), { recursive: true });
+    fs.writeFileSync(path.join(project, "study", "plots", "a.png"), "png");
+    fs.writeFileSync(path.join(project, "study", "next-to-script.png"), "png");
+    const scriptFile = path.join(project, "study", "unit.R");
+    const folder = { uri: fileUri(project) };
+    vscode.workspace = { getWorkspaceFolder: () => folder, workspaceFolders: [folder] };
+    const find = (written) => {
+      const found = ext._test.findPicture(written, fileUri(scriptFile));
+      return found && path.relative(project, found);
+    };
+    check("found in the project folder", find("study/plots/a.png"), path.join("study", "plots", "a.png"));
+    check("found next to the script", find("next-to-script.png"), path.join("study", "next-to-script.png"));
+    check("backslashes work too", find("study\\plots\\a.png"), path.join("study", "plots", "a.png"));
+    check("not there: null", find("study/plots/none.png"), null);
+    check("a folder is not a picture", find("study/plots"), null);
+
+    // which editor group: same rules as the data viewer
+    const script = { input: { uri: fileUri(scriptFile) } };
+    const dataTab = { input: { viewType: "mainThreadWebview-dataview" } };
+    const plotTab = { input: { viewType: "mainThreadWebview-RPlot" } };
+    const otherPicture = { input: { uri: fileUri(path.join(project, "other.png")), viewType: "imagePreview.previewEditor" } };
+    const samePicture = { input: { uri: fileUri(path.join(project, "study", "plots", "a.png")), viewType: "imagePreview.previewEditor" } };
+    const claude = { input: undefined };
+    const column = (groups) => {
+      vscode.window.tabGroups = { all: groups.map((tabs, i) => ({ viewColumn: i + 1, tabs })) };
+      return ext._test.pictureColumn(fileUri(path.join(project, "study", "plots", "a.png")), 1);
+    };
+    check("only the script: beside it", column([[script]]), -2);
+    check("a data tab in group 2: there", column([[script], [dataTab]]), 2);
+    check("the R Plot tab beats a data tab", column([[script], [dataTab], [plotTab]]), 3);
+    check("a picture tab beats the R Plot tab", column([[script], [otherPicture], [plotTab]]), 2);
+    check("an R tab in the script's own group does not count", column([[script, plotTab], [claude]]), -2);
+    check("this picture already open in group 3: it comes forward there", column([[script], [plotTab], [samePicture]]), 3);
+
+    // the click itself
+    vscode.window.tabGroups = { all: [{ viewColumn: 1, tabs: [script] }, { viewColumn: 2, tabs: [plotTab] }] };
+    vscode.window.activeTextEditor = { viewColumn: 1, document: { uri: fileUri(scriptFile) } };
+    reset();
+    state.opened = undefined;
+    await ext._test.openPicture(fileUri(scriptFile).toString(), "study/plots/a.png");
+    check("click: opens beside the plot tab, the cursor stays", state.opened, { file: path.join(project, "study", "plots", "a.png"), column: 2, preserveFocus: true });
+    reset();
+    state.opened = undefined;
+    await ext._test.openPicture(fileUri(scriptFile).toString(), "study/plots/none.png");
+    check("click on a picture that is not there: a message, nothing opens", [state.opened, state.warnings.length], [undefined, 1]);
+    delete vscode.window.tabGroups;
+    delete vscode.workspace;
+    vscode.window.activeTextEditor = null;
+    fs.rmSync(project, { recursive: true, force: true });
   }
 
   // ---- a fresh R terminal at every start (18 Nov 2026) ------------------------

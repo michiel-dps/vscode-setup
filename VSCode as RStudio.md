@@ -17,11 +17,11 @@ computer, `SAVE.cmd` copies this computer's setup into the folder.
 | `R\packages.txt` | the R packages on the computer (written by SAVE, installed by INSTALL) |
 | `VS Code\settings.json`, `keybindings.json` | copies of `%APPDATA%\Code\User\` (sections 3 and 4) |
 | `VS Code\extensions.txt` | every VS Code add-on on the computer, written by SAVE from `%USERPROFILE%\.vscode\extensions\extensions.json`. Marketplace add-ons first (id, version; `pinned` = installed at that exact version), which INSTALL installs. Then, since 10 Nov 2026, the own add-ons as `#` lines (id, version, where it comes from), so INSTALL skips them there: `local.r-pipe-indent` (INSTALL copies it), `local.claude-chat-opener` (INSTALL runs its `build.ps1`), `local.startup-screen` (personal: run its `build.ps1` by hand, section 5b), `local.word-page` (INSTALL runs its `build.ps1`, section 5c). Check against VS Code itself: `code --list-extensions --show-versions` |
-| `VS Code\patch-r-extension.pl` | six fixes to the R extension: data viewer columns sized to content, the column-name popup after `, ` (and after `= `, `== `, `%in% `, since 18 Nov 2026) instead of right after the comma, a knitted PDF opening in the editor to the right, a new plot bringing the R Plot tab to the front, Ctrl+wheel zoom on plots like a PDF, and Ctrl+click on a table or value opening it in the data viewer (18 Nov 2026, with the Enter add-on) (run again after every R extension update, section 6) |
+| `VS Code\patch-r-extension.pl` | six fixes to the R extension: data viewer columns sized to content, the column-name popup after `, ` (and after `= `, `== `, `%in% `, since 18 Nov 2026) instead of right after the comma, a knitted PDF opening in the editor to the right, a new plot bringing the R Plot tab to the front, Ctrl+wheel zoom on plots like a PDF, and Ctrl+click on a table or value opening it in the data viewer (18 Nov 2026, with the Enter add-on), and since 20 Nov 2026 (fix 9) the language server's own link on a picture string dropped, so a Ctrl+click on a picture path opens it once, beside the script (run again after every R extension update, section 6) |
 | `VS Code\patch-pdf-viewer.pl` | two fixes to the PDF viewer add-on `tomoki1207.pdf` (10 Nov 2026; zoom version 3 on 11 Nov 2026): Ctrl+wheel and touchpad pinch zoom smoothly in on the spot under the mouse (a pinch follows the fingers, the wheel glides); and a clean reload after each knit (run again after every update of that add-on, section 6b) |
 | `VS Code\patch-vscode-tabs.ps1` | the soft yellow box on the selected side panel tab (Claude Code, Chat) in VS Code 1.147 and later, two CSS lines in VS Code's own stylesheet (20 Nov 2026, section 3, run again after every VS Code update: `check-update.ps1` does it) |
 | `VS Code\patch-color-highlight.ps1` | the Color Highlight add-on marks colour words in R only inside quotes, with the border around the whole `"red"` (18 Nov 2026, section 3, run again after every update of that add-on) |
-| `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.5); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; a stop button for R (18 Nov 2026); Ctrl+click on a table or value opens it in the data viewer, a plot in the R Plot tab (18 Nov 2026, with fix 6 of `patch-r-extension.pl`, section 6); shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo, and after a Keep the screen goes back to where you were working, 18 Nov 2026), section 5 |
+| `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.9); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; a stop button for R (18 Nov 2026); Ctrl+click on a table or value opens it in the data viewer, a plot in the R Plot tab (18 Nov 2026, with fix 6 of `patch-r-extension.pl`, section 6); Ctrl+click on a picture path (in a string or a comment) opens the picture beside the script (20 Nov 2026, v0.5.9, with fix 9); shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo, and after a Keep the screen goes back to where you were working, 18 Nov 2026), section 5 |
 | `VS Code\local.startup-screen-0.1.0\` | the startup screen (6 Nov 2026): a short loading screen with a picture, a tip and the loading steps when VS Code starts; personal, left out of the GitHub copy; section 5b |
 | `VS Code\local.word-page-0.1.0\` | Word Page (11 Nov 2026): write like in Word or Google Docs inside VS Code. Quarto's visual editor as a white page with black text under any colour theme, "Word Page: New Document", citations from a `.bib` file and from Zotero; the file underneath is markdown (`.qmd`). Since 11 Nov 2026 the page looks like the PDF of a paper (LaTeX font, A4 margins, PDF heading sizes; setting `wordPage.look`). Its `bench\` is a test VS Code for Claude on its own, invisible Windows desktop; section 5c |
 | `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `awake\awake.py` (computer stays awake while Claude works, section 9), `vscode-check\vscode-check.py` (says at the start of a chat that a new VS Code version needs the setup check, section 12), `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\` (the /chats add-on, which also makes code blocks in the Claude chat wrap, section 9), `memory\` (one folder per project) |
@@ -488,6 +488,34 @@ one called "R Interactive", else the open terminal), as pressing Ctrl+C in it
 would: R stops the running command and shows `>` again. Command
 `rPipeIndent.stopR`. Log: `stop sent Ctrl+C to R Interactive`. It does not
 close the terminal or empty the Workspace.
+
+**Ctrl+click on the path of a picture opens the picture** (20 Nov 2026, v0.5.9,
+asked: "enable me to click on paths to pictures in the r script, same rules as
+the other ctrl clicks"). Works in a string, `ggsave("study/plots/a.png", ...)`,
+and in a comment, the task text `# Open study/figures/unit-07-integral.png,
+panel A.` Ctrl+hover underlines the whole path, a plain hover says "Open the
+picture (ctrl + click)". Types: `.png .jpg .jpeg .gif .bmp .webp .avif .svg
+.ico` open in VS Code's own picture view, `.pdf` in the PDF viewer. A `.tif`
+is a data file and gets no link. The same rules as a Ctrl+click on a table
+(section 6, points 6 and 7): an open tab of that picture comes forward where
+it is, else it opens in the editor group that already shows a picture, else
+the R Plot tab's group, else a data tab's group, in any window. A group with
+only R tabs in the script's own group does not count, so the script is never
+covered. With none of those open, beside the script. The cursor stays in the
+script. Where it looks: first the project folder (where the R terminal starts,
+so `study/plots/a.png` as R reads it), then the script's own folder. `~/` is
+R's home folder (Documents). A picture that is not there yet gives a yellow
+message, "There is no picture study/plots/a.png yet. Run the line that saves
+it, then Ctrl+click again." A string made by code (`paste0(name, ".png")`,
+`"plot_{i}.png"`, `"%s.png"`) gets no link. How: a document link on every
+picture path (`picturePathsIn`, `pictureLinks`) with the command
+`rPipeIndent.openPicture` as its target. A name inside the path (`rent` in
+`study/plots/rent.png`) no longer opens that table as well. The R language
+server links every string that names a file that is there, and that link opened
+the picture over the script: fix 9 of `patch-r-extension.pl` (section 6) drops
+it for pictures, its links on other files (a `.csv`) stay. Log: `picture
+study/plots/a.png (Ctrl+click)`, `... not found (Ctrl+click)` or `ERR  picture`.
+35 offline checks in `test.js` (174 in all). Needs Restart Extension Host.
 
 **The Claude logo at the top right of a code tab** is not ours: the Claude
 Code add-on puts it there (command `claude-vscode.editor.openLast`, "Claude
@@ -2076,7 +2104,7 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
   `watch-test.R` (`R\` in this folder, see its header), then re-source
   `watch.R` in the running R terminal (Ctrl+Enter on the `source(...)`
   line of the unit, or Ctrl+Alt+R for a new terminal).
-- Eight things in the R extension are changed by editing its code
+- Nine things in the R extension are changed by editing its code
   (`VS Code\patch-r-extension.pl` in this folder; the originals are kept next
   to them as `extension.js.orig` and `webviews\httpgd\index.js.orig`). The R
   extension overwrites them when it
@@ -2258,6 +2286,20 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
      windows (97 and 20 colours) were left alone. `check-vscode.ps1` check 5
      says whether it runs, and check 4 with `-Fix` now first tries the same
      size change before it closes an empty window.
+  10. **Fix 9: the language server's link on a picture string is dropped**
+     (20 Nov 2026). The language server (`languageserver` 0.3.20,
+     `document_link_reply`) makes a link of every string that names a file
+     that is there, read from the project folder, and VS Code opened such a
+     link in the script's own group, over the script. Since the Enter add-on
+     links picture paths itself (section 5, "Ctrl+click on the path of a
+     picture"), two links on one string would open the picture twice. The
+     patch adds `provideDocumentLinks` to the language client's middleware,
+     just before `provideSignatureHelp`: it drops a link whose text ends in
+     `.png .jpg .jpeg .jpe .gif .bmp .webp .avif .svg .ico .pdf`. Links on
+     other files (a `.csv` in `read_csv("...")`) stay as before. Tested that
+     day: the patched file is valid JavaScript (`--check`), and the new
+     function, run on three stand-in links, kept the `.csv` and dropped the
+     `.png` and the `.PDF`.
 - **The plot fits the R Plot tab** (18 Nov 2026, his wish: "automatically
   adjust to how big the editor window is"). `settings.json` sets
   `"r.plot.defaults.fullWindowMode": true`. The plot then fills the whole tab,
