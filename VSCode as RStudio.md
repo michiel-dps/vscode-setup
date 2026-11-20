@@ -3145,3 +3145,61 @@ yellow tab box was gone after 1.147 (a new default tab style, section 3).
 Every name was still valid, so only his eyes caught it. Claude can take a
 picture of each open VS Code window (`PrintWindow`, as check 4 of
 `check-vscode.ps1` does) and look at it.
+
+---
+
+## 13. Slow sign-in, a new Claude chat that stays grey, 20 s freezes: the university VPN (20 Nov 2026)
+
+On the work PC (joined to the university's Windows domain, wired network at
+the office). Asked on 20 Nov 2026: after the Elden Show the sign-in took
+"quite a long time", and Ctrl+Numpad4 opened a Claude chat that was "just
+fully grey". Neither was the show or the setup.
+
+**The cause.** The Cisco VPN had been connected by hand at 13:20 that day,
+the first time in ten days. While it is connected at the office, the
+university's login servers and the server of the home drive `M:` give no
+answer (measured: no reply on the ports for login and file sharing, a lookup
+of the login server failed after 15 s). Windows then waits for them:
+
+| What you see | What happens | Measured |
+|---|---|---|
+| After typing the password the desktop takes long | Windows first asks a login server (30 s), then tries a second way (15 s), and only then accepts the password it has saved | 17:26:52 password, 17:27:37 desktop. Two shows earlier that day, before the VPN: 8 and 13 s from lock to desktop |
+| A new Claude chat tab stays grey, Enter and Keep / Undo react late | the process that runs all add-ons of a VS Code window stands still for 15 to 22 s, so nothing can fill the new tab | 7 such freezes between 14:16 and 17:37 (`renderer.log`: `Extension host ... is unresponsive`), the grey chat at 17:30:04 was one of them |
+
+Windows wrote "your domain isn't available" 68 times that afternoon (log
+`Microsoft-Windows-Security-Netlogon/Operational`, events 9005 and 9006),
+all after 13:24, and not once in the six days before. The VPN was
+disconnected at 17:45:29. Seconds later the network was named after the
+domain again, the login servers answered, `M:` was back, and a 5 minute
+test of starting git from a VS Code process showed no freeze.
+
+**First checks when this comes back**
+
+```powershell
+Get-NetAdapter | Where-Object Status -eq 'Up'      # a "Cisco AnyConnect" line = the VPN is on
+Get-NetConnectionProfile                           # at the office without VPN: DomainAuthenticated
+nltest /dsgetdc:<domain>                           # fine: under 1 s. Not reachable: an error after 15 s
+net use                                            # M: "OK" or "Disconnected"
+```
+
+Lock and unlock times are in the log `Microsoft-Windows-Winlogon/Operational`
+(event 811, `<Sens>`, notification 4 = lock, 5 = unlock). The times the
+screens woke up are event 566 of `Kernel-Power` in the System log.
+
+**The fix**: disconnect the VPN when it is not needed (the Cisco icon next
+to the clock, Disconnect). Nothing in the setup was changed.
+
+**Not done, needs admin rights and his yes**: the search path of Windows for
+all users (the machine `Path`) holds `M:\Python27\`, before Git. That folder
+does not exist (looked on 20 Nov 2026 with `M:` connected). Every program
+that is started by its bare name (`git`, `python`, `claude`) is first looked
+for on the network drive. While the drive's server does not answer, such a
+look can wait about 21 s: seen once at 17:44:58 with the VPN on, not proven
+to be what stops the add-on process. Taking the entry out makes the setup
+independent of that server. After it, close VS Code fully and start it again.
+
+**Also seen, not changed**: on this PC the Elden Show locked Windows 606 and
+607 s after it started, twice on 20 Nov 2026, logged as `locked on input`.
+The screen-off timer of the active power plan is 600 s. So here the show
+ends after 10 minutes without a touch, not the 15 of section 11. The PC
+sleeps 30 minutes after the last touch (wake-on-network can wake it again).
