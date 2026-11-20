@@ -2739,6 +2739,19 @@ F6/F7 (`kb.ensure_diverted(False)` at connect, the F6/F7 code is gone). From
 dimming. `state.json` stays `{"forced": true}`: nothing in the watcher
 changes it any more, only `python mxkeys_backlight.py off`.
 
+**F6/F7 stopped dimming the same afternoon** (20 Nov 2026, 16:05, "i cant
+use the f6 and 7 to make brighter or dim anymore"). After a long sleep
+(15:34 to 15:57) the forced light was on but F6/F7 did nothing. Measured:
+while he pressed F6 and F7 three times each, the keyboard's own light
+settings (HID++ feature 0x1982, `getBacklightConfig`) did not change at all:
+`enabled=1 options=0x01 level=0`, and fn 2 gave `08 00 03`. The keyboard
+reports `supported=0x05`, so it has no "manual" or "automatic" mode a
+program could set, and the level cannot be set from outside. With the
+forced mode off (the keyboard's own light) the light was simply off in his
+room, and F6/F7 did not bring it up: the light sensor rules the keyboard's
+own light. So the dimming of the morning came from a keyboard state that
+the helper cannot switch on on purpose. Not solved.
+
 **The keyboard is left alone** (19 Nov 2026, "keyboard is going empty
 really quickly": full at 11:00, 20% at 14:55). The helper used to ask the
 keyboard for its battery every 5 seconds and check it every 15 seconds, and
@@ -2804,6 +2817,11 @@ not see `--user` packages) and starts the watcher.
   plain F-keys. Press Fn+Esc once.
 - Right after waking the keyboard, the first press can do nothing: the
   watcher connects again within about 10 seconds.
+- **Lights dark after a long sleep, although "key lights on (ok=True)"**
+  (20 Nov 2026, 15:57, after 23 minutes asleep). The keyboard took the
+  first off-and-on but stayed dark. `python mxkeys_backlight.py on` a few
+  minutes later lit it. Since then the watcher does the off-and-on twice at
+  every connect, 2 s apart. Log line: "key lights on again after 2 s".
 - **Lights not forced right after a restart** (19 Nov 2026, after the crash):
   Windows runs the Startup folder a few minutes after logon (that day logon
   16:28, "watch started" 16:32). Until that line is in `watch.log` the
