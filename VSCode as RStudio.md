@@ -2603,6 +2603,15 @@ list `EXTS` near the top of review.py. Other file types get no red/green.
 Tested with a test .bib in `code/test_code/bib_edit_test/`: the log shows
 `edits start`, `snapshot`, `done` for it.
 
+**`.md` since 20 Nov 2026** (asked: "add .md to keep/undo", for the KILDE.md
+files in the Spørreskjemaer folder, so every text change Claude makes there
+can be kept or undone). It holds for every Markdown file in a folder that is
+open in VS Code, also this note. Not for files under `.claude` (Claude's
+memory, CLAUDE.md) or in Temp: the `SKIP` list. No reload needed, the hook
+reads review.py again at every edit. What red/green cannot show (a renamed,
+moved or new file, a cell in a spreadsheet) Claude writes into a file
+`ENDRINGER_claude.md` in the folder where it happened.
+
 **On a `.qmd` (16 Nov 2026):** the red/green and Keep / Undo work for `.qmd`
 too, but only in the plain text view: the Word Page (Quarto's visual editor,
 a web page) cannot draw them. **Ctrl+Numpad9** switches between the Word

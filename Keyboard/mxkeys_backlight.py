@@ -235,6 +235,11 @@ def cmd_watch():
                 next_screens = 0
                 wanted = load_wanted()
                 log(f"key lights {'on' if wanted else 'off'} (ok={kb.apply(wanted)})")
+                # After a long sleep the keyboard takes the first "on" but stays dark (20 Nov 2026,
+                # 15:57): the same off-and-on 2 seconds later lights it
+                if wanted:
+                    time.sleep(2)
+                    log(f"key lights on again after 2 s (ok={kb.lights_on()})")
             # External screens: checked over the screen cable, the keyboard is only asked when it changes
             if time.time() >= next_screens and not away:
                 now_external = len(screens.brightness()) > 0
