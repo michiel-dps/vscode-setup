@@ -214,6 +214,7 @@ Copy-Files "$userHome\Tools\mxkeys" "$setup\Keyboard" @('hidpp.py', 'mxkeys_back
 Copy-Files  $claude "$setup\Claude Code" @('CLAUDE.md', 'settings.json')
 Copy-Files  "$claude\review" "$setup\Claude Code\review" @('review.py')
 Copy-Files  "$claude\awake" "$setup\Claude Code\awake" @('awake.py')
+Copy-Files  "$claude\vscode-check" "$setup\Claude Code\vscode-check" @('vscode-check.py')
 Copy-Folder "$claude\commands" "$setup\Claude Code\commands"
 Copy-Folder "$claude\tools\chat-opener" "$setup\Claude Code\tools\chat-opener" @('chat-opener.vsix')
 

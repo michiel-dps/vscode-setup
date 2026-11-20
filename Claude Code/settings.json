@@ -31,6 +31,10 @@
           {
             "type": "command",
             "command": "\"C:/Users/<you>/AppData/Local/Python/pythoncore-3.14-64/python.exe\" -I \"C:/Users/<you>/.claude/awake/awake.py\""
+          },
+          {
+            "type": "command",
+            "command": "\"C:/Users/<you>/AppData/Local/Python/pythoncore-3.14-64/python.exe\" -I \"C:/Users/<you>/.claude/vscode-check/vscode-check.py\""
           }
         ]
       }

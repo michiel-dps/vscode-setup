@@ -461,6 +461,7 @@ if (Want 'claude') {
     Install-File   "$setup\Claude Code\settings.json" (Join-Path $claude 'settings.json')
     Install-Folder "$setup\Claude Code\review"   (Join-Path $claude 'review')
     Install-Folder "$setup\Claude Code\awake"    (Join-Path $claude 'awake')
+    Install-Folder "$setup\Claude Code\vscode-check" (Join-Path $claude 'vscode-check')
     Install-Folder "$setup\Claude Code\commands" (Join-Path $claude 'commands')
     Install-Folder "$setup\Claude Code\tools"    (Join-Path $claude 'tools')
 

@@ -23,7 +23,8 @@ computer, `SAVE.cmd` copies this computer's setup into the folder.
 | `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.5); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; a stop button for R (18 Nov 2026); Ctrl+click on a table or value opens it in the data viewer, a plot in the R Plot tab (18 Nov 2026, with fix 6 of `patch-r-extension.pl`, section 6); shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo, and after a Keep the screen goes back to where you were working, 18 Nov 2026), section 5 |
 | `VS Code\local.startup-screen-0.1.0\` | the startup screen (6 Nov 2026): a short loading screen with a picture, a tip and the loading steps when VS Code starts; personal, left out of the GitHub copy; section 5b |
 | `VS Code\local.word-page-0.1.0\` | Word Page (11 Nov 2026): write like in Word or Google Docs inside VS Code. Quarto's visual editor as a white page with black text under any colour theme, "Word Page: New Document", citations from a `.bib` file and from Zotero; the file underneath is markdown (`.qmd`). Since 11 Nov 2026 the page looks like the PDF of a paper (LaTeX font, A4 margins, PDF heading sizes; setting `wordPage.look`). Its `bench\` is a test VS Code for Claude on its own, invisible Windows desktop; section 5c |
-| `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `awake\awake.py` (computer stays awake while Claude works, section 9), `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\` (the /chats add-on, which also makes code blocks in the Claude chat wrap, section 9), `memory\` (one folder per project) |
+| `Claude Code\` | copies of `C:\Users\<you>\.claude\`: `CLAUDE.md` (rules for every Claude window), `settings.json` (hooks), `review\review.py`, `awake\awake.py` (computer stays awake while Claude works, section 9), `vscode-check\vscode-check.py` (says at the start of a chat that a new VS Code version needs the setup check, section 12), `commands\` (/chats, /handoff, /takeon), `tools\chat-opener\` (the /chats add-on, which also makes code blocks in the Claude chat wrap, section 9), `memory\` (one folder per project) |
+| `scripts\check-update.ps1`, `check-update.js` | the check after every new VS Code version (20 Nov 2026): every key, setting, API proposal and patch of the setup, and all its tests, against the VS Code installed now, section 12 |
 | `git\.gitconfig` | name, e-mail, GitHub login through `gh` |
 | `Keyboard\` | the Logitech MX Keys helper (18 Nov 2026): F1/F2 dim and brighten the external screens, F6/F7 the key backlight. Copies of `C:\Users\<you>\Tools\mxkeys\`, section 10 |
 | `Elden Show\` | the "slideshow" (19 Nov 2026): a moving Land of Shadow picture across two screens, Ctrl+Alt+S, locks Windows on the first touch or after 15 minutes. Copy of `C:\Users\<you>\AppData\Local\EldenShow\`, with its own `install.ps1` (personal, not run by INSTALL), section 11 |
@@ -2924,3 +2925,46 @@ The install unpacks them all. publish.ps1 copies `.gz` byte for byte.
   sparkle, molten gold drips down the gold line, gold dust around it.
 - He likes the gold dots. Effects stay low-key: debris, leaves and grass sway
   were "too prominent" once. Real game art only, no drawn creatures.
+
+---
+
+## 12. After every new VS Code version: the setup check (20 Nov 2026)
+
+Asked on 20 Nov 2026: "you should always check if every personal setting
+still runs on a new version of vscode". A VS Code update can rename or drop
+a command, a setting, a "when" word or an API proposal the setup uses, and
+nothing tells you: a key just does nothing, a setting is ignored.
+
+**How it runs by itself.** A SessionStart hook in `~/.claude/settings.json`
+runs `~/.claude/vscode-check/vscode-check.py` at the start of every Claude
+chat. It only compares two numbers: the newest VS Code in
+`%LOCALAPPDATA%\Programs\Microsoft VS Code` and the last version the check
+passed (`~/.claude/vscode-check/checked.txt`). When they differ, Claude is
+told to run the check first, report it in a few lines and fix every WRONG.
+`checked.txt` is written only when everything passed, so the reminder comes
+back until all is fine. The newest folder counts, so an update that is
+installed but waits for a restart is checked too.
+
+**By hand:**
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "<this folder>\scripts\check-update.ps1"
+```
+
+About 2 minutes, ends with `ALL FINE on VS Code <version>` or
+`<n> thing(s) WRONG`. What it checks:
+
+| Part | What |
+|---|---|
+| 1 `check-update.js` | every command and "when" word in keybindings.json, every setting in settings.json (also inside `[r]` blocks), the API proposals of the own add-ons and argv.json's `enable-proposed-api`, every VS Code command the own add-ons run, the installed Enter add-on and Word Page equal to this folder. It looks each name up in VS Code's own code (`workbench.desktop.main.js`, `extensionHostProcess.js`) and in every loaded add-on. Editor settings sit there without `editor.` in front, so both spellings count |
+| 2 patches | `patch-r-extension.pl`, `patch-pdf-viewer.pl`, `patch-color-highlight.ps1`: each says "already in place" or puts a lost patch back (then Restart Extension Host) |
+| 3 tests | Enter add-on `test.js`, Word Page `test.js`, the Claude chat's code boxes and brackets, `watch-test.R` |
+| 4 windows | `check-vscode.ps1` |
+
+Control (20 Nov 2026): a made-up command, "when" word and setting in a test
+copy of keybindings.json and settings.json gave 3 WRONG. First run, VS Code
+1.147.0 (installed 19 Nov 2026 around 16:20): ALL FINE.
+
+What it cannot see: how a thing looks or feels (a colour, a floating window,
+the chat edit view on a real edit). If something looks wrong after an update,
+say what, and Claude checks that part by hand.

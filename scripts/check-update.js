@@ -36,7 +36,9 @@ function note(text) {
 
 // JSON with comments and trailing commas (settings.json, keybindings.json, argv.json)
 function readJsonc(file) {
-  const text = fs.readFileSync(file, "utf8")
+  const bom = String.fromCharCode(0xFEFF)                          // a BOM, as PowerShell writes
+  let text = fs.readFileSync(file, "utf8")
+  if (text.startsWith(bom)) text = text.slice(1)
   let out = ""
   let inString = false
   let i = 0

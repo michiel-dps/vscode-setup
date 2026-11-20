@@ -105,6 +105,9 @@ Ask Claude to "publish the setup", or run
   `Elden Show\install.ps1` by hand there
 - `scripts` : the programs behind INSTALL and SAVE, and `check-vscode.ps1`:
   run it when Claude does not open in a window (it checks that every window
-  is run by the real VS Code, not by a test copy; `-Fix` repairs)
+  is run by the real VS Code, not by a test copy, and `-Fix` repairs), and
+  `check-update.ps1`: after every new VS Code version it checks that every
+  key, setting, patch and test of the setup still works. Claude is reminded
+  to run it at the start of a chat (note, section 12)
 - `saved-from.txt` : when, and from which computer, SAVE last saved a change
 - `VSCode as RStudio.md` : the full description of the setup
