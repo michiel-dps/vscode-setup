@@ -3033,6 +3033,24 @@ project finished.
 - **Ctrl+Alt+S** starts it, from anywhere. A small background waiter
   (`EldenShow.exe --resident`, started at login by the shortcut "Elden Show
   key" in the Startup folder) holds the picture loaded, so it appears at once.
+- **While hidden it costs nothing** (20 Nov 2026, "it should only run when i
+  press the shortcut"). The waiter pauses the page whenever the show is not
+  up: after loading, and again after every show. The page then draws nothing
+  and runs no timers except the clock, which only touches the page when the
+  minute changes. Before this the page kept drawing 30 pictures a second
+  behind the hidden window, because Edge does not stop a hidden page here:
+  38 % of a processor core and 70 % of the graphics chip, all day (found
+  while looking for sound cut-outs). Measured after the fix: 0 to 1 % of a
+  core and 0 % of the graphics chip. It still holds about 400 MB of memory,
+  which is the loaded picture: that is what makes it appear at once.
+  How: `EldenShow.cs` calls `setPaused(true)` or `setPaused(false)` in the
+  page (`TellPage`, from page loaded, `Present` and `Conclude`), and
+  `wallpaper.js` stops and restarts its drawing loop there. The picture goes
+  on where it stopped. Proof in `log.txt`: `moving picture paused (draws
+  nothing until the next show)` after every load and every show, and
+  `complete on screen after N ms` (about 170) at the next show. Never let the
+  page draw while hidden again. The version before is kept in the show
+  folder as `EldenShow-before-pause.cs/.exe` and `wallpaper-before-pause.js`.
 - **The first touch of mouse or keyboard locks Windows** (the real lock, as
   Win+L). Until that touch the PC is not locked.
 - While it is up the screen stays on and the PC does not sleep. **After 15
@@ -3099,7 +3117,11 @@ The install unpacks them all. publish.ps1 copies `.gz` byte for byte.
   The log line "complete on screen after N ms" proves the page drew.
 - `EldenShow.exe --test 6 picture.png` while the waiter runs shows only the
   still picture (`page error ... 0x8007139F`: both use `webview-data`). Stop
-  the waiter with `--quit` first for a test with the moving picture.
+  the waiter with `--quit` first for a test with the moving picture. The test
+  loads hidden for 8 seconds first (4 until 20 Nov 2026), so the page is
+  paused before it shows, as in real use. It saves `picture-early.png`
+  (0.25 s after showing) and `picture.png` (at the end): the early one must
+  already be the full picture with the clock, and the two must differ.
 - Test without touching the screens: `tools\shot.ps1` draws one frame with
   Edge, no window (about 30 s, `-Advance 10` and `-Advance 12` give two
   frames two seconds apart to see what moves). `tools\perf.sh` measures

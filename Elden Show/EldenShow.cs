@@ -11,9 +11,13 @@
 //                              moving picture loaded and paused, so the show
 //                              appears at once and complete (started at login)
 // EldenShow.exe --quit      -> stop the background waiter
-// EldenShow.exe --test 6 picture.png -> load hidden for 4 seconds, show for 6
+// EldenShow.exe --test 6 picture.png -> load hidden for 8 seconds (long enough for
+//                              the page to be paused, as in real use), show for 6
 //                              seconds, save two pictures of the screens
 //                              (0.25 s after showing and at the end), never lock
+//
+// While the show is hidden the page is paused and draws nothing (20 Nov 2026):
+// the log says "moving picture paused" each time.
 using System;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -228,6 +232,7 @@ class ShowForm : Form
             view.CoreWebView2.Settings.AreDevToolsEnabled = false;
             view.CoreWebView2.WebMessageReceived += OnPageReady;
             view.CoreWebView2.ProcessFailed += OnPageFailed;
+            view.CoreWebView2.NavigationCompleted += OnPageLoaded;
             await view.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync("document.documentElement.style.cursor = 'none'");
             string page = new Uri(Path.Combine(Files.Folder, "wallpaper", "wallpaper.html")).AbsoluteUri;
             string minutes = MinutesPerPicture.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -262,16 +267,38 @@ class ShowForm : Form
         CoverAllScreens();
         Activate();
         Files.Log("shown on " + Describe());
-        // ask the page for a fresh "ready" every time: after a lock and unlock it can spend
-        // its message while the show is hidden, and then the still picture (no clock) stayed up
-        try { if (view.CoreWebView2 != null) { var asked = view.CoreWebView2.ExecuteScriptAsync("announce = true"); } }
-        catch (Exception ex) { Files.Log("ask page error: " + ex.Message); }
+        // wake the page. It also answers with a fresh "ready" every time: after a lock and
+        // unlock it can spend its message while the show is hidden, and then the still
+        // picture (no clock) stayed up
+        TellPage();
         timer.Start();
+    }
+
+    // tells the page whether the show is up. While the show is hidden the page must not
+    // draw. Left alone it kept drawing 30 pictures a second behind the hidden window, which
+    // cost a third of a processor core and most of the graphics chip (found 20 Nov 2026)
+    void TellPage()
+    {
+        try { if (view.CoreWebView2 != null) { var told = view.CoreWebView2.ExecuteScriptAsync("setPaused(" + (showing ? "false" : "true") + ")"); } }
+        catch (Exception ex) { Files.Log("tell page error: " + ex.Message); }
+    }
+
+    // the page is loaded (at the start, or again after a crash): pause it unless the show is up
+    void OnPageLoaded(object sender, CoreWebView2NavigationCompletedEventArgs e)
+    {
+        TellPage();
     }
 
     // the page has drawn a frame on screen: take the still picture away
     void OnPageReady(object sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
+        string message = "";
+        try { message = e.TryGetWebMessageAsString(); } catch { }
+        if (message == "paused")
+        {
+            Files.Log("moving picture paused (draws nothing until the next show)");
+            return;
+        }
         if (!showing) return;
         cover.Visible = false;
         if (!reported)
@@ -349,6 +376,7 @@ class ShowForm : Form
         if (!showing) return;
         showing = false;
         timer.Stop();
+        TellPage();   // the page stops drawing until the next show
         SetThreadExecutionState(KeepAsSet);   // the screen may go off and the computer may sleep again
         Cursor.Show();
         if (CloseWhenDone) Close();
@@ -511,7 +539,7 @@ static class Program
             form.CloseWhenDone = true;
             Task loading = form.Prepare();
             var wait = new System.Windows.Forms.Timer();
-            wait.Interval = 4000;
+            wait.Interval = 8000;
             wait.Tick += (s, e) => { wait.Stop(); form.Present(); };
             wait.Start();
             Application.Run();

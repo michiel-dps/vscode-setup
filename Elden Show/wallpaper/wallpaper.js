@@ -890,6 +890,7 @@ async function switchTo(id) {
 let rotationTimer = 0
 function startRotation() {
   clearInterval(rotationTimer)
+  if (paused) return
   if (settings.scene !== 'rotate') return
   rotationTimer = setInterval(() => {
     const i = settings.order.indexOf(sceneId)
@@ -908,7 +909,8 @@ function render(t, dt) {
 let lastFrame = 0
 let framesDrawn = 0
 function frame(now) {
-  requestAnimationFrame(frame)
+  if (paused) return
+  frameRequest = requestAnimationFrame(frame)
   if (!scene) return
   if (now - lastFrame < 1000 / 30 - 2) return
   const dt = Math.min(0.1, (now - lastFrame) / 1000)
@@ -927,6 +929,31 @@ let announce = true
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) announce = true
 })
+
+// The show program pauses the page while the show is hidden: setPaused(true).
+// A paused page draws nothing and runs no rotation, so it costs no processor
+// and no graphics chip. Edge does not stop a hidden page by itself here: it kept
+// drawing 30 pictures a second behind the hidden window (found 20 Nov 2026).
+let paused = false
+let pausedAt = 0
+let frameRequest = 0
+function setPaused(value) {
+  if (!value) announce = true
+  if (value === paused) return
+  paused = value
+  if (paused) {
+    pausedAt = performance.now()
+    cancelAnimationFrame(frameRequest)
+    clearInterval(rotationTimer)
+    if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage('paused')
+    return
+  }
+  // the picture goes on where it stopped: the paused time does not count
+  startTime = startTime + (performance.now() - pausedAt)
+  lastFrame = 0
+  startRotation()
+  frameRequest = requestAnimationFrame(frame)
+}
 
 // date and time in a lower corner (?clock=1)
 let placeClock = () => {}
@@ -973,8 +1000,11 @@ function makeClock() {
   const two = n => String(n).padStart(2, '0')
   const update = () => {
     const now = new Date()
-    time.textContent = `${two(now.getHours())}:${two(now.getMinutes())}`
-    date.textContent = `${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]}`
+    const timeText = `${two(now.getHours())}:${two(now.getMinutes())}`
+    const dateText = `${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]}`
+    // only touch the page when the minute changed, so a hidden page stays asleep
+    if (time.textContent !== timeText) time.textContent = timeText
+    if (date.textContent !== dateText) date.textContent = dateText
   }
   update()
   setInterval(update, 1000)
@@ -1017,7 +1047,9 @@ async function start() {
   // draw once right away, so the picture is there even while the page is still hidden
   render(20 + advance, 0.03)
   startRotation()
-  requestAnimationFrame(frame)
+  // the show program may have paused the page already while it was loading
+  if (paused) pausedAt = performance.now()
+  if (!paused) frameRequest = requestAnimationFrame(frame)
   let resizeTimer = 0
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer)
