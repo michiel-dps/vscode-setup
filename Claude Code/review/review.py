@@ -72,8 +72,11 @@ def wanted(file):
 
 
 def read_hook_input():
+    # Claude Code sends UTF-8. Python on Windows reads stdin as cp1252 by itself, which
+    # turned "Spørreskjemaer" into "SpÃ¸rreskjemaer": no window had that folder open, so
+    # a file in a folder with ø, å or é in its name never got red/green (found 20 Nov 2026).
     try:
-        return json.load(sys.stdin)
+        return json.loads(sys.stdin.buffer.read().decode("utf-8"))
     except Exception:
         return {}
 

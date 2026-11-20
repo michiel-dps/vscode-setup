@@ -2612,6 +2612,16 @@ reads review.py again at every edit. What red/green cannot show (a renamed,
 moved or new file, a cell in a spreadsheet) Claude writes into a file
 `ENDRINGER_claude.md` in the folder where it happened.
 
+**A folder with ø, å or é in its name got no red/green at all (fixed 20 Nov
+2026).** Claude Code sends the file name to the hook as UTF-8, and Python on
+Windows read it as cp1252, so "Spørreskjemaer" became "SpÃ¸rreskjemaer". No
+window had that folder open, so the edit went ahead without the chat edit
+view, and nothing in the log said why (no `edits start` line at all). Now
+`read_hook_input` reads the bytes and decodes them as UTF-8. Seen in the log
+afterwards for `Spørreskjemaer\ENDRINGER_claude.md`: `edits start`,
+`edits snapshot`, `edits done`. If red/green is missing in one folder only,
+look for a letter outside a-z in its path first.
+
 **On a `.qmd` (16 Nov 2026):** the red/green and Keep / Undo work for `.qmd`
 too, but only in the plain text view: the Word Page (Quarto's visual editor,
 a web page) cannot draw them. **Ctrl+Numpad9** switches between the Word
