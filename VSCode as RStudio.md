@@ -807,6 +807,20 @@ Google Docs, without leaving VS Code: a white page with black text, a toolbar,
 headings, lists, tables, footnotes, formulas and citations. The file underneath
 is markdown (`.qmd`), so Claude can move the text into an `.Rmd` paper as it is.
 
+**A page that loads slowly or not at all: is the Quarto program there?** (20 Nov
+2026, work computer: "slow and doesn't load often of the times".) The page turns
+the `.qmd` into its document and back with pandoc, and the Quarto add-on takes
+pandoc from the Quarto program (`<quarto>\bin\tools\pandoc.exe`, read in 1.139's
+`out/lsp/lsp.js`: `getCapabilities`, `markdownToAst`, `astToMarkdown`). The
+work computer never had the program, so every page waited on a pandoc that was
+not there. Check: the newest
+`%APPDATA%\Code\logs\<date>\window*\exthost\quarto.quarto\Quarto.log` says
+`Found Quarto 1.11.9 at ...` (good) or `Quarto CLI not found` (bad). Fix: the
+zip from github.com/quarto-dev/quarto-cli/releases unpacked into
+`%LOCALAPPDATA%\Programs\Quarto` (no admin rights needed, the add-on looks
+there by itself). `scripts\install.ps1` does this in its `wordpage` step since
+that day. After installing: Ctrl+Shift+P → Developer: Restart Extension Host.
+
 **What it is made of.** The editor is not ours: it is the *visual editor* of the
 Quarto add-on (`quarto.quarto`, needs the Quarto program, both installed). An
 agent compared the Word-like add-ons on the Marketplace on 11 Nov 2026 (read
@@ -2814,6 +2828,21 @@ project finished.
 - While it is up the screen stays on and the PC does not sleep. **After 15
   minutes without a touch it locks Windows itself** (19 Nov 2026). After the
   lock the screen and the sleep timers work as normal again.
+- **Every screen stays covered** (20 Nov 2026, after he once still saw the
+  right screen). Four times a second the show checks that its window spans
+  all screens as they are now and that it is the top window in the middle and
+  near each corner of every screen. If not, it covers them again at once and
+  writes `NOT COVERED, fixed: ...` in `log.txt`, with what was in the way (a
+  screen that woke up late, another always-on-top window). A screen that is
+  added or wakes up during the show is covered at once too. Each start logs
+  `shown on 2 screens, 3840x1080 at 0,0`. The program uses real pixels per
+  screen (per-monitor DPI), so a screen with another zoom is covered too. If
+  the hidden Edge behind the picture crashes, the still picture shows and the
+  page reloads (`moving picture failed: ...` in the log). The one thing it
+  cannot cover is Windows' own "Activate Windows" mark. Tested 20 Nov 2026 by
+  shrinking the show to the left screen and putting a red always-on-top window
+  over the right screen: both fixed within 0.25 s. The version before is kept
+  as `EldenShow-before-watertight.cs/.exe` in the show folder.
 - After every unlock the waiter sets the next picture from
   `Pictures\Elden Wallpaper\lock screen favourites` as the Windows lock
   screen (`next-lock-picture.ps1`). Add or delete `.jpg` files there.
@@ -2858,6 +2887,9 @@ The install unpacks them all. publish.ps1 copies `.gz` byte for byte.
 - `sparkles.js`: the places of the gold cracks in the tree.
 - After a change: `EldenShow.exe --quit`, then start `EldenShow.exe --resident`.
   The log line "complete on screen after N ms" proves the page drew.
+- `EldenShow.exe --test 6 picture.png` while the waiter runs shows only the
+  still picture (`page error ... 0x8007139F`: both use `webview-data`). Stop
+  the waiter with `--quit` first for a test with the moving picture.
 - Test without touching the screens: `tools\shot.ps1` draws one frame with
   Edge, no window (about 30 s, `-Advance 10` and `-Advance 12` give two
   frames two seconds apart to see what moves). `tools\perf.sh` measures

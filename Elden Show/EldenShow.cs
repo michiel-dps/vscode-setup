@@ -56,6 +56,27 @@ class ShowForm : Form
     [DllImport("kernel32.dll")]
     static extern uint SetThreadExecutionState(uint state);
 
+    // for "every screen is covered" (added 20 Nov 2026 after the right screen stayed visible)
+    [DllImport("user32.dll")]
+    static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
+    [DllImport("user32.dll")]
+    static extern IntPtr WindowFromPoint(Point point);
+    [DllImport("user32.dll")]
+    static extern IntPtr GetAncestor(IntPtr window, uint which);
+    [DllImport("user32.dll")]
+    static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+    [DllImport("user32.dll")]
+    static extern bool GetWindowRect(IntPtr window, out WindowRect rect);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    static extern int GetClassName(IntPtr window, System.Text.StringBuilder name, int size);
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct WindowRect { public int Left, Top, Right, Bottom; }
+
+    static readonly IntPtr OnTopOfAll = new IntPtr(-1);
+    const uint NoActivate = 0x10, ShowIt = 0x40, NoMove = 0x2, NoSize = 0x1;
+    const uint RootWindow = 2;
+
     [StructLayout(LayoutKind.Sequential)]
     struct LastInput { public uint Size; public uint Time; }
 
@@ -79,6 +100,8 @@ class ShowForm : Form
     DateTime closeAt = DateTime.MinValue;
     uint baseline;
     bool armed;
+    int ticks;
+    int fixes;
 
     public ShowForm(Image still, int testSeconds, string testPicture)
     {
@@ -105,6 +128,82 @@ class ShowForm : Form
         timer.Interval = 50;
         timer.Tick += OnTick;
         SystemEvents.SessionSwitch += OnSessionSwitch;
+        SystemEvents.DisplaySettingsChanged += OnScreensChanged;
+    }
+
+    // puts the window over all screens as they are NOW, above every other window.
+    // Done straight through Windows: the WinForms Bounds can think the size is right
+    // while the real window is smaller (a screen that woke up late, a dock, a lid)
+    void CoverAllScreens()
+    {
+        Rectangle all = SystemInformation.VirtualScreen;
+        SetWindowPos(Handle, OnTopOfAll, all.X, all.Y, all.Width, all.Height, NoActivate | ShowIt);
+    }
+
+    // a screen was added, removed, woke up or changed size while the show is up
+    void OnScreensChanged(object sender, EventArgs e)
+    {
+        if (!IsHandleCreated) return;
+        BeginInvoke((Action)(() =>
+        {
+            if (!showing) return;
+            CoverAllScreens();
+            Files.Log("screens changed while showing: now " + Describe());
+        }));
+    }
+
+    static string Describe()
+    {
+        Rectangle all = SystemInformation.VirtualScreen;
+        return Screen.AllScreens.Length + " screens, " + all.Width + "x" + all.Height + " at " + all.X + "," + all.Y;
+    }
+
+    // true when the show is the top window in the middle and near every corner of every screen.
+    // If not, it puts itself back on top and over all screens, and logs what was in the way
+    bool CheckCovered()
+    {
+        Rectangle all = SystemInformation.VirtualScreen;
+        WindowRect real;
+        GetWindowRect(Handle, out real);
+        bool sizeOk = real.Left <= all.Left && real.Top <= all.Top && real.Right >= all.Right && real.Bottom >= all.Bottom;
+        string problem = sizeOk ? null : "window " + real.Left + "," + real.Top + " to " + real.Right + "," + real.Bottom + " but screens are " + Describe();
+        if (sizeOk)
+        {
+            foreach (Screen screen in Screen.AllScreens)
+            {
+                Rectangle b = screen.Bounds;
+                Point[] spots = {
+                    new Point(b.X + b.Width / 2, b.Y + b.Height / 2),
+                    new Point(b.Left + 8, b.Top + 8), new Point(b.Right - 9, b.Top + 8),
+                    new Point(b.Left + 8, b.Bottom - 9), new Point(b.Right - 9, b.Bottom - 9)
+                };
+                foreach (Point spot in spots)
+                {
+                    IntPtr top = GetAncestor(WindowFromPoint(spot), RootWindow);
+                    if (top == Handle) continue;
+                    problem = screen.DeviceName + " at " + spot.X + "," + spot.Y + " shows " + WhoIs(top);
+                    break;
+                }
+                if (problem != null) break;
+            }
+        }
+        if (problem == null) return true;
+        CoverAllScreens();
+        fixes++;
+        if (fixes <= 3) Files.Log("NOT COVERED, fixed: " + problem);
+        return false;
+    }
+
+    static string WhoIs(IntPtr window)
+    {
+        if (window == IntPtr.Zero) return "nothing (no window)";
+        var name = new System.Text.StringBuilder(256);
+        GetClassName(window, name, 256);
+        uint id;
+        GetWindowThreadProcessId(window, out id);
+        string program = "?";
+        try { program = System.Diagnostics.Process.GetProcessById((int)id).ProcessName; } catch { }
+        return program + " (" + name + ")";
     }
 
     static uint LastInputTime()
@@ -128,6 +227,7 @@ class ShowForm : Form
             view.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
             view.CoreWebView2.Settings.AreDevToolsEnabled = false;
             view.CoreWebView2.WebMessageReceived += OnPageReady;
+            view.CoreWebView2.ProcessFailed += OnPageFailed;
             await view.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync("document.documentElement.style.cursor = 'none'");
             string page = new Uri(Path.Combine(Files.Folder, "wallpaper", "wallpaper.html")).AbsoluteUri;
             string minutes = MinutesPerPicture.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -149,6 +249,8 @@ class ShowForm : Form
         earlySaved = false;
         reported = false;
         closeAt = DateTime.MinValue;
+        ticks = 0;
+        fixes = 0;
         cover.Visible = true;
         cover.BringToFront();
         Bounds = SystemInformation.VirtualScreen;
@@ -157,7 +259,9 @@ class ShowForm : Form
         // Windows would turn the screen off after 10 minutes (3 on battery): not while the show is up
         SetThreadExecutionState(KeepAsSet | ScreenOn | NoSleep);
         Show();
+        CoverAllScreens();
         Activate();
+        Files.Log("shown on " + Describe());
         // ask the page for a fresh "ready" every time: after a lock and unlock it can spend
         // its message while the show is hidden, and then the still picture (no clock) stayed up
         try { if (view.CoreWebView2 != null) { var asked = view.CoreWebView2.ExecuteScriptAsync("announce = true"); } }
@@ -177,9 +281,23 @@ class ShowForm : Form
         }
     }
 
+    // the hidden Edge behind the moving picture crashed or hung (can happen after a day of
+    // sleeping and waking): show the still picture, never a white or empty page, and reload
+    void OnPageFailed(object sender, CoreWebView2ProcessFailedEventArgs e)
+    {
+        Files.Log("moving picture failed: " + e.ProcessFailedKind);
+        cover.Visible = true;
+        cover.BringToFront();
+        try { if (e.ProcessFailedKind != CoreWebView2ProcessFailedKind.BrowserProcessExited) view.CoreWebView2.Reload(); }
+        catch (Exception ex) { Files.Log("reload error: " + ex.Message); }
+    }
+
     void OnTick(object sender, EventArgs e)
     {
         double seconds = (DateTime.Now - shownAt).TotalSeconds;
+        // every 0.25 s: is every screen still covered? If not, cover it again at once
+        ticks++;
+        if (closeAt == DateTime.MinValue && ticks % 5 == 1) CheckCovered();
         if (!reported && seconds >= 2)
         {
             reported = true;
@@ -241,6 +359,7 @@ class ShowForm : Form
     {
         timer.Stop();
         SystemEvents.SessionSwitch -= OnSessionSwitch;
+        SystemEvents.DisplaySettingsChanged -= OnScreensChanged;
         base.OnFormClosed(e);
         if (CloseWhenDone) Application.ExitThread();
     }
@@ -341,6 +460,8 @@ static class Program
 {
     [DllImport("user32.dll")]
     static extern bool SetProcessDPIAware();
+    [DllImport("user32.dll")]
+    static extern bool SetProcessDpiAwarenessContext(IntPtr context);
 
     const string ShowName = "EldenShow-show";
     const string QuitName = "EldenShow-quit";
@@ -358,7 +479,11 @@ static class Program
     [STAThread]
     static void Main(string[] args)
     {
-        SetProcessDPIAware();
+        // real pixels on every screen, also when the two screens have a different zoom
+        // (Windows 10 1703 and later), else the older "same zoom everywhere" mode
+        bool perScreen = false;
+        try { perScreen = SetProcessDpiAwarenessContext(new IntPtr(-4)); } catch { }
+        if (!perScreen) SetProcessDPIAware();
         Application.EnableVisualStyles();
         string mode = args.Length > 0 ? args[0] : "";
 

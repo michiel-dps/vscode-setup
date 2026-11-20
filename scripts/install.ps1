@@ -400,6 +400,20 @@ if (Want 'r') {
 
 if (Want 'wordpage') {
     Say 'Word Page add-on'
+    # The Quarto program. Without it Quarto's visual editor has no pandoc and a .qmd page
+    # loads slowly or not at all (found 20 Nov 2026 on the work computer). The zip needs no
+    # admin rights, and the Quarto add-on looks in %LOCALAPPDATA%\Programs\Quarto by itself.
+    $quartoHome = Join-Path $env:LOCALAPPDATA 'Programs\Quarto'
+    if (Test-Path (Join-Path $quartoHome 'bin\quarto.exe')) {
+        Write-Host "   Quarto program already in $quartoHome"
+    } else {
+        Run 'Quarto program 1.11.9 (gives the visual editor its pandoc)' {
+            $zip = Join-Path $env:TEMP 'quarto-win.zip'
+            Invoke-WebRequest 'https://github.com/quarto-dev/quarto-cli/releases/download/v1.11.9/quarto-1.11.9-win.zip' -OutFile $zip
+            Expand-Archive -Path $zip -DestinationPath $quartoHome
+            Remove-Item $zip
+        }
+    }
     Run 'Word Page add-on (write like in Word: a white page in the Quarto visual editor)' {
         & powershell -NoProfile -ExecutionPolicy Bypass -File "$setup\VS Code\local.word-page-0.1.0\build.ps1"
     }
