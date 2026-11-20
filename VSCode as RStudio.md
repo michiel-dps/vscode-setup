@@ -19,6 +19,7 @@ computer, `SAVE.cmd` copies this computer's setup into the folder.
 | `VS Code\extensions.txt` | every VS Code add-on on the computer, written by SAVE from `%USERPROFILE%\.vscode\extensions\extensions.json`. Marketplace add-ons first (id, version; `pinned` = installed at that exact version), which INSTALL installs. Then, since 10 Nov 2026, the own add-ons as `#` lines (id, version, where it comes from), so INSTALL skips them there: `local.r-pipe-indent` (INSTALL copies it), `local.claude-chat-opener` (INSTALL runs its `build.ps1`), `local.startup-screen` (personal: run its `build.ps1` by hand, section 5b), `local.word-page` (INSTALL runs its `build.ps1`, section 5c). Check against VS Code itself: `code --list-extensions --show-versions` |
 | `VS Code\patch-r-extension.pl` | six fixes to the R extension: data viewer columns sized to content, the column-name popup after `, ` (and after `= `, `== `, `%in% `, since 18 Nov 2026) instead of right after the comma, a knitted PDF opening in the editor to the right, a new plot bringing the R Plot tab to the front, Ctrl+wheel zoom on plots like a PDF, and Ctrl+click on a table or value opening it in the data viewer (18 Nov 2026, with the Enter add-on) (run again after every R extension update, section 6) |
 | `VS Code\patch-pdf-viewer.pl` | two fixes to the PDF viewer add-on `tomoki1207.pdf` (10 Nov 2026; zoom version 3 on 11 Nov 2026): Ctrl+wheel and touchpad pinch zoom smoothly in on the spot under the mouse (a pinch follows the fingers, the wheel glides); and a clean reload after each knit (run again after every update of that add-on, section 6b) |
+| `VS Code\patch-vscode-tabs.ps1` | the soft yellow box on the selected side panel tab (Claude Code, Chat) in VS Code 1.147 and later, two CSS lines in VS Code's own stylesheet (20 Nov 2026, section 3, run again after every VS Code update: `check-update.ps1` does it) |
 | `VS Code\patch-color-highlight.ps1` | the Color Highlight add-on marks colour words in R only inside quotes, with the border around the whole `"red"` (18 Nov 2026, section 3, run again after every update of that add-on) |
 | `VS Code\local.r-pipe-indent-0.1.0\` | the Enter-indents-like-RStudio extension (v0.5.5); Ctrl+Enter runs whole statements and refuses unfinished ones; Ctrl+Shift+M types `%>%`; a stop button for R (18 Nov 2026); Ctrl+click on a table or value opens it in the data viewer, a plot in the R Plot tab (18 Nov 2026, with fix 6 of `patch-r-extension.pl`, section 6); shows Claude Code's edits in VS Code's own chat edit view (Keep / Undo, and after a Keep the screen goes back to where you were working, 18 Nov 2026), section 5 |
 | `VS Code\local.startup-screen-0.1.0\` | the startup screen (6 Nov 2026): a short loading screen with a picture, a tip and the loading steps when VS Code starts; personal, left out of the GitHub copy; section 5b |
@@ -306,6 +307,28 @@ chat) at full strength with dark text was too bright and hid white icons; at
 (`modernEditorTab.activeBackground` `#37373D`) were tried and dropped: he
 wants the yellow on all tabs. Do not confuse it with `sideBar.background`, which
 colours the whole side window, chat included (tried and undone the same day).
+
+**Since VS Code 1.147 (20 Nov 2026): only on the side panel tabs.** 1.147
+made "connected" tabs the default (`workbench.experimental.modernUIEditorTabStyle`,
+not in settings.json): a selected tab takes the colour of the panel under it
+and ignores `modernTab.activeBackground`, so the yellow box was gone
+everywhere. He liked the new clean terminal and editor tabs ("keep the
+terminal like it's looking right now, it looks clean", Ctrl+Numpad4 chat tabs
+"fine") and wanted the yellow back only on the Claude Code tab of the side
+panel (Ctrl+Numpad5). VS Code has no colour for "side panel tabs only", so
+`VS Code\patch-vscode-tabs.ps1` adds two CSS lines (marker
+`/*patch-side-tabs-1*/`) at the end of VS Code's own
+`resources\app\out\vs\workbench\workbench.desktop.main.css`. They paint the
+selected tab of the left and right side panels with `modernTab.activeBackground`,
+so the colour still comes from settings.json. Terminal and editor tabs are
+untouched. Chosen by him over the other way, `"modernUIEditorTabStyle": "pill"`,
+which brings the yellow back on all tabs, terminal included.
+- A VS Code update brings a fresh stylesheet without the lines.
+  `scripts\check-update.ps1` (section 12) runs the patch again, then Reload
+  Window.
+- After each patch VS Code says once that the installation "appears to be
+  corrupt": click "Don't Show Again". It only means its own file was changed.
+- Undo: delete the block at the end of that file, or set the style to `pill`.
 
 Line between split editors (10 Nov 2026): same block,
 `"editorGroup.border": "#FFD16640"`: the thin line between the left and right
@@ -3022,7 +3045,7 @@ About 2 minutes, ends with `ALL FINE on VS Code <version>` or
 | Part | What |
 |---|---|
 | 1 `check-update.js` | every command and "when" word in keybindings.json, every setting in settings.json (also inside `[r]` blocks), the API proposals of the own add-ons and argv.json's `enable-proposed-api`, every VS Code command the own add-ons run, the installed Enter add-on and Word Page equal to this folder. It looks each name up in VS Code's own code (`workbench.desktop.main.js`, `extensionHostProcess.js`) and in every loaded add-on. Editor settings sit there without `editor.` in front, so both spellings count |
-| 2 patches | `patch-r-extension.pl`, `patch-pdf-viewer.pl`, `patch-color-highlight.ps1`: each says "already in place" or puts a lost patch back (then Restart Extension Host) |
+| 2 patches | `patch-r-extension.pl`, `patch-pdf-viewer.pl`, `patch-color-highlight.ps1`: each says "already in place" or puts a lost patch back (then Restart Extension Host). `patch-vscode-tabs.ps1`: the yellow box on the side panel tabs, in VS Code's own stylesheet (section 3, then Reload Window) |
 | 3 tests | Enter add-on `test.js`, Word Page `test.js`, the Claude chat's code boxes and brackets, `watch-test.R` |
 | 4 windows | `check-vscode.ps1` |
 
@@ -3032,4 +3055,8 @@ copy of keybindings.json and settings.json gave 3 WRONG. First run, VS Code
 
 What it cannot see: how a thing looks or feels (a colour, a floating window,
 the chat edit view on a real edit). If something looks wrong after an update,
-say what, and Claude checks that part by hand.
+say what, and Claude checks that part by hand. Example, the same day: the
+yellow tab box was gone after 1.147 (a new default tab style, section 3).
+Every name was still valid, so only his eyes caught it. Claude can take a
+picture of each open VS Code window (`PrintWindow`, as check 4 of
+`check-vscode.ps1` does) and look at it.
