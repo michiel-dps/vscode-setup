@@ -2887,6 +2887,34 @@ moves from its own level, so a difference between them stays. With the
 computer screen alone (no screen answers), F1/F2 go back to Windows within
 15 seconds.
 
+**Switching the keyboard off and on** (20 Nov 2026, "how does this work
+with me turning the keyboard on and off"). The helper cannot tell "switched
+off" from "asleep": the receiver only reports "link gone" and "link back".
+
+| He does | The helper does | Log line |
+|---|---|---|
+| switch off | nothing, it only listens | "keyboard asleep (link to the receiver off)" |
+| switch on | waits 1 s, forces the key lights on (off and on twice), then takes F1/F2 again | "keyboard woke up", "lights on after waking", "F1/F2 diverted to the watcher" |
+
+The keyboard forgets three things when the link goes: the forced light
+(the helper puts it back), that F1/F2 go to the helper (the helper takes
+them again, see below), and its own light mode. That mode came back as
+status 3 once (17:37, F6/F7 dead) and as status 4 once (17:38, F6/F7 work)
+in two quick off-and-on moments, so off and on is a try, not a sure way.
+
+**F1/F2 dead after the keyboard woke** (found and fixed 20 Nov 2026,
+17:50). After "keyboard woke up" the helper put the lights back but did
+not take F1/F2 again: it only did that when it connected from scratch or
+when a screen came or went. Measured at 17:45 with both Dell screens
+connected: `python mxkeys_backlight.py status` gave "F1/F2 handled by
+watcher: False". Now the wake branch sets `external = None` and
+`next_screens = 0`, so the next round of the loop does the screen check and
+takes the keys again. The log then shows "F1/F2 diverted to the watcher
+(external screens)" right after "lights on after waking". Offline check
+with a fake keyboard that forgets its keys on waking: 7 of 7 pass (one
+connection, F1 and F2 taken again, F6 and F7 not taken). Not yet seen on
+the real keyboard: that line after a real wake.
+
 **Files.**
 
 | Where | What |
@@ -2903,8 +2931,10 @@ not see `--user` packages) and starts the watcher.
 
 - F1 opens VS Code's command palette instead: the keyboard's Fn lock is on
   plain F-keys. Press Fn+Esc once.
-- Right after waking the keyboard, the first press can do nothing: the
-  watcher connects again within about 10 seconds.
+- Right after waking the keyboard (or switching it on), F1/F2 do nothing
+  for about 4 seconds: the lights come first, then the watcher takes the
+  keys again. Longer than that: `python mxkeys_backlight.py status` must
+  say "F1/F2 handled by watcher: True".
 - **Lights dark after a long sleep, although "key lights on (ok=True)"**
   (20 Nov 2026, 15:57, after 23 minutes asleep). The keyboard took the
   first off-and-on but stayed dark. `python mxkeys_backlight.py on` a few

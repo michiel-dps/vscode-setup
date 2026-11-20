@@ -293,6 +293,8 @@ def cmd_watch():
                     time.sleep(1)                 # it needs a moment before it answers
                     if wanted and not away:
                         log(f"lights on after waking (ok={kb.lights_on()}), {kb.own_light()}")
+                    external = None               # the keyboard forgot that F1/F2 are ours: the screen check takes them again
+                    next_screens = 0
                 continue
             keys = kb.pressed_keys(report)
             if keys is None:
