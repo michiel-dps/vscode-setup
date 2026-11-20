@@ -133,6 +133,18 @@
         "when": "editorTextFocus && editorLangId == r && !editorReadonly"
     },
     {
+        "key": "shift+enter",
+        "command": "runCommands",
+        "args": { "commands": ["cursorDown", "cursorLineEnd"] },
+        "when": "editorTextFocus && editorLangId == r && !suggestWidgetVisible"
+    },
+    {
+        "key": "shift+alt+enter",
+        "command": "runCommands",
+        "args": { "commands": ["cursorUp", "cursorLineEnd"] },
+        "when": "editorTextFocus && editorLangId == r && !suggestWidgetVisible"
+    },
+    {
         "key": "ctrl+numpad2",
         "command": "editor.action.dirtydiff.next",
         "when": "editorTextFocus"

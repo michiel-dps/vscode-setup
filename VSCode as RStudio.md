@@ -376,6 +376,12 @@ by hand (Claude's install was blocked twice, he installed 2.8.0 himself on
       "when": "editorTextFocus && editorLangId == r && !editorReadonly" },
     { "key": "ctrl+enter",   "command": "rPipeIndent.runStatement",
       "when": "editorTextFocus && editorLangId == r && !editorReadonly" },
+    { "key": "shift+enter",  "command": "runCommands",
+      "args": { "commands": ["cursorDown", "cursorLineEnd"] },
+      "when": "editorTextFocus && editorLangId == r && !suggestWidgetVisible" },
+    { "key": "shift+alt+enter", "command": "runCommands",
+      "args": { "commands": ["cursorUp", "cursorLineEnd"] },
+      "when": "editorTextFocus && editorLangId == r && !suggestWidgetVisible" },
     { "key": "ctrl+numpad4", "command": "claude-vscode.primaryEditor.open" },
     { "key": "ctrl+numpad4", "command": "chatOpener.newChatHere",
       "when": "chatOpener.ready" },
@@ -418,6 +424,8 @@ by hand (Claude's install was blocked twice, he installed 2.8.0 himself on
 | Ctrl+Shift+M | types ` %>%` (RStudio's pipe shortcut); right after a space just `%>%`, so no double spaces |
 | Ctrl+M | disabled (it toggled "Tab moves focus" by accident) |
 | Ctrl+Enter | run the statement at the cursor, or the selection widened to whole statements; refuses an unfinished statement with a yellow warning (section 5) |
+| Shift+Enter | in an R script: the cursor goes one line down and to the end of that line. Types nothing, runs nothing (20 Nov 2026, his wish). Was free in R files: only the Python add-on (Python files) and Quarto (`.qmd`) use Shift+Enter. Not while the suggestion list is open (`!suggestWidgetVisible`), there VS Code keeps its own use of the key |
+| Shift+Alt+Enter | the same, one line **up** and to the end of that line (20 Nov 2026). He asked for "Shift+Tab+Enter", but VS Code cannot make a shortcut with Tab in it (Tab is not a key you hold like Shift, Ctrl or Alt). Alt+Enter alone is taken in R files (the R add-on's `r.runSelectionRetainCursor`), Shift+Alt+Enter was free |
 | (stop button) | the square at the top right of an R file and in the terminal panel: Ctrl+C to R, stops a running command (section 5, 18 Nov 2026) |
 | Ctrl+Numpad4 | new **Claude Code** chat as a tab in the editor window that has the keyboard (his wish, 18 Nov 2026). Runs `chatOpener.newChatHere` of the chat opener add-on (section 9), which calls `claude-vscode.editor.open` with column `Active` and `fullEditor = true`. Until 18 Nov 2026 the key ran Claude's own `claude-vscode.primaryEditor.open`, but that one prefers **any** editor window holding only Claude tabs (its function `Rse`, read in 2.1.327: first this window if it has only Claude tabs, then any window with only Claude tabs, then this window), so once a column or a floating window full of chats existed, every new chat landed there. The old entry stays first in keybindings.json, the new one has `"when": "chatOpener.ready"` (set by the add-on when it starts), so the key never goes dead while a window still runs the old add-on. NumLock must be on |
 | Ctrl+Numpad9 | a `.qmd`: Word Page ↔ plain text, both ways (section 5c; 16 Nov 2026, on Ctrl+Numpad1 until 18 Nov 2026, when that key went to the Claude chat tab). In the text you see Claude's edits red/green with Keep / Undo |
