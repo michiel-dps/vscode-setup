@@ -1408,6 +1408,29 @@ saving from the page in the bench and comparing the file):
   `README.md`, `CLAUDE.md` or a memory file as a page.
 - A file opened as a page shows as changed (the dot on the tab) right away
   when its markdown was not yet in that tidy style.
+- **Measured on 43 hand-written `.md` files (20 Nov 2026**, the KILDE.md
+  files of the Spørreskjemaer folder, copies in the bench, asked: "in qmd
+  visual editor we can show them, why not do the same for .md files"). With
+  his auto save (100 ms) every one of the 43 was rewritten just by being
+  opened as a page, nobody typed: 9 only lost the empty line at the end, 34
+  changed more. What changes: spaces at line ends go, empty lines come and
+  go, a link on its own line joins the line above, a backslash comes in
+  front of `~`, `$`, `>` and `[` in running text (`\~97`, `\$20`). One file
+  was damaged: a `## Heading` with no empty line above it was glued to the
+  paragraph before it and stopped being a heading (the preview and GitHub
+  read it as a heading, pandoc does not). Typing one word afterwards changed
+  only that line. Claude's edits do show as amber marks on a `.md` page, but
+  a change inside backticks (a file name) gets a card with Accept only, no
+  Decline. And with `wordPage.assistant` on, Claude also reads the
+  paragraphs for suggestions. So for files that must stay exactly as
+  written, review Claude's edits in the text view, not on the page. How it
+  was run: the bench with `"*.md": "quarto.visualEditor"`, auto save and
+  `wordPage.assistant` false in its settings.json, one `-Open` per file,
+  compared with the originals afterwards. Two things about the bench found
+  on the way: after a VS Code update it needs `-Fresh` (the copy was one
+  version behind), and it reopens the tabs of the last run, so close them
+  with F1, "View: Close All Editors" (through `cdp.py key F1`, `type`,
+  `key Enter`) before a new run: 43 open pages made it very slow.
 - It is for `.qmd` and `.md`. An `.Rmd` cannot be opened as a page (Quarto
   does not allow it): write in a `.qmd`, Claude moves the text into the `.Rmd`.
 - **Claude's suggestions, like Grammarly** (16 Nov 2026, asked: "me having a
