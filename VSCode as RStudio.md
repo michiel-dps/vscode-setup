@@ -2663,6 +2663,15 @@ red/green.** `workbench.editorAssociations` in settings.json sends `*.md` to
 `vscode.markdown.preview.editor`. To see Claude's changes in a `.md`:
 Ctrl+Shift+P → **View: Reopen Editor With Text Editor**. The same holds as
 for the Word Page of a `.qmd`: Keep / Undo live in the text view only.
+**In one folder a `.md` can open as text by itself** (20 Nov 2026, chosen
+for the Spørreskjemaer folder after the Word Page test in section 5c): a
+file `.vscode/settings.json` in that folder with
+`"workbench.editorAssociations": { "*.md": "default" }`. The folder setting
+wins over his own setting (checked in the bench: his setting said
+`quarto.visualEditor`, the folder said `default`, the file opened as text
+and stayed unchanged). **Ctrl+Shift+V** then shows the rendered view for
+reading (VS Code's own key, free in his keybindings). His own settings.json
+is not touched, so a `.md` in every other folder still opens rendered.
 
 **`.txt` since 20 Nov 2026**, for the text copy of an Excel file. An `.xlsx`
 is a packed file and cannot show red/green at all (asked: "cant you also
