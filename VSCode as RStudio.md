@@ -3209,17 +3209,39 @@ Lock and unlock times are in the log `Microsoft-Windows-Winlogon/Operational`
 (event 811, `<Sens>`, notification 4 = lock, 5 = unlock). The times the
 screens woke up are event 566 of `Kernel-Power` in the System log.
 
-**The fix**: disconnect the VPN when it is not needed (the Cisco icon next
-to the clock, Disconnect). Nothing in the setup was changed.
+**The fix for the sign-in**: disconnect the VPN when it is not needed (the
+Cisco icon next to the clock, Disconnect). The 45 s after the password is
+Windows itself, the setup cannot change it.
 
-**Not done, needs admin rights and his yes**: the search path of Windows for
-all users (the machine `Path`) holds `M:\Python27\`, before Git. That folder
-does not exist (looked on 20 Nov 2026 with `M:` connected). Every program
-that is started by its bare name (`git`, `python`, `claude`) is first looked
-for on the network drive. While the drive's server does not answer, such a
-look can wait about 21 s: seen once at 17:44:58 with the VPN on, not proven
-to be what stops the add-on process. Taking the entry out makes the setup
-independent of that server. After it, close VS Code fully and start it again.
+**The fix for the grey chat and the freezes: the Enter add-on leaves dead
+network folders out of the search path (v0.5.8, 20 Nov 2026).** The search
+path of Windows for all users (the machine `Path`) holds `M:\Python27\`,
+before Git. That folder does not exist (looked on 20 Nov 2026 with `M:`
+connected). A program started by its bare name (`git`, `python`, `claude`)
+is looked for in every folder of the list, top to bottom, so first on the
+network drive. The Claude add-on starts git by its bare name many times
+(worktree list, remote, check-ignore), inside the process that runs all
+add-ons of the window, and Node does the looking inside the start itself.
+Measured with a stand-in (a folder on an address that never answers, put
+right before Git in the list): starting git by its bare name stopped the
+process for 21.0 s, by its full path 0.0 s. 21 s is how long Windows waits
+for a server that does not answer.
+
+His choice (20 Nov 2026): the list belongs to the whole PC, so it is not
+touched ("if it belongs to the whole pc dont touch it, just see if you can
+get the shit we need to be found faster"). Instead `cleanSearchPath` in the
+Enter add-on runs at the start of every VS Code window. It looks, in the
+background, at every folder of the list that is not on the Windows drive.
+A folder that does not exist, or gives no answer within 2 s, is left out of
+the copy of the list inside that window's add-on process. All add-ons of the
+window share that copy and the programs they start get it (git, Claude and
+its hooks). Nothing outside VS Code changes, and the R terminal and other
+terminals keep the full list. Log line in `%TEMP%\r-pipe-indent.log`:
+`search path: left out M:\Python27\ (missing)`. Same test after the change:
+the dead folder was left out and git by its bare name stopped the process
+0.0 s. 7 new checks in `test.js` (139 in all). Needs Restart Extension Host
+once. A folder that comes back later (a network drive with real programs on
+it) is seen again at the next Restart Extension Host or window start.
 
 **Also seen, not changed**: on this PC the Elden Show locked Windows 606 and
 607 s after it started, twice on 20 Nov 2026, logged as `locked on input`.

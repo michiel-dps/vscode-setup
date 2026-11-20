@@ -1255,7 +1255,57 @@ async function startFreshR() {
   log("fresh R: started" + (old.length ? ", closed " + old.length + " old R terminal(s)" : ""));
 }
 
+// ---- Search path: dead network folders are left out (20 Nov 2026) ----
+// A program started by its bare name ("git") is looked for in every folder of the Windows
+// search path (PATH), top to bottom. The part of that list that belongs to the whole PC holds
+// M:\Python27\ before Git: a folder on the network home drive that does not exist. While the
+// server of that drive gives no answer (the university VPN connected at the office) one look
+// into it takes 21 s. Node does that look inside spawn itself, so this whole add-on process
+// stood still: a new Claude chat stayed grey, Enter and Keep / Undo came late (note section
+// 13). The Claude add-on starts git by its bare name many times.
+// The list of the PC is not touched. At the start of a window this changes only the copy of
+// the list inside this add-on process. All add-ons of the window share that copy, and the
+// programs they start get it. Folders outside the Windows drive that do not exist, or that
+// give no answer within 2 s, are left out. The look runs in the background.
+const PATH_ANSWER_MS = 2000;
+
+function onWindowsDrive(folder) {
+  const drive = (process.env.SystemDrive || "C:").toLowerCase();
+  return folder.toLowerCase().startsWith(drive);
+}
+
+// "there", "missing" or "no answer"
+function lookAtFolder(folder, limitMs) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve("no answer"), limitMs);
+    fs.promises.stat(folder).then(
+      () => { clearTimeout(timer); resolve("there"); },
+      () => { clearTimeout(timer); resolve("missing"); }
+    );
+  });
+}
+
+function withoutFolders(pathText, dead) {
+  const drop = dead.map((folder) => folder.toLowerCase());
+  const kept = pathText.split(path.delimiter).filter((folder) => !drop.includes(folder.toLowerCase()));
+  return kept.join(path.delimiter);
+}
+
+async function cleanSearchPath(limitMs) {
+  const all = (process.env.PATH || "").split(path.delimiter);
+  const outside = all.filter((folder) => folder && !onWindowsDrive(folder));
+  const answers = await Promise.all(outside.map((folder) => lookAtFolder(folder, limitMs)));
+  const dead = outside.filter((folder, i) => answers[i] !== "there");
+  if (dead.length === 0) return dead;
+  process.env.PATH = withoutFolders(process.env.PATH || "", dead);
+  outside.forEach((folder, i) => {
+    if (answers[i] !== "there") log("search path: left out " + folder + " (" + answers[i] + ")");
+  });
+  return dead;
+}
+
 function activate(context) {
+  cleanSearchPath(PATH_ANSWER_MS).catch((e) => log("ERR  search path | " + (e && e.stack ? e.stack : e)));
   startFreshR().catch((e) => log("ERR  fresh R | " + (e && e.stack ? e.stack : e)));
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.stopR", stopR));
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.stageChangeStay", stageChangeStay));
@@ -1265,9 +1315,9 @@ function activate(context) {
   context.subscriptions.push(vscode.commands.registerCommand("rPipeIndent.ctrlClick", ctrlClickLogged));
   context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(noteMouseClick));
   try { activateClaudeEdits(context); } catch (e) { log("ERR  edits " + (e && e.stack ? e.stack : e)); }
-  log("activated 0.5.7 (Claude's edits hold the editor shorter and leave the screen where it is, 19 Nov 2026)");
+  log("activated 0.5.8 (dead network folders are left out of the search path, 20 Nov 2026)");
 }
 
 function deactivate() {}
 
-module.exports = { activate, deactivate, _test: { blank, unterminatedQuote, statementStart, statementEnd, unfinished, makeSavedEditsSafe, freshSavedEdits, changedBlock, matchingLine, sessionObjectAt, startFreshR, shiftedTop, watchForWrite } };
+module.exports = { activate, deactivate, _test: { blank, unterminatedQuote, statementStart, statementEnd, unfinished, makeSavedEditsSafe, freshSavedEdits, changedBlock, matchingLine, sessionObjectAt, startFreshR, shiftedTop, watchForWrite, withoutFolders, lookAtFolder, cleanSearchPath } };

@@ -447,6 +447,33 @@ async function pipe(lineText, col) {
     try { fs.unlinkSync(file); } catch (e) { /* gone */ }
   }
 
+  // ---- dead network folders are left out of the search path (20 Nov 2026) ----
+  console.log("--- search path: dead folders outside the Windows drive are left out");
+  {
+    const os = require("os");
+    const sep = path.delimiter;
+    const without = ext._test.withoutFolders;
+    check("one folder taken out, the order stays", without(["C:\\a", "M:\\Python27\\", "C:\\Git\\cmd"].join(sep), ["M:\\Python27\\"]), ["C:\\a", "C:\\Git\\cmd"].join(sep));
+    check("capital letters do not matter", without(["C:\\a", "m:\\python27\\"].join(sep), ["M:\\Python27\\"]), "C:\\a");
+    check("nothing to take out: unchanged", without(["C:\\a", "C:\\b"].join(sep), []), ["C:\\a", "C:\\b"].join(sep));
+
+    check("a folder that is there", await ext._test.lookAtFolder(os.tmpdir(), 2000), "there");
+    check("a folder that is not there", await ext._test.lookAtFolder(path.join(os.tmpdir(), "no-such-folder-xyz"), 2000), "missing");
+
+    // a drive letter no drive has, as a stand-in for a folder outside the Windows drive
+    const letters = "QRSTUVWXYZ".split("");
+    const free = letters.find((letter) => !require("fs").existsSync(letter + ":\\"));
+    const before = process.env.PATH;
+    const gone = free + ":\\no-such-folder\\";
+    const localGone = (process.env.SystemDrive || "C:") + "\\no-such-folder-xyz";
+    process.env.PATH = [os.tmpdir(), gone, localGone].join(sep);
+    const dead = await ext._test.cleanSearchPath(2000);
+    const after = process.env.PATH;
+    process.env.PATH = before;
+    check("the folder outside the Windows drive is reported", dead, [gone]);
+    check("it is out of the search path, a missing folder on the Windows drive stays", after, [os.tmpdir(), localGone].join(sep));
+  }
+
   console.log("\n" + passed + " passed, " + failed + " failed");
   process.exitCode = failed ? 1 : 0;
 })();
