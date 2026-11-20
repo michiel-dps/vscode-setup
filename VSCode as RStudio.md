@@ -2685,13 +2685,27 @@ through the Unifying receiver (HID++) and starts hidden at every logon.
 | Key | What it does |
 |---|---|
 | F1 / F2 | external screens darker / brighter, 10 of 100 per press, hold to keep going |
-| F7 / F6 | key lights on / key lights off (since 19 Nov 2026, before that F6 gave the keyboard's normal light). F7 again while on: lights off and on again, for when they are dark. After 5 minutes without input the lights go off so the keyboard can sleep, the first touch puts them on again |
+| F6 / F7 | key lights dimmer / brighter: the keyboard's own keys, not the helper's (since 20 Nov 2026, see below) |
+| (no key) | the helper keeps the key lights forced on, so they also shine in a bright room. After 5 minutes without input the lights go off so the keyboard can sleep, the first touch puts them on again |
+
+**Forced on, dimmed by the keyboard** (20 Nov 2026, his choice: "exactly
+like it is right now is what i want"). The keyboard's own light has a light
+sensor and goes dark in a bright room. The helper forces it on with the
+hidden LED test switch (mask 0x10), so it shines anyway. F6/F7 are left to
+the keyboard: they set the keyboard's own brightness level, and the forced
+light follows that level. Found by accident: on 20 Nov the keyboard slept
+and woke at 11:52, forgot that F6/F7 went to the helper, and the helper did
+not take them back. He liked the result, so now the helper never takes
+F6/F7 (`kb.ensure_diverted(False)` at connect, the F6/F7 code is gone). From
+18 to 20 Nov the helper took F6/F7 over: F7 = forced on, F6 = forced off, no
+dimming. `state.json` stays `{"forced": true}`: nothing in the watcher
+changes it any more, only `python mxkeys_backlight.py off`.
 
 **The keyboard is left alone** (19 Nov 2026, "keyboard is going empty
 really quickly": full at 11:00, 20% at 14:55). The helper used to ask the
 keyboard for its battery every 5 seconds and check it every 15 seconds, and
 kept the battery LED forced orange. Now it talks to the keyboard only when
-it connects, when F1/F2/F6/F7 is pressed, once after 5 minutes without
+it connects, when F1/F2 is pressed, once after 5 minutes without
 input (lights off), at the first touch after that (lights on), when the
 receiver reports that the keyboard woke, and when an external screen comes
 or goes. Away and back come from Windows' own input clock, which costs the
@@ -2701,9 +2715,9 @@ asleep (link to the receiver off)" and "keyboard woke up" followed by
 "lights on after waking". While nobody is at the computer and the keyboard
 does not answer, the helper does not ping it either (a ping wakes it). The
 battery light is the keyboard's own again (no colours). Note: the forced
-light is the LED test mode, full brightness with no dimming, so with the
-lights on the battery still runs down much faster than with the keyboard's
-own light. F6 when on battery saves the most.
+light ignores the light sensor, so it also burns in daylight and the
+battery runs down faster than with the keyboard's own light. Dimming with
+F6 on battery saves the most (not measured).
 
 **Until 19 Nov 2026: the battery light while forced** (his choice, 18 Nov
 2026, dropped for the battery). The key backlight stayed on in every row:
@@ -2752,10 +2766,11 @@ not see `--user` packages) and starts the watcher.
   plain F-keys. Press Fn+Esc once.
 - Right after waking the keyboard, the first press can do nothing: the
   watcher connects again within about 10 seconds.
-- **F6/F7 do nothing right after a restart** (19 Nov 2026, after the crash):
+- **Lights not forced right after a restart** (19 Nov 2026, after the crash):
   Windows runs the Startup folder a few minutes after logon (that day logon
-  16:28, "watch started" 16:32). Until that line is in `watch.log` there is
-  no helper to answer the keys. Wait, then press F7 again.
+  16:28, "watch started" 16:32). Until that line is in `watch.log` the
+  keyboard runs its own light (dark in a bright room) and F1/F2 do nothing
+  on the external screens. Wait.
 - Nothing at all: read `watch.log`. "not responding on the receiver" =
   keyboard asleep or on another Easy-Switch channel or Bluetooth. "F1/F2
   keys ... not on this keyboard" lists the key codes the keyboard does have.
@@ -2772,11 +2787,9 @@ not see `--user` packages) and starts the watcher.
   seconds without mouse or keyboard input (Windows' `GetLastInputInfo`),
   and when the keyboard connects again. Log line: "lights switched off and
   on again". Dark lights without that line after a break: the pause was not
-  seen. Then F7 switches them back by hand: since 19 Nov 2026 F7 always
-  switches the lights off and on again, also when the helper already has
-  them as forced on (log line "F7 pressed: lights switched off and on
-  again"). Before that F7 did nothing in that case, and only F6 followed by
-  F7 worked. After a deep sleep the
+  seen. By hand: `python mxkeys_backlight.py on` in `Tools\mxkeys` switches
+  them off and on again (from 19 to 20 Nov 2026 F7 did this, now F7 belongs
+  to the keyboard). After a deep sleep the
   keyboard does not answer for a few seconds: the helper then tries every 2
   seconds (10 times, then every 10), so the backlight is back within a few
   seconds of a touch (was 10 to 40 seconds before 18 Nov 2026 evening).
@@ -2788,7 +2801,7 @@ not see `--user` packages) and starts the watcher.
   without mouse or keyboard input (`AWAY_AFTER = 300` at the top of
   `mxkeys_backlight.py`), the helper switches every light off (backlight
   and battery light, LED test mask 0x00), asks nothing and only listens.
-  The first touch (a key, the mouse, or F1/F2/F6/F7) forces the lights on
+  The first touch (a key, the mouse, or F1/F2) forces the lights on
   again. Log lines: "away: lights off, keyboard left alone so it can
   sleep" and "back at the computer". So sitting still for 5 minutes
   (reading) also turns the backlight off until the next touch. Until 19 Nov
@@ -2806,7 +2819,7 @@ not see `--user` packages) and starts the watcher.
   alone" above). Lights dark while using only the mouse for a while: the
   keyboard slept on its own timer. Touching a key should give "keyboard
   woke up" in the log and the lights come on. If that line never appears,
-  the receiver does not send wake notices: press F7.
+  the receiver does not send wake notices: run `python mxkeys_backlight.py on`.
 - Stop for good: `python mxkeys_backlight.py restore` (normal backlight,
   F1/F2/F6/F7 back to normal), stop the watcher, delete the `.vbs`.
 

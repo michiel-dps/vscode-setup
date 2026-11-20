@@ -1,10 +1,12 @@
-"""MX Keys backlight: force the key lights on or off via the hidden HID++ LED-test feature (0x18A1).
-F7 = key lights on, F6 = key lights off. The battery light is left to the keyboard.
+"""MX Keys backlight: force the key lights on via the hidden HID++ LED-test feature (0x18A1).
+Forced on, the lights also shine in a bright room (the keyboard's light sensor no longer turns them off).
+F6/F7 stay with the keyboard itself (since 20 Nov 2026): they dim and brighten the forced lights.
+The battery light is left to the keyboard.
 
 The watcher leaves the keyboard alone (19 Nov 2026, the battery went from full to 20% in 4 hours):
 no battery checks, no regular questions. It only talks to the keyboard
-  - when it connects (lights as chosen, F1/F2/F6/F7 taken over),
-  - when F1/F2/F6/F7 is pressed,
+  - when it connects (lights as chosen, F6/F7 left to the keyboard, F1/F2 see below),
+  - when F1/F2 is pressed,
   - after 5 minutes without input: one message, lights off, so the keyboard can sleep,
   - at the first touch after that, or when the receiver says the keyboard woke: lights on again,
   - when an external screen comes or goes (F1/F2 to the watcher or back to Windows).
@@ -13,8 +15,7 @@ Usage:  python mxkeys_backlight.py on|off|status|watch|restore
   on       key lights forced on (and remember that choice)
   off      key lights forced off (and remember that choice)
   status   print current state
-  watch    run forever, see above. F7 while already on = switch the lights off and on again
-           (they can be dark after the keyboard slept).
+  watch    run forever, see above.
            Also F1/F2 (screen brightness down/up): external screens over DDC/CI (screens.py),
            hold the key to keep going. Only while such a screen is connected. With the computer
            screen alone, F1/F2 go back to Windows' own brightness control.
@@ -44,7 +45,8 @@ def idle_seconds():
 
 DEVICE_NAME = "MX Keys"
 # LED-test mask, byte 0: bit0 battery LED green, bit1 battery LED red, bit3 caps lock, bit4 key backlight.
-# Byte 2 holds the three Easy-Switch LEDs. The test mode only knows on/off per LED, no brightness level.
+# Byte 2 holds the three Easy-Switch LEDs. The test mode only knows on/off per LED, but the forced
+# backlight follows the keyboard's own brightness level, which its own F6/F7 set (seen 20 Nov 2026).
 LED_BACKLIGHT = 0x10
 ON_MASK = bytes([LED_BACKLIGHT, 0x00, 0x00])
 CLEAR = bytes([0x00, 0x00, 0x00])
@@ -228,7 +230,7 @@ def cmd_watch():
                 missing = [f"{cid:#06x}" for cid in BRIGHTNESS_KEYS if cid not in kb.cids]
                 if missing:
                     log(f"F1/F2 keys {missing} not on this keyboard. It has: {[f'{c:#06x}' for c in sorted(kb.cids)]}")
-                kb.ensure_diverted(True)
+                kb.ensure_diverted(False)         # F6/F7 stay with the keyboard: they dim the forced lights
                 external = None
                 next_screens = 0
                 wanted = load_wanted()
@@ -280,23 +282,13 @@ def cmd_watch():
             newly = keys - held
             held = keys
             if newly:
-                last_key = time.time()            # a press of F1/F2/F6/F7 also means he is back
-            if away and (CID_BACKLIGHT_UP in newly or CID_BACKLIGHT_DOWN in newly):
-                continue                          # the next round lights the keyboard again
+                last_key = time.time()            # a press of F1/F2 also means he is back
             for cid in BRIGHTNESS_KEYS:
                 if cid in newly:
                     step_screens(cid, "F1 pressed" if cid == CID_BRIGHTNESS_DOWN else "F2 pressed")
                     repeat_at = time.time() + HOLD_DELAY
             if not any(cid in held for cid in BRIGHTNESS_KEYS):
                 repeat_at = None
-            if CID_BACKLIGHT_UP in newly:
-                wanted = True
-                save_wanted(True)
-                log(f"F7 pressed: lights on (ok={kb.lights_on()})")
-            elif CID_BACKLIGHT_DOWN in newly:
-                wanted = False
-                save_wanted(False)
-                log(f"F6 pressed: lights off (ok={kb.lights_off()})")
         except Exception as e:
             log(f"keyboard unavailable: {e}")
             try:
