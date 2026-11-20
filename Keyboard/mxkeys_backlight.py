@@ -122,12 +122,30 @@ class Keyboard:
         return self.req(self.f_led, 1)[:3] == mask
 
     def lights_on(self):
-        """Switch off and on again: after sleep the lights are dark but still reported as on."""
+        """Switch off and on again: after sleep the lights are dark but still reported as on.
+        Done twice, 1.5 s apart: the first time the keyboard often says yes but stays dark
+        (20 Nov 2026, 15:57 after a long sleep and 16:31 after "back at the computer")."""
+        self.set_mask(CLEAR)
+        self.set_mask(ON_MASK)
+        time.sleep(1.5)
         self.set_mask(CLEAR)
         return self.set_mask(ON_MASK)
 
     def lights_off(self):
         return self.set_mask(CLEAR)
+
+    def own_light(self):
+        """The keyboard's own light mode (feature 0x1982, function 2), for the log.
+        Status 4 = F6/F7 set the level (they also dim the forced light). Status 3 = the light
+        sensor finds the room too bright: then F6/F7 do nothing (seen 20 Nov 2026)."""
+        try:
+            if not hasattr(self, "f_own"):
+                self.f_own, _, _ = self.rx.feature_index(self.idx, 0x1982)
+            info = self.req(self.f_own, 2)
+            names = {2: "light sensor", 3: "too bright, F6/F7 dead", 4: "F6/F7 set it"}
+            return f"own light level {info[1]} of {info[0] - 1}, status {info[2]} ({names.get(info[2], '?')})"
+        except Exception as e:
+            return f"own light unknown ({e})"
 
     def apply(self, wanted):
         return self.lights_on() if wanted else self.lights_off()
@@ -234,12 +252,7 @@ def cmd_watch():
                 external = None
                 next_screens = 0
                 wanted = load_wanted()
-                log(f"key lights {'on' if wanted else 'off'} (ok={kb.apply(wanted)})")
-                # After a long sleep the keyboard takes the first "on" but stays dark (20 Nov 2026,
-                # 15:57): the same off-and-on 2 seconds later lights it
-                if wanted:
-                    time.sleep(2)
-                    log(f"key lights on again after 2 s (ok={kb.lights_on()})")
+                log(f"key lights {'on' if wanted else 'off'} (ok={kb.apply(wanted)}), {kb.own_light()}")
             # External screens: checked over the screen cable, the keyboard is only asked when it changes
             if time.time() >= next_screens and not away:
                 now_external = len(screens.brightness()) > 0
@@ -260,7 +273,7 @@ def cmd_watch():
             if idle < 2 and away:
                 away = False
                 if wanted:
-                    log(f"back at the computer: lights on (ok={kb.lights_on()})")
+                    log(f"back at the computer: lights on (ok={kb.lights_on()}), {kb.own_light()}")
                 else:
                     log("back at the computer")
             held_brightness = [cid for cid in BRIGHTNESS_KEYS if cid in held]
@@ -279,7 +292,7 @@ def cmd_watch():
                     log("keyboard woke up")
                     time.sleep(1)                 # it needs a moment before it answers
                     if wanted and not away:
-                        log(f"lights on after waking (ok={kb.lights_on()})")
+                        log(f"lights on after waking (ok={kb.lights_on()}), {kb.own_light()}")
                 continue
             keys = kb.pressed_keys(report)
             if keys is None:
