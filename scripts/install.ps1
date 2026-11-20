@@ -2,7 +2,8 @@
 #
 #   addons    VS Code add-ons from the Marketplace (extensions.txt)
 #   enter     the Enter add-on (own): R pipes, Ctrl+Enter check, Claude's edits red/green
-#   settings  VS Code settings (colours, editor) and keybindings (RStudio keys)
+#   settings  VS Code settings (colours, editor) and keybindings (RStudio keys),
+#             the window keeper (repairs a VS Code window that stopped drawing)
 #   r         R startup file (watch.R), .lintr, all R packages, fixes to the R add-on and PDF viewer
 #   wordpage  the Word Page add-on (own): write like in Word in Quarto's visual editor
 #   git       name, e-mail, GitHub login helper (.gitconfig)
@@ -170,7 +171,7 @@ if ($Plan) {
                       downloads = 'nothing'
                       files = @((Join-Path $userHome '.vscode\argv.json')) }
         settings = @{ title = 'VS Code settings and keybindings'
-                      does = 'the idleFingers colours, editor settings like RStudio, RStudio keys (Ctrl+Enter, Ctrl+Shift+M, ...). Replaces your own settings and keys.'
+                      does = 'the idleFingers colours, editor settings like RStudio, RStudio keys (Ctrl+Enter, Ctrl+Shift+M, ...). Replaces your own settings and keys. Also builds and starts the window keeper, a small program that starts at every login and repairs a VS Code window that stopped drawing (plain grey).'
                       downloads = 'nothing'
                       files = @((Join-Path $vscodeUser 'settings.json'), (Join-Path $vscodeUser 'keybindings.json')) }
         r        = @{ title = 'R like RStudio'
@@ -379,6 +380,11 @@ if (Want 'settings') {
     Say 'VS Code settings and keybindings'
     Install-File "$setup\VS Code\settings.json"    (Join-Path $vscodeUser 'settings.json')
     Install-File "$setup\VS Code\keybindings.json" (Join-Path $vscodeUser 'keybindings.json')
+
+    # The window keeper: repairs a VS Code window that stopped drawing (20 Nov 2026, note section 6, point 9)
+    Run 'build and start the VS Code window keeper (starts at every login)' {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File "$setup\VS Code\window-keeper\install.ps1"
+    }
 }
 
 

@@ -80,7 +80,9 @@ if ($bad.Count -eq 0) {
 #    be reached, and the R data viewer landed in it. The window is drawn into a picture
 #    (this works also when the screen is locked or covered) and an empty window has at most
 #    two colours. It is drawn twice, 3 seconds apart, so a window that is just opening is not
-#    counted. -Fix closes it only when another window of the same VS Code still shows content.
+#    counted. -Fix first changes its size a little (a window that only stopped drawing, as on
+#    20 Nov 2026, draws again), and closes it only when that did not help and another
+#    window of the same VS Code still shows content.
 #    Claude chats that were in it stay saved: /chats opens them again.
 Add-Type -AssemblyName System.Drawing
 Add-Type @"
@@ -96,6 +98,7 @@ public class VsWindows {
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint f);
     [DllImport("user32.dll")] public static extern IntPtr SendMessageTimeout(IntPtr h, uint m, IntPtr w, IntPtr l, uint f, uint t, out IntPtr r);
+    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int w, int hh, uint f);
     public static List<IntPtr> Visible() {
         var found = new List<IntPtr>();
         EnumWindows((h, l) => { if (IsWindowVisible(h) && !IsIconic(h)) found.Add(h); return true; }, IntPtr.Zero);
@@ -151,7 +154,21 @@ if ($empty.Count -eq 0) {
         "WRONG  a VS Code window shows nothing: $(Get-WindowTitle $handle)"
     }
     if ($Fix) {
-        if ($windows.Count -gt $empty.Count) {
+        # first a small change of size: a window that only stopped drawing draws again (20 Nov 2026)
+        foreach ($handle in $empty) {
+            $box = New-Object VsRect
+            [VsWindows]::GetWindowRect($handle, [ref]$box) | Out-Null
+            [VsWindows]::SetWindowPos($handle, [IntPtr]::Zero, 0, 0, ($box.Right - $box.Left) - 8, ($box.Bottom - $box.Top), 0x16) | Out-Null
+            Start-Sleep -Milliseconds 250
+            [VsWindows]::SetWindowPos($handle, [IntPtr]::Zero, 0, 0, ($box.Right - $box.Left), ($box.Bottom - $box.Top), 0x16) | Out-Null
+        }
+        Start-Sleep -Milliseconds 800
+        $redrawn = @($empty | Where-Object { -not (Test-WindowEmpty $_) })
+        if ($redrawn.Count -gt 0) { "       repaired: $($redrawn.Count) window(s) draw again after a small change of size" }
+        $empty = @($empty | Where-Object { Test-WindowEmpty $_ })
+        if ($empty.Count -eq 0) {
+            # nothing left to close
+        } elseif ($windows.Count -gt $empty.Count) {
             foreach ($handle in $empty) {
                 $answer = [IntPtr]::Zero
                 [VsWindows]::SendMessageTimeout($handle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero, 2, 5000, [ref]$answer) | Out-Null
@@ -159,6 +176,25 @@ if ($empty.Count -eq 0) {
             "       repaired: the empty window is closed. Chats that were in it: /chats opens them again"
         } else {
             "       not closed, it is your only window: click in it and press Ctrl+R (Reload Window)"
+        }
+    }
+}
+
+# 5. the window keeper runs (20 Nov 2026, note section 6, point 9)
+#    It repairs a VS Code window that stopped drawing (grey, no title bar) by changing its
+#    size a little. Its log: AppData\Local\VsWindowKeeper\log.txt
+$keeper = Join-Path $env:LOCALAPPDATA 'VsWindowKeeper\WindowKeeper.exe'
+if (Get-CimInstance Win32_Process -Filter "Name='WindowKeeper.exe'") {
+    "OK     the window keeper runs"
+} else {
+    $wrong = $wrong + 1
+    "WRONG  the window keeper does not run (it repairs a VS Code window that stopped drawing)"
+    if ($Fix) {
+        if (Test-Path -LiteralPath $keeper) {
+            Start-Process $keeper
+            "       repaired: started"
+        } else {
+            & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot\..\VS Code\window-keeper\install.ps1"
         }
     }
 }

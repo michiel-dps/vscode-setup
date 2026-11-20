@@ -1930,10 +1930,11 @@ was removed; the real VS Code writes a new one when a folder is opened.
 `launch.ps1` also removes that list at every start and `-Stop` when it names
 the bench copy (`Restore-TaskbarList`). **If a window ever behaves strangely
 again (Claude does not open, empty logs), run `scripts\check-vscode.ps1`
-first** (`-Fix` repairs). It checks four things: the `vscode://` links
+first** (`-Fix` repairs). It checks five things: the `vscode://` links
 start the real VS Code, the taskbar list starts the real VS Code, no
 copy of VS Code runs with your own settings (a copy without its own
-`--user-data-dir`), and (since 18 Nov 2026) no VS Code window is empty. For
+`--user-data-dir`), (since 18 Nov 2026) no VS Code window is empty, and
+(since 20 Nov 2026) the window keeper runs (section 6, point 9). For
 the last one it draws each window into a picture (works also on a locked
 screen) and an empty window has at most two colours. `-Fix` closes an empty
 window only when another VS Code window still shows content; Claude chats
@@ -2176,6 +2177,33 @@ the style block uses `#editor`, `.ProseMirror > .body`, `.pm-content` and
      a test copy of VS Code. Not tested either: whether 1.147.0 has it, and
      whether a full restart of VS Code has it. Until then: with a floating
      window open, Restart Extension Host and never Reload Window (section 3).
+  9. **A floating window that stops drawing is repaired by itself** (20 Nov
+     2026, the window keeper). At 13:06 a Ctrl+click on `c2_draws` opened
+     the data viewer in the floating window on the right screen (point 7),
+     and that whole window went plain grey: no title bar, no tabs. Unlike
+     point 8, VS Code still knew the window and its tab: a change of its
+     size by a few pixels made it draw again at once (the tab `c2_draws`
+     with its numbers). Not the Elden Show: a 5 s show over both screens
+     left every window drawing, and VS Code already turns off Chrome's
+     "covered window" tracking (`CalculateNativeWinOcclusion` in
+     `mainImpl.js`). The cause inside VS Code is not known. The repair:
+     `VS Code\window-keeper\WindowKeeper.cs`, built by `install.ps1` next to
+     it into `AppData\Local\VsWindowKeeper\WindowKeeper.exe` and started at
+     login by the Startup shortcut "VS Code window keeper" (INSTALL does
+     this in the `settings` part). It takes a picture of each VS Code window
+     (as check 4 of `check-vscode.ps1`) 1.5 and 5 s after a VS Code window
+     gets a new title or appears (a new active tab, a Ctrl+click), after
+     every unlock and screen change, and every 30 s. A window with at most
+     two colours is looked at once more a second later, then made 8 pixels
+     narrower and back, at most twice. Its log is `log.txt` next to the
+     program: `drew nothing, repaired (...)`, or `... a size change did not
+     help`, which is the point 8 kind: then `check-vscode.ps1 -Fix`.
+     `WindowKeeper.exe --check` looks once and writes what it sees, `--quit`
+     stops it. Tested 20 Nov 2026 with a fake window that stays grey until
+     its size changes: repaired 4 s after it appeared, and the two real
+     windows (97 and 20 colours) were left alone. `check-vscode.ps1` check 5
+     says whether it runs, and check 4 with `-Fix` now first tries the same
+     size change before it closes an empty window.
 - **The plot fits the R Plot tab** (18 Nov 2026, his wish: "automatically
   adjust to how big the editor window is"). `settings.json` sets
   `"r.plot.defaults.fullWindowMode": true`. The plot then fills the whole tab,

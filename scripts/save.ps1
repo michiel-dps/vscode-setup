@@ -8,8 +8,8 @@
 #
 # Not saved here because they are used straight from the setup folder:
 # R\Rprofile.R, R\watch.R, the Enter add-on (VS Code\local.r-pipe-indent-0.1.0),
-# the startup screen (VS Code\local.startup-screen-0.1.0) and Word Page
-# (VS Code\local.word-page-0.1.0).
+# the startup screen (VS Code\local.startup-screen-0.1.0), Word Page
+# (VS Code\local.word-page-0.1.0) and the window keeper (VS Code\window-keeper).
 #
 # Two computers (18 Nov 2026). Both computers save into this one folder, so SAVE
 # never throws away what the other computer saved:

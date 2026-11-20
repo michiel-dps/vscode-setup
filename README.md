@@ -93,7 +93,8 @@ Ask Claude to "publish the setup", or run
 - `VS Code` : settings (with all colours), keybindings, the list of every
   add-on (`extensions.txt`: the Marketplace ones, with the idleFingers theme,
   and the own ones), the Enter add-on, the startup screen, the fix for the
-  R add-on
+  R add-on, and `window-keeper` (a small program, started at login, that
+  repairs a VS Code window that stopped drawing, note section 6, point 9)
 - `Claude Code` : Claude's rules (CLAUDE.md), settings and hooks,
   /chats /handoff /takeon, Claude's memory
 - `git` : name, e-mail, GitHub login
@@ -105,7 +106,8 @@ Ask Claude to "publish the setup", or run
   `Elden Show\install.ps1` by hand there
 - `scripts` : the programs behind INSTALL and SAVE, and `check-vscode.ps1`:
   run it when Claude does not open in a window (it checks that every window
-  is run by the real VS Code, not by a test copy, and `-Fix` repairs), and
+  is run by the real VS Code, not by a test copy, that no window is empty
+  and that the window keeper runs, and `-Fix` repairs), and
   `check-update.ps1`: after every new VS Code version it checks that every
   key, setting, patch and test of the setup still works. Claude is reminded
   to run it at the start of a chat (note, section 12)
