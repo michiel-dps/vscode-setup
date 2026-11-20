@@ -2635,6 +2635,23 @@ reads review.py again at every edit. What red/green cannot show (a renamed,
 moved or new file, a cell in a spreadsheet) Claude writes into a file
 `ENDRINGER_claude.md` in the folder where it happened.
 
+**A `.md` opens as the rendered preview, and the preview cannot draw
+red/green.** `workbench.editorAssociations` in settings.json sends `*.md` to
+`vscode.markdown.preview.editor`. To see Claude's changes in a `.md`:
+Ctrl+Shift+P → **View: Reopen Editor With Text Editor**. The same holds as
+for the Word Page of a `.qmd`: Keep / Undo live in the text view only.
+
+**`.txt` since 20 Nov 2026**, for the text copy of an Excel file. An `.xlsx`
+is a packed file and cannot show red/green at all (asked: "cant you also
+show red and green lines for excel files"). In the Spørreskjemaer folder the
+index stays an Excel file, and two R scripts in its `_verktoy` folder keep a
+text copy next to it, one line per cell (`INDEKS_tekst.txt`):
+`indeks_til_tekst.R` writes the copy, Claude edits a line in it (red/green,
+Keep / Undo, and a `.txt` opens as plain text, so no preview is in the way),
+and `tekst_til_indeks.R` writes the changed lines into the Excel cells,
+after a backup, and checks that every other cell and the row colours stayed
+the same. The same pattern fits any other Excel file he wants reviewed.
+
 **A folder with ø, å or é in its name got no red/green at all (fixed 20 Nov
 2026).** Claude Code sends the file name to the hook as UTF-8, and Python on
 Windows read it as cp1252, so "Spørreskjemaer" became "SpÃ¸rreskjemaer". No

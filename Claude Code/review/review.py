@@ -1,7 +1,7 @@
 """review.py: make Claude's edits to R scripts show up as red/green changes in VS Code.
 
 Two things happen around every Edit/Write of an R script (.R, .Rmd, .qmd), a .bib file
-or a Markdown file (.md):
+or a text file (.md, .txt):
 
 1. VS Code's chat edit view (since 5 Nov 2026). Just before the edit, this
    script tells the Enter extension (local.r-pipe-indent, v0.5.0+) that Claude
@@ -56,7 +56,7 @@ import tempfile
 import time
 from pathlib import Path
 
-EXTS = {".r", ".rmd", ".qmd", ".bib", ".md"}   # .bib since 17 Nov 2026 (references.bib of the paper), .md since 20 Nov 2026 (KILDE.md files)
+EXTS = {".r", ".rmd", ".qmd", ".bib", ".md", ".txt"}   # .bib since 17 Nov 2026 (references.bib of the paper), .md and .txt since 20 Nov 2026 (KILDE.md files, the text copy of an Excel file)
 SKIP = ("appdata\\local\\temp", "\\.claude\\")   # Claude's own scratch files: never
 SIGNALS = Path(os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()) / "claude-edits"
 ALIVE_SECONDS = 20    # a window-<pid>.json older than this belongs to a closed window
