@@ -2785,6 +2785,22 @@ room, and F6/F7 did not bring it up: the light sensor rules the keyboard's
 own light. So the dimming of the morning came from a keyboard state that
 the helper cannot switch on on purpose. Not solved.
 
+His idea the same day: "tell the keyboard it is dark in the room". What was
+found (16:20 to 16:35): 0x1982 fn 2 gives `08 00 03` = 8 levels, level 0,
+status 3, which the reverse-engineered layout on openlogi.org calls
+"AlsSaturated" (the sensor sees enough light to keep the LEDs off). The
+battery was 50%, so not the low-battery cut. Covering the top edge of the
+keyboard with a hand or paper while pressing F6/F7 changed nothing, with
+the forced mode on and with it off: the status stayed 3 and the light
+stayed off. No public source has a command to set or fake the light sensor
+reading. The keyboard has 15 hidden "engineering" features (list read with
+feature 0x0001). One of them, 0x1A20, fn 0, gives `02 01 00 64 00 c8`
+(2, 1, 100, 200) and never changed, maybe two light thresholds. Its other
+functions are not known, and a write there may be stored in the keyboard
+for good. Nothing was written to it. Sources: Solaar issue 3308 ("Reverse
+Engineering the Logitech MX Keys Backlight Timeout via HID++ 2.0") and
+openlogi.org/hidpp/features/x1982-backlight.
+
 **The keyboard is left alone** (19 Nov 2026, "keyboard is going empty
 really quickly": full at 11:00, 20% at 14:55). The helper used to ask the
 keyboard for its battery every 5 seconds and check it every 15 seconds, and
